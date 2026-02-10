@@ -46,6 +46,7 @@
       margin-top: 8px;
       border-radius: 8px;
       border: 1px solid #ccc;
+      text-align: center;
     }
 
     button {
@@ -66,7 +67,7 @@
       border: 2px solid rgba(0,59,130,0.25);
       color: #0f172a;
       font-size: 18px;
-      text-align: left;
+      text-align: center;
     }
 
     .site-notice strong {
@@ -88,7 +89,7 @@
   <div id="status">Requesting GPS…</div>
   <div id="map"></div>
 
-  <div id="registerBox" style="display:none; text-align:left;">
+  <div id="registerBox" style="display:none; text-align:center;">
     <h3>First Visit Registration</h3>
 
     <input id="firstName" placeholder="First Name">
@@ -99,15 +100,19 @@
       <option>Contractor</option>
     </select>
 
-    <select id="company">
-      <option>Mostlane</option>
-      <option>DCI</option>
-      <option>L&B</option>
-      <option>NVC</option>
-      <option>Vail Williams</option>
-    </select>
+    <!-- COMPANY INPUT WITH TYPE-AHEAD SUGGESTIONS -->
+    <input id="company" placeholder="Company Name" list="companyList">
 
-    <label>
+    <!-- SUGGESTED COMPANY LIST -->
+    <datalist id="companyList">
+      <option value="Mostlane">
+      <option value="DCI">
+      <option value="L&B">
+      <option value="NVC">
+      <option value="Vail Williams">
+    </datalist>
+
+    <label style="display:block; margin-top:12px;">
       <input type="checkbox" id="hsAck">
       I have read site and understand site rules
     </label>
@@ -180,10 +185,10 @@ async function register() {
   const firstName = document.getElementById("firstName").value.trim();
   const lastName = document.getElementById("lastName").value.trim();
   const purpose = document.getElementById("purpose").value;
-  const company = document.getElementById("company").value;
+  const company = document.getElementById("company").value.trim();
   const hsAck = document.getElementById("hsAck").checked;
 
-  if (!firstName || !lastName || !hsAck) {
+  if (!firstName || !lastName || !company || !hsAck) {
     alert("Complete all fields and confirm site rules.");
     return;
   }

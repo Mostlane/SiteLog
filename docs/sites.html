@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Site Setup</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyANo2Q7OehYzHTTgMTxRr5ISamf5IradcM"></script>
+
+  <style>
+    body { font-family: Segoe UI; text-align:center; padding:20px; }
+    #map { height: 500px; border-radius: 12px; }
+    input, button {
+      padding:10px; width:300px; margin-top:10px;
+    }
+    button { background:#004a99; color:white; border:none; }
+  </style>
+</head>
+
+<body>
+
+<h2>📍 Add New Site Location</h2>
+<p>Click map to drop a pin, enter name, save.</p>
+
+<div id="map"></div>
+
+<input id="siteName" placeholder="Site Name">
+<button onclick="saveSite()">Save Site</button>
+
+<script>
+const API = "https://sitelog-api.jamie-def.workers.dev";
+
+let chosenLat = null;
+let chosenLng = null;
+let marker = null;
+
+const map = new google.maps.Map(document.getElementById("map"), {
+  center: { lat: 51.5, lng: -0.12 },
+  zoom: 6
+});
+
+map.addListener("click", (e) => {
+  chosenLat = e.latLng.lat();
+  chosenLng = e.latLng.lng();
+
+  if (marker) marker.setMap(null);
+
+  marker = new google.maps.Marker({
+    position: { lat: chosenLat, lng: chosenLng },
+    map
+  });
+});
+
+async function saveSite() {
+  const name = document.getElementById("siteName").value.trim();
+
+  if (!name || chosenLat == null) {
+    alert("Drop a pin and enter a name.");
+    return;
+  }
+
+  await fetch(API + "/add-site", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      siteName: name,
+      lat: chosenLat,
+      lng: chosenLng
+    })
+  });
+
+  alert("✅ Site saved: " + name);
+}
+</script>
+
+</body>
+</html>

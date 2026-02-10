@@ -2,7 +2,6 @@
   const params = new URLSearchParams(window.location.search);
   const siteCode = params.get("site");
 
-  // Device token stored on phone
   let token = localStorage.getItem("deviceToken");
   if (!token) {
     token = crypto.randomUUID();
@@ -24,8 +23,17 @@
 
     const data = await res.json();
 
-    document.getElementById("status").innerText =
-      JSON.stringify(data, null, 2);
+    let message = "Unknown response";
+
+    if (data.status === "checked_in") {
+      message = "✅ You are now CHECKED IN";
+    }
+
+    if (data.status === "checked_out") {
+      message = "👋 You are now CHECKED OUT";
+    }
+
+    document.getElementById("status").innerText = message;
   }
 
   scan();

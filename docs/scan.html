@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Site Check In</title>
+  <title>SiteLog Scan</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- Google Maps -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_KEY"></script>
+  <!-- Google Maps JS (paste your key below) -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyANo2Q7OehYzHTTgMTxRr5ISamf5IradcM"></script>
 
   <style>
     body.checkin-body {
@@ -13,7 +13,7 @@
       background: #e6e8eb url('Mostlane_Embossed.png') no-repeat center center fixed;
       background-size: 180%;
       margin: 0;
-      padding: 30px 16px;
+      padding: 40px 20px;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -22,122 +22,171 @@
     }
 
     h1 {
-      background-color: rgba(0, 74, 153, 0.7);
+      background-color: rgba(0, 74, 153, 0.6);
       color: white;
       padding: 12px 20px;
       border-radius: 8px;
       font-size: 22px;
+      font-weight: bold;
       margin-bottom: 16px;
+      width: min(520px, 100%);
+      box-sizing: border-box;
+    }
+
+    #card {
+      width: min(520px, 100%);
+      background: rgba(255,255,255,0.92);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+      box-sizing: border-box;
     }
 
     #status {
-      margin: 12px 0;
-      font-weight: bold;
+      font-weight: 700;
+      margin: 8px 0 10px;
+    }
+
+    #meta {
+      font-size: 12px;
+      opacity: 0.75;
+      margin-top: 8px;
+      word-break: break-word;
     }
 
     #map {
       width: 100%;
-      max-width: 420px;
       height: 280px;
       border-radius: 10px;
-      border: 2px solid #004a99;
+      border: 2px solid rgba(0, 74, 153, 0.35);
+      overflow: hidden;
       margin-top: 12px;
     }
 
     .small {
       font-size: 12px;
-      opacity: 0.7;
+      opacity: 0.75;
+      margin-top: 6px;
     }
   </style>
 </head>
 
 <body class="checkin-body">
+  <h1 id="title">Checking location…</h1>
 
-<h1>Verifying Location…</h1>
-<p id="status">Requesting GPS</p>
-<div id="map"></div>
-<p class="small" id="accuracy"></p>
+  <div id="card">
+    <div id="status">Requesting GPS permission…</div>
+    <div id="map"></div>
+    <div class="small" id="accuracy"></div>
+    <div id="meta"></div>
+  </div>
 
 <script>
-/* -------------------------------------------------------
-   Device ID (persistent, non-resettable unless user clears storage)
-------------------------------------------------------- */
-let deviceID = localStorage.getItem("mostlane_device_id");
-if (!deviceID) {
-  deviceID = crypto.randomUUID();
-  localStorage.setItem("mostlane_device_id", deviceID);
-}
+  // --- Config
+  const WORKER_BASE = "https://sitelog-api.jamie-def.workers.dev";
+  const SCAN_ENDPOINT = WORKER_BASE + "/scan";
 
-/* -------------------------------------------------------
-   Params
-------------------------------------------------------- */
-const params = new URLSearchParams(window.location.search);
-const siteCode = params.get("site");
+  // --- Get siteCode from query
+  const params = new URLSearchParams(window.location.search);
+  const siteCode = params.get("site") || "UNKNOWN";
 
-/* -------------------------------------------------------
-   Worker
-------------------------------------------------------- */
-const WORKER_URL = "https://sitelog-api.jamie-def.workers.dev/scan";
+  // --- Persistent device id (simple)
+  let deviceToken = localStorage.getItem("mostlane_device_id");
+  if (!deviceToken) {
+    deviceToken = crypto.randomUUID();
+    localStorage.setItem("mostlane_device_id", deviceToken);
+  }
 
-/* -------------------------------------------------------
-   GPS + Map + Scan
-------------------------------------------------------- */
-navigator.geolocation.getCurrentPosition(async pos => {
+  const statusEl = document.getElementById("status");
+  const titleEl = document.getElementById("title");
+  const accuracyEl = document.getElementById("accuracy");
+  const metaEl = document.getElementById("meta");
 
-  const lat = pos.coords.latitude;
-  const lng = pos.coords.longitude;
-  const accuracy = Math.round(pos.coords.accuracy); // meters
-  const timestamp = new Date().toISOString();
+  function setError(msg) {
+    titleEl.textContent = "❌ Cannot Check In/Out";
+    statusEl.textContent = msg;
+  }
 
-  document.getElementById("status").innerText = "Location confirmed";
-  document.getElementById("accuracy").innerText =
-    `Accuracy: ±${accuracy}m`;
+  function initMap(lat, lng) {
+    if (!window.google || !google.maps) {
+      setError("Google Maps did not load. Check API key + referrer restrictions.");
+      return null;
+    }
+    const map = new google.maps.Map(document.getElementById("map"), {
+      center: { lat, lng },
+      zoom: 18,
+      mapTypeId: "hybrid",
+      disableDefaultUI: true
+    });
+    new google.maps.Marker({
+      position: { lat, lng },
+      map,
+      title: "Your location"
+    });
+    return map;
+  }
 
-  /* Google Map */
-  const map = new google.maps.Map(document.getElementById("map"), {
-    center: { lat, lng },
-    zoom: 18,
-    mapTypeId: "hybrid",
-    disableDefaultUI: true
-  });
+  async function doScan(lat, lng, accuracy) {
+    statusEl.textContent = "Verifying…";
 
-  new google.maps.Marker({
-    position: { lat, lng },
-    map,
-    title: "Your Location"
-  });
-
-  /* Send to Worker */
-  const res = await fetch(WORKER_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+    const payload = {
       siteCode,
-      deviceToken: deviceID,
+      deviceToken,
       lat,
       lng,
       accuracy,
-      timestamp,
+      timestamp: new Date().toISOString(),
       userAgent: navigator.userAgent
-    })
-  });
+    };
 
-  const data = await res.json();
+    const res = await fetch(SCAN_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
 
-  document.querySelector("h1").innerText =
-    data.status === "checked_in"
-      ? "✅ Checked In"
-      : "👋 Checked Out";
+    const data = await res.json();
 
-}, err => {
-  document.getElementById("status").innerText =
-    "❌ Location required to check in";
-}, {
-  enableHighAccuracy: true,
-  timeout: 20000,
-  maximumAge: 0
-});
+    if (data?.status === "checked_in") {
+      titleEl.textContent = "✅ Checked In";
+      statusEl.textContent = "You are now CHECKED IN";
+      return;
+    }
+    if (data?.status === "checked_out") {
+      titleEl.textContent = "👋 Checked Out";
+      statusEl.textContent = "You are now CHECKED OUT";
+      return;
+    }
+
+    // Fallback
+    titleEl.textContent = "⚠️ Response received";
+    statusEl.textContent = JSON.stringify(data);
+  }
+
+  function start() {
+    metaEl.textContent = `Site: ${siteCode} • Device: ${deviceToken}`;
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const acc = Math.round(pos.coords.accuracy || 0);
+
+        accuracyEl.textContent = `Accuracy: ±${acc}m`;
+        initMap(lat, lng);
+
+        try {
+          await doScan(lat, lng, acc);
+        } catch (e) {
+          setError("Network/API error: " + (e?.message || String(e)));
+        }
+      },
+      (err) => setError("Location permission is required. " + (err?.message || "")),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+  }
+
+  start();
 </script>
-
 </body>
 </html>

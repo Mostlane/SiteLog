@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Scan Site</title>
+</head>
+<body>
+  <h1>📲 Site Scan</h1>
+
+  <p id="status">Loading...</p>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const siteCode = params.get("site");
+
+    // Simple device token
+    let token = localStorage.getItem("deviceToken");
+    if (!token) {
+      token = crypto.randomUUID();
+      localStorage.setItem("deviceToken", token);
+    }
+
+    document.getElementById("status").innerText =
+      "Site Code: " + siteCode + "\nDevice Token: " + token;
+
+    // Later this will call the Worker backend
+  </script>
+</body>
+</html>

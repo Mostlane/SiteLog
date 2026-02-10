@@ -4,8 +4,8 @@
   <title>SiteLog Scan</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- Google Maps JS (paste your key below) -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyANo2Q7OehYzHTTgMTxRr5ISamf5IradcM"></script>
+  <!-- Google Maps -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=PASTE_YOUR_KEY_HERE"></script>
 
   <style>
     body.checkin-body {
@@ -22,7 +22,7 @@
     }
 
     h1 {
-      background-color: rgba(0, 74, 153, 0.6);
+      background-color: rgba(0, 74, 153, 0.65);
       color: white;
       padding: 12px 20px;
       border-radius: 8px;
@@ -30,67 +30,129 @@
       font-weight: bold;
       margin-bottom: 16px;
       width: min(520px, 100%);
-      box-sizing: border-box;
     }
 
     #card {
       width: min(520px, 100%);
-      background: rgba(255,255,255,0.92);
+      background: rgba(255,255,255,0.94);
       border-radius: 12px;
-      padding: 16px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+      padding: 18px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
       box-sizing: border-box;
     }
 
     #status {
-      font-weight: 700;
-      margin: 8px 0 10px;
-    }
-
-    #meta {
-      font-size: 12px;
-      opacity: 0.75;
-      margin-top: 8px;
-      word-break: break-word;
+      font-weight: bold;
+      margin-bottom: 12px;
     }
 
     #map {
       width: 100%;
       height: 280px;
       border-radius: 10px;
-      border: 2px solid rgba(0, 74, 153, 0.35);
-      overflow: hidden;
-      margin-top: 12px;
+      border: 2px solid rgba(0, 74, 153, 0.3);
+      margin-top: 10px;
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: 600;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 4px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 14px;
+      padding: 12px;
+      background: #004a99;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #003366;
     }
 
     .small {
       font-size: 12px;
       opacity: 0.75;
-      margin-top: 6px;
+      margin-top: 8px;
+    }
+
+    a {
+      color: #004a99;
+      font-weight: bold;
     }
   </style>
 </head>
 
 <body class="checkin-body">
-  <h1 id="title">Checking location…</h1>
 
-  <div id="card">
-    <div id="status">Requesting GPS permission…</div>
-    <div id="map"></div>
-    <div class="small" id="accuracy"></div>
-    <div id="meta"></div>
+<h1 id="title">Checking Location…</h1>
+
+<div id="card">
+  <div id="status">Requesting GPS permission…</div>
+  <div id="map"></div>
+  <div class="small" id="accuracy"></div>
+
+  <!-- Registration -->
+  <div id="registerBox" style="display:none; text-align:left;">
+
+    <h3>First Visit Registration</h3>
+
+    <label>First Name</label>
+    <input id="firstName" />
+
+    <label>Last Name</label>
+    <input id="lastName" />
+
+    <label>Purpose</label>
+    <select id="purpose">
+      <option>Visiting</option>
+      <option>Contractor</option>
+    </select>
+
+    <label>Company</label>
+    <select id="company">
+      <option>Mostlane</option>
+      <option>DCI</option>
+      <option>L&B</option>
+      <option>NVC</option>
+      <option>Vail Williams</option>
+    </select>
+
+    <div style="margin-top:12px;">
+      <input type="checkbox" id="hsAck" />
+      <label style="display:inline;" for="hsAck">
+        I confirm I have read:
+        <a href="H&S_Policy.pdf" target="_blank">H&S Policy</a> and
+        <a href="Fire_Procedure.pdf" target="_blank">Fire Procedure</a>
+      </label>
+    </div>
+
+    <button onclick="register()">Confirm & Check In</button>
   </div>
 
-<script>
-  // --- Config
-  const WORKER_BASE = "https://sitelog-api.jamie-def.workers.dev";
-  const SCAN_ENDPOINT = WORKER_BASE + "/scan";
+</div>
 
-  // --- Get siteCode from query
+<script>
+  const WORKER_BASE = "https://sitelog-api.jamie-def.workers.dev";
+
   const params = new URLSearchParams(window.location.search);
   const siteCode = params.get("site") || "UNKNOWN";
 
-  // --- Persistent device id (simple)
   let deviceToken = localStorage.getItem("mostlane_device_id");
   if (!deviceToken) {
     deviceToken = crypto.randomUUID();
@@ -100,93 +162,116 @@
   const statusEl = document.getElementById("status");
   const titleEl = document.getElementById("title");
   const accuracyEl = document.getElementById("accuracy");
-  const metaEl = document.getElementById("meta");
 
-  function setError(msg) {
-    titleEl.textContent = "❌ Cannot Check In/Out";
-    statusEl.textContent = msg;
-  }
+  let lastLocation = null;
 
-  function initMap(lat, lng) {
-    if (!window.google || !google.maps) {
-      setError("Google Maps did not load. Check API key + referrer restrictions.");
-      return null;
-    }
+  function showMap(lat, lng) {
     const map = new google.maps.Map(document.getElementById("map"), {
       center: { lat, lng },
       zoom: 18,
       mapTypeId: "hybrid",
       disableDefaultUI: true
     });
+
     new google.maps.Marker({
       position: { lat, lng },
-      map,
-      title: "Your location"
+      map
     });
-    return map;
   }
 
-  async function doScan(lat, lng, accuracy) {
-    statusEl.textContent = "Verifying…";
-
-    const payload = {
-      siteCode,
-      deviceToken,
-      lat,
-      lng,
-      accuracy,
-      timestamp: new Date().toISOString(),
-      userAgent: navigator.userAgent
-    };
-
-    const res = await fetch(SCAN_ENDPOINT, {
+  async function scan() {
+    const res = await fetch(WORKER_BASE + "/scan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        siteCode,
+        deviceToken,
+        lat: lastLocation.lat,
+        lng: lastLocation.lng,
+        accuracy: lastLocation.accuracy
+      })
     });
 
     const data = await res.json();
 
-    if (data?.status === "checked_in") {
-      titleEl.textContent = "✅ Checked In";
-      statusEl.textContent = "You are now CHECKED IN";
-      return;
-    }
-    if (data?.status === "checked_out") {
-      titleEl.textContent = "👋 Checked Out";
-      statusEl.textContent = "You are now CHECKED OUT";
+    if (data.status === "first_visit") {
+      statusEl.innerText = "First visit – please register below.";
+      document.getElementById("registerBox").style.display = "block";
       return;
     }
 
-    // Fallback
-    titleEl.textContent = "⚠️ Response received";
-    statusEl.textContent = JSON.stringify(data);
+    titleEl.innerText =
+      data.status === "checked_in"
+        ? "✅ Checked In"
+        : "👋 Checked Out";
+
+    statusEl.innerText =
+      data.status === "checked_in"
+        ? "You are now checked in."
+        : "You are now checked out.";
   }
 
-  function start() {
-    metaEl.textContent = `Site: ${siteCode} • Device: ${deviceToken}`;
+  async function register() {
+    const firstName = document.getElementById("firstName").value.trim();
+    const lastName = document.getElementById("lastName").value.trim();
+    const purpose = document.getElementById("purpose").value;
+    const company = document.getElementById("company").value;
+    const hsAck = document.getElementById("hsAck").checked;
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const acc = Math.round(pos.coords.accuracy || 0);
+    if (!firstName || !lastName) {
+      alert("Please enter your name.");
+      return;
+    }
 
-        accuracyEl.textContent = `Accuracy: ±${acc}m`;
-        initMap(lat, lng);
+    if (!hsAck) {
+      alert("You must confirm H&S documents.");
+      return;
+    }
 
-        try {
-          await doScan(lat, lng, acc);
-        } catch (e) {
-          setError("Network/API error: " + (e?.message || String(e)));
-        }
-      },
-      (err) => setError("Location permission is required. " + (err?.message || "")),
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
-    );
+    statusEl.innerText = "Registering…";
+
+    const res = await fetch(WORKER_BASE + "/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceToken,
+        siteCode,
+        firstName,
+        lastName,
+        purpose,
+        company,
+        lat: lastLocation.lat,
+        lng: lastLocation.lng,
+        accuracy: lastLocation.accuracy
+      })
+    });
+
+    const data = await res.json();
+
+    titleEl.innerText = "✅ Checked In";
+    statusEl.innerText = "Registration complete. You are now checked in.";
+    document.getElementById("registerBox").style.display = "none";
   }
 
-  start();
+  // Start GPS capture
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const acc = Math.round(pos.coords.accuracy);
+
+      lastLocation = { lat, lng, accuracy: acc };
+
+      accuracyEl.innerText = `Accuracy: ±${acc}m`;
+      showMap(lat, lng);
+      scan();
+    },
+    (err) => {
+      statusEl.innerText = "❌ Location required: " + err.message;
+    },
+    { enableHighAccuracy: true, timeout: 20000 }
+  );
 </script>
+
 </body>
 </html>

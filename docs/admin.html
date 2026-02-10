@@ -1,91 +1,75 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>SiteLog Admin</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SiteLog Admin Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <style>
     body {
       font-family: "Segoe UI", sans-serif;
-      background: #e6e8eb url('Mostlane_Embossed.png') no-repeat center center fixed;
-      background-size: 180%;
+      background: #f2f4f7;
       margin: 0;
       padding: 30px;
-      text-align: center;
     }
 
     h1 {
-      background: rgba(0, 74, 153, 0.7);
+      background: rgba(0, 74, 153, 0.85);
       color: white;
-      padding: 14px;
-      border-radius: 10px;
-      width: min(900px, 100%);
-      margin: auto;
-    }
-
-    #controls {
-      margin: 20px auto;
-      width: min(900px, 100%);
-      background: rgba(255,255,255,0.95);
       padding: 15px;
-      border-radius: 12px;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+      border-radius: 10px;
+      text-align: center;
     }
 
-    select, input {
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      min-width: 180px;
-    }
-
-    table {
+    .filters {
       margin: 20px auto;
-      width: min(900px, 100%);
-      border-collapse: collapse;
-      background: rgba(255,255,255,0.95);
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
     }
 
-    th {
-      background: #004a99;
-      color: white;
-      padding: 12px;
+    input, button {
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
       font-size: 14px;
     }
 
-    td {
-      padding: 10px;
-      border-bottom: 1px solid #ddd;
-      font-size: 13px;
+    button {
+      background: #004a99;
+      color: white;
+      cursor: pointer;
+      border: none;
     }
 
-    tr:hover {
-      background: rgba(0,74,153,0.08);
+    button:hover {
+      background: #003366;
     }
 
-    .live {
-      color: green;
+    .person-block {
+      background: white;
+      margin: 20px auto;
+      padding: 15px;
+      border-radius: 12px;
+      max-width: 900px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .day-header {
       font-weight: bold;
+      margin-top: 15px;
+      color: #004a99;
     }
 
-    .out {
-      color: gray;
+    .visit {
+      padding-left: 15px;
+      margin: 6px 0;
     }
 
-    .verified {
-      font-size: 12px;
-      padding: 3px 8px;
-      border-radius: 6px;
-      background: #dff5df;
-      color: green;
+    .total {
+      margin-top: 10px;
       font-weight: bold;
+      color: green;
     }
   </style>
 </head>
@@ -94,113 +78,135 @@
 
 <h1>📋 SiteLog Admin Dashboard</h1>
 
-<div id="controls">
-  <input id="search" placeholder="Search name..." />
-  
-  <select id="companyFilter">
-    <option value="">All Companies</option>
-  </select>
+<div class="filters">
+  <label>From:
+    <input type="date" id="fromDate">
+  </label>
 
-  <select id="purposeFilter">
-    <option value="">All Purposes</option>
-    <option value="Visiting">Visiting</option>
-    <option value="Contractor">Contractor</option>
-  </select>
+  <label>To:
+    <input type="date" id="toDate">
+  </label>
 
-  <button onclick="loadData()">🔄 Refresh</button>
+  <button onclick="loadLogs()">Apply</button>
 </div>
 
-<table>
-  <thead>
-    <tr>
-      <th>Status</th>
-      <th>Name</th>
-      <th>Company</th>
-      <th>Purpose</th>
-      <th>Check In</th>
-      <th>Check Out</th>
-      <th>Duration</th>
-      <th>Device</th>
-    </tr>
-  </thead>
-  <tbody id="rows"></tbody>
-</table>
+<div id="output"></div>
 
 <script>
-const API = "https://sitelog-api.jamie-def.workers.dev/admin";
+const WORKER_ADMIN =
+  "https://ckeck-in-out.jamie-def.workers.dev/admin";
 
-let visits = [];
-
-function duration(inTime, outTime) {
-  if (!outTime) return "On Site";
-
-  const start = new Date(inTime);
-  const end = new Date(outTime);
-
-  const mins = Math.round((end - start) / 60000);
-  const hrs = Math.floor(mins / 60);
-  const rem = mins % 60;
-
-  return hrs > 0 ? `${hrs}h ${rem}m` : `${mins}m`;
-}
-
-async function loadData() {
-  const res = await fetch(API);
-  const data = await res.json();
-  visits = data.visits;
-
-  buildFilters();
-  render();
-}
-
-function buildFilters() {
-  const companySelect = document.getElementById("companyFilter");
-  const companies = [...new Set(visits.map(v => v.company))];
-
-  companySelect.innerHTML =
-    `<option value="">All Companies</option>` +
-    companies.map(c => `<option>${c}</option>`).join("");
-}
-
-function render() {
-  const search = document.getElementById("search").value.toLowerCase();
-  const company = document.getElementById("companyFilter").value;
-  const purpose = document.getElementById("purposeFilter").value;
-
-  const filtered = visits.filter(v => {
-    const name = (v.first_name + " " + v.last_name).toLowerCase();
-    return (
-      (!search || name.includes(search)) &&
-      (!company || v.company === company) &&
-      (!purpose || v.purpose === purpose)
-    );
+/* ----------------------------
+   Helpers
+---------------------------- */
+function formatTime(ts) {
+  if (!ts) return "LIVE";
+  return new Date(ts).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit"
   });
-
-  document.getElementById("rows").innerHTML = filtered.map(v => {
-    const live = !v.check_out_at;
-
-    return `
-      <tr>
-        <td class="${live ? "live" : "out"}">
-          ${live ? "● LIVE" : "✔ OUT"}
-        </td>
-        <td>${v.first_name} ${v.last_name}</td>
-        <td>${v.company}</td>
-        <td>${v.purpose}</td>
-        <td>${new Date(v.check_in_at).toLocaleString()}</td>
-        <td>${v.check_out_at ? new Date(v.check_out_at).toLocaleString() : "-"}</td>
-        <td>${duration(v.check_in_at, v.check_out_at)}</td>
-        <td><span class="verified">Verified</span></td>
-      </tr>
-    `;
-  }).join("");
 }
 
-document.getElementById("search").addEventListener("input", render);
-document.getElementById("companyFilter").addEventListener("change", render);
-document.getElementById("purposeFilter").addEventListener("change", render);
+function minutesBetween(a, b) {
+  if (!a || !b) return 0;
+  return Math.floor((new Date(b) - new Date(a)) / 60000);
+}
 
-loadData();
+function formatDuration(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}h ${m}m`;
+}
+
+/* ----------------------------
+   Group by Person + Day
+---------------------------- */
+function groupVisits(visits) {
+  const grouped = {};
+
+  for (const v of visits) {
+    const person =
+      (v.first_name || "Unknown") + " " +
+      (v.last_name || "");
+
+    const day = v.check_in_at.slice(0, 10);
+
+    if (!grouped[person]) grouped[person] = {};
+    if (!grouped[person][day]) grouped[person][day] = [];
+
+    grouped[person][day].push(v);
+  }
+
+  return grouped;
+}
+
+/* ----------------------------
+   Load Logs
+---------------------------- */
+async function loadLogs() {
+
+  const from = document.getElementById("fromDate").value;
+  const to = document.getElementById("toDate").value;
+
+  let url = WORKER_ADMIN;
+
+  if (from && to) {
+    url += `?from=${from}&to=${to}`;
+  }
+
+  const res = await fetch(url);
+  const data = await res.json();
+
+  const grouped = groupVisits(data.visits);
+
+  const out = document.getElementById("output");
+  out.innerHTML = "";
+
+  for (const person in grouped) {
+
+    const block = document.createElement("div");
+    block.className = "person-block";
+
+    block.innerHTML = `<h2>${person}</h2>`;
+
+    for (const day in grouped[person]) {
+
+      let totalMins = 0;
+
+      block.innerHTML += `<div class="day-header">
+        📅 ${day}
+      </div>`;
+
+      for (const v of grouped[person][day]) {
+
+        const mins = minutesBetween(
+          v.check_in_at,
+          v.check_out_at
+        );
+
+        totalMins += mins;
+
+        block.innerHTML += `
+          <div class="visit">
+            ⏱ ${formatTime(v.check_in_at)}
+            → ${formatTime(v.check_out_at)}
+            (${v.check_out_at ? formatDuration(mins) : "LIVE"})
+          </div>
+        `;
+      }
+
+      block.innerHTML += `
+        <div class="total">
+          Total Today: ${formatDuration(totalMins)}
+        </div>
+      `;
+    }
+
+    out.appendChild(block);
+  }
+}
+
+loadLogs();
 </script>
 
 </body>

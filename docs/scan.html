@@ -1,40 +1,54 @@
-<script>
-  const params = new URLSearchParams(window.location.search);
-  const siteCode = params.get("site");
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Scan Site</title>
+</head>
+<body>
+  <h1>📲 Site Scan</h1>
 
-  let token = localStorage.getItem("deviceToken");
-  if (!token) {
-    token = crypto.randomUUID();
-    localStorage.setItem("deviceToken", token);
-  }
+  <!-- THIS ELEMENT IS REQUIRED -->
+  <p id="status">Loading...</p>
 
-  async function scan() {
-    const res = await fetch(
-      "https://sitelog-api.jamie-def.workers.dev/scan",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          siteCode,
-          deviceToken: token
-        })
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const siteCode = params.get("site");
+
+    let token = localStorage.getItem("deviceToken");
+    if (!token) {
+      token = crypto.randomUUID();
+      localStorage.setItem("deviceToken", token);
+    }
+
+    async function scan() {
+      try {
+        const statusEl = document.getElementById("status");
+        statusEl.innerText = "Scanning…";
+
+        const res = await fetch(
+          "https://sitelog-api.jamie-def.workers.dev/scan",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              siteCode,
+              deviceToken: token
+            })
+          }
+        );
+
+        const data = await res.json();
+
+        statusEl.innerText =
+          data.status === "checked_in"
+            ? "✅ You are now CHECKED IN"
+            : "👋 You are now CHECKED OUT";
+      } catch (err) {
+        document.getElementById("status").innerText =
+          "❌ Error: " + err.message;
       }
-    );
-
-    const data = await res.json();
-
-    let message = "Unknown response";
-
-    if (data.status === "checked_in") {
-      message = "✅ You are now CHECKED IN";
     }
 
-    if (data.status === "checked_out") {
-      message = "👋 You are now CHECKED OUT";
-    }
-
-    document.getElementById("status").innerText = message;
-  }
-
-  scan();
-</script>
+    scan();
+  </script>
+</body>
+</html>

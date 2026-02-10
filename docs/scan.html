@@ -55,12 +55,34 @@
       cursor: pointer;
       font-weight: bold;
     }
+
+    /* --- SITE NOTICE BANNER --- */
+    .site-notice {
+      margin: 12px auto 18px;
+      padding: 14px 16px;
+      max-width: 520px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.9);
+      border: 2px solid rgba(0,59,130,0.25);
+      color: #0f172a;
+      font-size: 18px;
+      text-align: left;
+    }
+
+    .site-notice strong {
+      color: #003b82;
+    }
   </style>
 </head>
 
 <body>
 
 <h1 id="title">Checking Location…</h1>
+
+<!-- ALWAYS SHOWN SITE MESSAGE -->
+<div class="site-notice">
+  <strong>⚠️ Site Notice:</strong> Report to site foreman
+</div>
 
 <div id="card">
   <div id="status">Requesting GPS…</div>
@@ -87,7 +109,7 @@
 
     <label>
       <input type="checkbox" id="hsAck">
-      I confirm I have read the H&S documents.
+      I have read site and understand site rules
     </label>
 
     <button onclick="register()">Confirm & Check In</button>
@@ -162,7 +184,7 @@ async function register() {
   const hsAck = document.getElementById("hsAck").checked;
 
   if (!firstName || !lastName || !hsAck) {
-    alert("Complete all fields and confirm H&S.");
+    alert("Complete all fields and confirm site rules.");
     return;
   }
 

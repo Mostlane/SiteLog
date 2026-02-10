@@ -25,6 +25,14 @@
       margin: auto;
     }
 
+    /* --- LOGO --- */
+    .logo {
+      display: block;
+      margin: 16px auto 10px;
+      max-width: 220px;
+      width: 100%;
+    }
+
     #card {
       margin: 20px auto;
       max-width: 520px;
@@ -78,6 +86,13 @@
 <body>
 
 <h1 id="title">Checking Location…</h1>
+
+<!-- MOSTLANE LOGO -->
+<img
+  src="Mostlane%20Logo.jpg"
+  alt="Mostlane"
+  class="logo"
+/>
 
 <div class="site-notice">
   <strong>⚠️ Site Notice:</strong> Report to site foreman
@@ -227,7 +242,6 @@ async function register() {
     "Registered successfully at " + currentSite;
 }
 
-/* ---- LOCATION HANDLING (avoids unnecessary prompting when already granted) ---- */
 function startLocation() {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
@@ -253,17 +267,15 @@ if (navigator.permissions && navigator.permissions.query) {
     if (result.state === "granted") {
       startLocation();
     } else if (result.state === "prompt") {
-      startLocation(); // will prompt once if needed
+      startLocation();
     } else {
       document.getElementById("status").innerText =
         "Location access is required. Please enable it in your browser settings.";
     }
   }).catch(() => {
-    // Fallback if Permissions API errors
     startLocation();
   });
 } else {
-  // Fallback for older browsers
   startLocation();
 }
 </script>

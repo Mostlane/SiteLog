@@ -57,7 +57,6 @@
       font-weight: bold;
     }
 
-    /* --- SITE NOTICE BANNER --- */
     .site-notice {
       margin: 12px auto 18px;
       padding: 14px 16px;
@@ -80,7 +79,6 @@
 
 <h1 id="title">Checking Location…</h1>
 
-<!-- ALWAYS SHOWN SITE MESSAGE -->
 <div class="site-notice">
   <strong>⚠️ Site Notice:</strong> Report to site foreman
 </div>
@@ -100,10 +98,8 @@
       <option>Contractor</option>
     </select>
 
-    <!-- COMPANY INPUT WITH TYPE-AHEAD SUGGESTIONS -->
     <input id="company" placeholder="Company Name" list="companyList">
 
-    <!-- SUGGESTED COMPANY LIST -->
     <datalist id="companyList">
       <option value="Mostlane">
       <option value="DCI">
@@ -170,6 +166,16 @@ async function scan() {
   if (data.status === "first_visit") {
     document.getElementById("status").innerText =
       "First visit at " + currentSite + " — please register.";
+
+    const savedProfile = localStorage.getItem("mostlane_profile");
+    if (savedProfile) {
+      const profile = JSON.parse(savedProfile);
+      document.getElementById("firstName").value = profile.firstName || "";
+      document.getElementById("lastName").value = profile.lastName || "";
+      document.getElementById("purpose").value = profile.purpose || "Visiting";
+      document.getElementById("company").value = profile.company || "";
+    }
+
     document.getElementById("registerBox").style.display = "block";
     return;
   }
@@ -192,6 +198,13 @@ async function register() {
     alert("Complete all fields and confirm site rules.");
     return;
   }
+
+  localStorage.setItem("mostlane_profile", JSON.stringify({
+    firstName,
+    lastName,
+    purpose,
+    company
+  }));
 
   await fetch(API + "/register", {
     method: "POST",

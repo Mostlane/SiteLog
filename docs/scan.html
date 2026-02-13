@@ -125,7 +125,7 @@
 
     <label style="display:block; margin-top:12px;">
       <input type="checkbox" id="hsAck">
-      I have read site and understand site rules
+      I have read site rules and will report to site foreman
     </label>
 
     <button onclick="register()">Confirm & Check In</button>
@@ -237,9 +237,16 @@ async function register() {
     })
   });
 
+  // Hide registration box so it’s obvious it worked
+  document.getElementById("registerBox").style.display = "none";
+
+  // Update title + status at top
   document.getElementById("title").innerText = "✅ Checked In";
   document.getElementById("status").innerText =
     "Registered successfully at " + currentSite;
+
+  // Scroll to top so user sees the confirmation
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function startLocation() {

@@ -94,7 +94,7 @@
   class="logo"
 />
 
-<div class="site-notice">
+<div class="site-notice" id="noticeBox">
   <strong>⚠️ Site Notice:</strong> Report to site foreman
 </div>
 
@@ -168,6 +168,7 @@ async function scan() {
   });
 
   const data = await res.json();
+const noticeBox = document.getElementById("noticeBox");
 
   if (data.status === "unknown_site") {
     document.getElementById("title").innerText = "❌ Unknown Site";
@@ -177,6 +178,8 @@ async function scan() {
   }
 
   currentSite = data.site;
+const firstName = data.firstName || "";
+const companyName = data.company || "";
 
   if (data.status === "first_visit") {
     document.getElementById("status").innerText =
@@ -195,11 +198,61 @@ async function scan() {
     return;
   }
 
-  document.getElementById("title").innerText =
-    data.status === "checked_in" ? "✅ Checked In" : "👋 Checked Out";
+// -----------------------------
+// Checked In
+// -----------------------------
+if (data.status === "checked_in") {
+
+  // Save check-in timestamp locally
+  localStorage.setItem("mostlane_last_checkin", Date.now());
+
+  document.getElementById("title").innerText = "✅ Checked In";
+  document.getElementById("status").innerText =
+  (firstName && companyName)
+    ? `Welcome Back ${firstName} from ${companyName}`
+    : "You are now on site: " + currentSite;
+
+  noticeBox.innerHTML =
+    "<strong>⚠️ Site Notice:</strong> Report to site foreman";
+
+}
+
+// -----------------------------
+// Checked Out
+// -----------------------------
+if (data.status === "checked_out") {
+
+  // Calculate duration from stored check-in
+  const start = localStorage.getItem("mostlane_last_checkin");
+
+  let durationText = "";
+  if (start) {
+    const mins = Math.round((Date.now() - start) / 60000);
+    const hrs = Math.floor(mins / 60);
+    const rem = mins % 60;
+
+    durationText =
+      hrs > 0
+        ? `${hrs}h ${rem}m`
+        : `${mins}m`;
+
+    localStorage.removeItem("mostlane_last_checkin");
+  }
+
+  document.getElementById("title").innerText = "👋 Checked Out";
 
   document.getElementById("status").innerText =
-    "Site: " + currentSite;
+  firstName
+    ? `Goodbye ${firstName} — Total time on site: ${durationText || "Recorded"}`
+    : "Total time on site: " + (durationText || "Recorded");
+
+
+  // Replace foreman notice with checkout message
+  noticeBox.innerHTML =
+    "<strong>✅ Visit Complete:</strong> Thank you, you may now leave site.";
+
+}
+
 }
 
 async function register() {

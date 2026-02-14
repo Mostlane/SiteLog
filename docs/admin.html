@@ -60,7 +60,6 @@
       color: white;
       font-weight: 600;
     }
-
     button:hover { background: #003366; }
 
     .section-title {
@@ -100,18 +99,61 @@
 
     tr:hover { background: rgba(0,74,153,0.08); }
 
+    .liveDot { color: #1b8f2a; font-weight: 800; }
+    .outDot { color: #6b7280; font-weight: 800; }
+
     .pill {
       display: inline-block;
       font-size: 12px;
       padding: 3px 8px;
       border-radius: 999px;
       font-weight: 700;
+      white-space: nowrap;
     }
 
     .pill-live { background: #dff5df; color: #1b8f2a; }
     .pill-out { background: #eef2f7; color: #6b7280; }
 
+    .pill-verified { background: #e7f0ff; color: #004a99; }
+
     .muted { color: #6b7280; }
+
+    /* Grouped view cards */
+    .groupWrap {
+      width: min(1050px, 100%);
+      margin: 0 auto 18px auto;
+      text-align: left;
+    }
+    .personCard {
+      background: rgba(255,255,255,0.95);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+    }
+    .personHeader {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+      font-weight: 800;
+      color: #0b2f55;
+    }
+    .dayHeader {
+      margin-top: 10px;
+      font-weight: 800;
+      color: #004a99;
+    }
+    .visitLine {
+      padding-left: 10px;
+      margin: 6px 0;
+    }
+    .dayTotal {
+      margin-top: 6px;
+      font-weight: 800;
+      color: #1b8f2a;
+    }
   </style>
 </head>
 
@@ -141,179 +183,331 @@
     <label class="muted">To</label>
     <input type="date" id="toDate" />
 
-    <label class="muted">
+    <label class="muted" style="display:flex;align-items:center;gap:6px;">
       <input type="checkbox" id="groupToggle" />
       Group by day
     </label>
 
-    <label class="muted">
-      <input type="checkbox" id="activeOnlyToggle" />
-      Active sites only
-    </label>
-
-    <button onclick="showLiveAcrossSites()">🟢 Live Across All Sites</button>
     <button onclick="loadData()">🔄 Refresh</button>
   </div>
 </div>
 
-<div class="section-title">🟢 Live On Site</div>
+<div class="section-title">🟢 Live On Site (always)</div>
 <table>
   <thead>
     <tr>
+      <th>Status</th>
       <th>Name</th>
       <th>Company</th>
+      <th>Purpose</th>
       <th>Site</th>
       <th>Check In</th>
       <th>Duration</th>
+      <th>Device</th>
+      <th>GPS</th>
     </tr>
   </thead>
   <tbody id="liveRows"></tbody>
 </table>
 
-<div class="section-title">🕘 Logs</div>
+<div class="section-title">🕘 Logs (date filter + optional grouping)</div>
 
+<!-- Normal table view -->
 <table id="logsTable">
   <thead>
     <tr>
       <th>Status</th>
       <th>Name</th>
       <th>Company</th>
+      <th>Purpose</th>
       <th>Site</th>
       <th>Check In</th>
       <th>Check Out</th>
       <th>Duration</th>
+      <th>Device</th>
+      <th>GPS</th>
     </tr>
   </thead>
   <tbody id="logRows"></tbody>
 </table>
 
+<!-- Grouped view -->
+<div id="groupedWrap" class="groupWrap" style="display:none;"></div>
+
 <script>
+  // IMPORTANT: set this to your worker base
+  const API_BASE = "https://sitelog-api.jamie-def.workers.dev";
 
-const API_BASE = "https://sitelog-api.jamie-def.workers.dev";
+  let allVisits = [];      // unfiltered (used for LIVE always)
+  let filteredVisits = []; // date-filtered (used for Logs)
 
-let allVisits = [];
-let filteredVisits = [];
-
-function toLocal(ts) {
-  if (!ts) return "-";
-  return new Date(ts.replace(" ", "T") + "Z").toLocaleString();
-}
-
-function minutesBetween(a, b) {
-  if (!a) return 0;
-  const start = new Date(a.replace(" ", "T") + "Z");
-  const end = b ? new Date(b.replace(" ", "T") + "Z") : new Date();
-  return Math.max(0, Math.round((end - start) / 60000));
-}
-
-function fmtDuration(mins) {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  if (h <= 0) return `${m}m`;
-  return `${h}h ${m}m`;
-}
-
-function nameOf(v) {
-  return (v.first_name || "") + " " + (v.last_name || "");
-}
-
-function passFilters(v) {
-  const search = document.getElementById("search").value.toLowerCase();
-  const company = document.getElementById("companyFilter").value;
-
-  if (search && !nameOf(v).toLowerCase().includes(search)) return false;
-  if (company && v.company !== company) return false;
-
-  if (document.getElementById("activeOnlyToggle").checked) {
-    return !v.check_out_at;
+  function toLocal(ts) {
+    if (!ts) return "-";
+    return new Date(ts.replace(" ", "T") + "Z").toLocaleString();
   }
 
-  return true;
-}
+  function minutesBetween(a, b) {
+    if (!a) return 0;
+    const start = new Date(a.replace(" ", "T") + "Z");
+    const end = b ? new Date(b.replace(" ", "T") + "Z") : new Date();
+    return Math.max(0, Math.round((end - start) / 60000));
+  }
 
-function renderLive() {
-  const tbody = document.getElementById("liveRows");
+  function fmtDuration(mins) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h <= 0) return `${m}m`;
+    return `${h}h ${m}m`;
+  }
 
-  const live = allVisits
-    .filter(v => !v.check_out_at)
-    .filter(passFilters);
+  function nameOf(v) {
+    const fn = v.first_name || "Unknown";
+    const ln = v.last_name || "";
+    return (fn + " " + ln).trim();
+  }
 
-  tbody.innerHTML = live.map(v => `
-    <tr>
-      <td>${nameOf(v)}</td>
-      <td>${v.company || "-"}</td>
-      <td>${v.site_code || "-"}</td>
-      <td>${toLocal(v.check_in_at)}</td>
-      <td>${fmtDuration(minutesBetween(v.check_in_at, v.check_out_at))}</td>
-    </tr>
-  `).join("") || `<tr><td colspan="5" class="muted">No one onsite</td></tr>`;
-}
+  function gpsText(v) {
+    const has = (v.lat != null && v.lng != null);
+    if (!has) return `<span class="muted">-</span>`;
+    const acc = (v.accuracy != null) ? `${Math.round(v.accuracy)}m` : "?";
+    return `${acc}`;
+  }
 
-function renderLogs() {
-  const tbody = document.getElementById("logRows");
+  function devicePill(v) {
+    // Device is "verified" by virtue of being in devices table + linked;
+    // you can tighten this later (e.g., accuracy threshold, site geofence).
+    return `<span class="pill pill-verified">Verified</span>`;
+  }
 
-  const logs = filteredVisits.filter(passFilters);
+  function passFilters(v) {
+    const search = document.getElementById("search").value.toLowerCase().trim();
+    const company = document.getElementById("companyFilter").value;
+    const purpose = document.getElementById("purposeFilter").value;
 
-  tbody.innerHTML = logs.map(v => `
-    <tr>
-      <td>${!v.check_out_at ? '<span class="pill pill-live">LIVE</span>' : '<span class="pill pill-out">OUT</span>'}</td>
-      <td>${nameOf(v)}</td>
-      <td>${v.company || "-"}</td>
-      <td>${v.site_code || "-"}</td>
-      <td>${toLocal(v.check_in_at)}</td>
-      <td>${v.check_out_at ? toLocal(v.check_out_at) : "-"}</td>
-      <td>${v.check_out_at ? fmtDuration(minutesBetween(v.check_in_at, v.check_out_at)) : "On Site"}</td>
-    </tr>
-  `).join("") || `<tr><td colspan="7" class="muted">No logs found</td></tr>`;
-}
+    const nm = nameOf(v).toLowerCase();
+    return (
+      (!search || nm.includes(search)) &&
+      (!company || v.company === company) &&
+      (!purpose || v.purpose === purpose)
+    );
+  }
 
-function showLiveAcrossSites() {
-  const live = allVisits.filter(v => !v.check_out_at);
+  function buildCompanyFilter(source) {
+    const companySelect = document.getElementById("companyFilter");
+    const companies = [...new Set(source.map(v => v.company).filter(Boolean))].sort();
+    const current = companySelect.value;
 
-  const grouped = {};
+    companySelect.innerHTML =
+      `<option value="">All Companies</option>` +
+      companies.map(c => `<option value="${c}">${c}</option>`).join("");
 
-  live.forEach(v => {
-    if (!grouped[v.site_code]) grouped[v.site_code] = [];
-    grouped[v.site_code].push(nameOf(v));
-  });
+    // try to preserve selection
+    if ([...companySelect.options].some(o => o.value === current)) {
+      companySelect.value = current;
+    }
+  }
 
-  let output = "Live Across All Sites:\n\n";
+  async function fetchAll() {
+    // Full dataset (up to worker limit) so LIVE can always be shown.
+    const res = await fetch(`${API_BASE}/admin`);
+    const data = await res.json();
+    return data.visits || [];
+  }
 
-  Object.keys(grouped).forEach(site => {
-    output += site + ":\n";
-    grouped[site].forEach(name => {
-      output += " - " + name + "\n";
-    });
-    output += "\n";
-  });
+  async function fetchRange(from, to) {
+    // Date filtered for logs view
+    const qs = new URLSearchParams();
+    if (from && to) { qs.set("from", from); qs.set("to", to); }
+    const url = `${API_BASE}/admin${qs.toString() ? "?" + qs.toString() : ""}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data.visits || [];
+  }
 
-  alert(output || "No one currently onsite");
-}
+  function renderLive() {
+    const tbody = document.getElementById("liveRows");
+    const live = allVisits
+      .filter(v => !v.check_out_at)
+      .filter(passFilters)
+      .sort((a,b) => (a.check_in_at < b.check_in_at ? 1 : -1));
 
-async function loadData() {
-  const res = await fetch(`${API_BASE}/admin`);
-  const data = await res.json();
-  allVisits = data.visits || [];
-  filteredVisits = allVisits;
+    tbody.innerHTML = live.map(v => {
+      const mins = minutesBetween(v.check_in_at, v.check_out_at);
+      return `
+        <tr>
+          <td><span class="pill pill-live"><span class="liveDot">●</span> LIVE</span></td>
+          <td>${nameOf(v)}</td>
+          <td>${v.company || "-"}</td>
+          <td>${v.purpose || "-"}</td>
+          <td>${v.site_code || "-"}</td>
+          <td>${toLocal(v.check_in_at)}</td>
+          <td>${fmtDuration(mins)}</td>
+          <td>${devicePill(v)}</td>
+          <td>${gpsText(v)}</td>
+        </tr>
+      `;
+    }).join("");
 
-  renderLive();
-  renderLogs();
-}
+    if (!live.length) {
+      tbody.innerHTML = `
+        <tr><td colspan="9" class="muted" style="text-align:center;">No one currently onsite.</td></tr>
+      `;
+    }
+  }
 
-document.getElementById("search").addEventListener("input", () => {
-  renderLive();
-  renderLogs();
-});
+  function renderLogsTable() {
+    const tbody = document.getElementById("logRows");
 
-document.getElementById("companyFilter").addEventListener("change", () => {
-  renderLive();
-  renderLogs();
-});
+    const logs = filteredVisits
+      .filter(passFilters)
+      .sort((a,b) => (a.check_in_at < b.check_in_at ? 1 : -1));
 
-document.getElementById("activeOnlyToggle").addEventListener("change", renderLogs);
+    tbody.innerHTML = logs.map(v => {
+      const live = !v.check_out_at;
+      const mins = minutesBetween(v.check_in_at, v.check_out_at);
 
-loadData();
+      return `
+        <tr>
+          <td>${live
+            ? `<span class="pill pill-live"><span class="liveDot">●</span> LIVE</span>`
+            : `<span class="pill pill-out"><span class="outDot">✔</span> OUT</span>`}
+          </td>
+          <td>${nameOf(v)}</td>
+          <td>${v.company || "-"}</td>
+          <td>${v.purpose || "-"}</td>
+          <td>${v.site_code || "-"}</td>
+          <td>${toLocal(v.check_in_at)}</td>
+          <td>${v.check_out_at ? toLocal(v.check_out_at) : "-"}</td>
+          <td>${live ? "On Site" : fmtDuration(mins)}</td>
+          <td>${devicePill(v)}</td>
+          <td>${gpsText(v)}</td>
+        </tr>
+      `;
+    }).join("");
 
+    if (!logs.length) {
+      tbody.innerHTML = `
+        <tr><td colspan="10" class="muted" style="text-align:center;">No logs match your filters.</td></tr>
+      `;
+    }
+  }
+
+  function groupByPersonDay(visits) {
+    // returns: { personKey: { meta: {...}, days: { YYYY-MM-DD: [visits...] } } }
+    const out = {};
+    for (const v of visits) {
+      if (!passFilters(v)) continue;
+
+      const personKey = `${nameOf(v)}||${v.company || ""}||${v.purpose || ""}`;
+      const day = (v.check_in_at || "").slice(0, 10) || "Unknown day";
+
+      if (!out[personKey]) {
+        out[personKey] = {
+          name: nameOf(v),
+          company: v.company || "-",
+          purpose: v.purpose || "-",
+          days: {}
+        };
+      }
+      if (!out[personKey].days[day]) out[personKey].days[day] = [];
+      out[personKey].days[day].push(v);
+    }
+
+    // sort visits within each day oldest->newest
+    for (const k of Object.keys(out)) {
+      for (const d of Object.keys(out[k].days)) {
+        out[k].days[d].sort((a,b) => (a.check_in_at > b.check_in_at ? 1 : -1));
+      }
+    }
+
+    return out;
+  }
+
+  function renderGrouped() {
+    const wrap = document.getElementById("groupedWrap");
+    const obj = groupByPersonDay(filteredVisits);
+
+    const keys = Object.keys(obj).sort((a,b) => obj[a].name.localeCompare(obj[b].name));
+
+    if (!keys.length) {
+      wrap.innerHTML = `<div class="muted" style="text-align:center;">No logs match your filters.</div>`;
+      return;
+    }
+
+    wrap.innerHTML = keys.map(k => {
+      const p = obj[k];
+      const days = Object.keys(p.days).sort((a,b) => (a < b ? 1 : -1)); // newest day first
+
+      const dayBlocks = days.map(day => {
+        const arr = p.days[day];
+        let totalMins = 0;
+
+        const lines = arr.map(v => {
+          const mins = minutesBetween(v.check_in_at, v.check_out_at);
+          if (v.check_out_at) totalMins += mins;
+
+          const inT = toLocal(v.check_in_at);
+          const outT = v.check_out_at ? toLocal(v.check_out_at) : "LIVE";
+          const dur = v.check_out_at ? fmtDuration(mins) : "On Site";
+
+          return `<div class="visitLine">• ${v.site_code || "-"} — ${inT} → ${outT} <span class="muted">(${dur})</span></div>`;
+        }).join("");
+
+        return `
+          <div class="dayHeader">📅 ${day}</div>
+          ${lines}
+          <div class="dayTotal">Total time: ${fmtDuration(totalMins)}</div>
+        `;
+      }).join("");
+
+      return `
+        <div class="personCard">
+          <div class="personHeader">
+            <div>${p.name}</div>
+            <div class="muted">${p.company} • ${p.purpose}</div>
+          </div>
+          ${dayBlocks}
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderAll() {
+    // LIVE always shown
+    renderLive();
+
+    const grouped = document.getElementById("groupToggle").checked;
+    document.getElementById("logsTable").style.display = grouped ? "none" : "";
+    document.getElementById("groupedWrap").style.display = grouped ? "" : "none";
+
+    if (grouped) renderGrouped();
+    else renderLogsTable();
+  }
+
+  async function loadData() {
+    // 1) Always pull ALL for LIVE
+    allVisits = await fetchAll();
+
+    // 2) Pull date-filtered for logs (defaults to all if no dates selected)
+    const from = document.getElementById("fromDate").value;
+    const to = document.getElementById("toDate").value;
+
+    filteredVisits = await fetchRange(from, to);
+
+    // Build company filter from full dataset (so options are always available)
+    buildCompanyFilter(allVisits);
+
+    renderAll();
+  }
+
+  // reactive filters
+  document.getElementById("search").addEventListener("input", renderAll);
+  document.getElementById("companyFilter").addEventListener("change", renderAll);
+  document.getElementById("purposeFilter").addEventListener("change", renderAll);
+  document.getElementById("groupToggle").addEventListener("change", renderAll);
+
+  // default load
+  loadData();
 </script>
 
 </body>

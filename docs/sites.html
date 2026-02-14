@@ -4,26 +4,72 @@
   <title>Site Setup</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyANo2Q7OehYzHTTgMTxRr5ISamf5IradcM"></script>
+  <!-- IMPORTANT: add libraries=places -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyANo2Q7OehYzHTTgMTxRr5ISamf5IradcM&libraries=places"></script>
 
   <style>
-    body { font-family: Segoe UI; text-align:center; padding:20px; }
-    #map { height: 500px; border-radius: 12px; }
-    input, button {
-      padding:10px; width:300px; margin-top:10px;
+    body {
+      font-family: Segoe UI;
+      text-align:center;
+      padding:20px;
+      background:#f4f6f9;
     }
-    button { background:#004a99; color:white; border:none; }
+
+    #map {
+      height: 500px;
+      border-radius: 12px;
+      margin-top:15px;
+    }
+
+    input, button {
+      padding:10px;
+      width:320px;
+      margin-top:10px;
+      border-radius:8px;
+      border:1px solid #ccc;
+    }
+
+    button {
+      background:#004a99;
+      color:white;
+      border:none;
+      cursor:pointer;
+      font-weight:600;
+    }
+
+    button:hover {
+      background:#003366;
+    }
+
+    .back-btn {
+      background:#6b7280;
+      width:auto;
+      padding:8px 16px;
+      margin-bottom:10px;
+    }
+
+    .hint {
+      font-size:13px;
+      color:#666;
+      margin-top:4px;
+    }
   </style>
 </head>
 
 <body>
 
+<button class="back-btn" onclick="window.location.href='admin.html'">⬅ Back</button>
+
 <h2>📍 Add New Site Location</h2>
-<p>Click map to drop a pin, enter name, save.</p>
+<p>Search address/postcode OR click map to drop a pin.</p>
+
+<input id="addressSearch" placeholder="Search address or postcode">
 
 <div id="map"></div>
 
 <input id="siteName" placeholder="Site Name">
+<div class="hint">Tip: Use a short clear name (e.g. Lamborghini Poole)</div>
+
 <button onclick="saveSite()">Save Site</button>
 
 <script>
@@ -31,16 +77,52 @@ const API = "https://sitelog-api.jamie-def.workers.dev";
 
 let chosenLat = null;
 let chosenLng = null;
+let chosenAddress = null;
+let chosenPostcode = null;
 let marker = null;
 
+/* ===============================
+   INITIALISE MAP
+=================================*/
 const map = new google.maps.Map(document.getElementById("map"), {
   center: { lat: 51.5, lng: -0.12 },
   zoom: 6
 });
 
-map.addListener("click", (e) => {
-  chosenLat = e.latLng.lat();
-  chosenLng = e.latLng.lng();
+/* ===============================
+   AUTOCOMPLETE SEARCH
+=================================*/
+const input = document.getElementById("addressSearch");
+
+const autocomplete = new google.maps.places.Autocomplete(input, {
+  types: ["geocode"], // allows address + postcode
+  componentRestrictions: { country: "gb" }
+});
+
+autocomplete.addListener("place_changed", () => {
+  const place = autocomplete.getPlace();
+
+  if (!place.geometry) {
+    alert("No location details available.");
+    return;
+  }
+
+  chosenLat = place.geometry.location.lat();
+  chosenLng = place.geometry.location.lng();
+  chosenAddress = place.formatted_address;
+
+  // Try extract postcode
+  chosenPostcode = null;
+  if (place.address_components) {
+    place.address_components.forEach(component => {
+      if (component.types.includes("postal_code")) {
+        chosenPostcode = component.long_name;
+      }
+    });
+  }
+
+  map.setCenter({ lat: chosenLat, lng: chosenLng });
+  map.setZoom(15);
 
   if (marker) marker.setMap(null);
 
@@ -50,11 +132,31 @@ map.addListener("click", (e) => {
   });
 });
 
+/* ===============================
+   CLICK MAP TO OVERRIDE
+=================================*/
+map.addListener("click", (e) => {
+  chosenLat = e.latLng.lat();
+  chosenLng = e.latLng.lng();
+  chosenAddress = null;
+  chosenPostcode = null;
+
+  if (marker) marker.setMap(null);
+
+  marker = new google.maps.Marker({
+    position: { lat: chosenLat, lng: chosenLng },
+    map
+  });
+});
+
+/* ===============================
+   SAVE SITE
+=================================*/
 async function saveSite() {
   const name = document.getElementById("siteName").value.trim();
 
   if (!name || chosenLat == null) {
-    alert("Drop a pin and enter a name.");
+    alert("Search or drop a pin and enter a site name.");
     return;
   }
 
@@ -64,11 +166,17 @@ async function saveSite() {
     body: JSON.stringify({
       siteName: name,
       lat: chosenLat,
-      lng: chosenLng
+      lng: chosenLng,
+      address: chosenAddress,
+      postcode: chosenPostcode
     })
   });
 
   alert("✅ Site saved: " + name);
+
+  // Reset form
+  document.getElementById("siteName").value = "";
+  document.getElementById("addressSearch").value = "";
 }
 </script>
 

@@ -4,73 +4,128 @@
   <title>Site Setup</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- IMPORTANT: add libraries=places -->
+  <!-- Google Maps + Places -->
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyANo2Q7OehYzHTTgMTxRr5ISamf5IradcM&libraries=places"></script>
 
   <style>
     body {
-      font-family: Segoe UI;
-      text-align:center;
-      padding:20px;
-      background:#f4f6f9;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: #e6e8eb url('Mostlane_Embossed.png') no-repeat center center fixed;
+      background-size: 180%;
+      margin: 0;
+      padding: 30px;
+      text-align: center;
     }
 
-    #map {
-      height: 500px;
-      border-radius: 12px;
-      margin-top:15px;
+    .panel {
+      width: min(1050px, 100%);
+      margin: 0 auto;
+      background: rgba(255,255,255,0.95);
+      padding: 20px;
+      border-radius: 14px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
     }
 
-    input, button {
-      padding:10px;
-      width:320px;
-      margin-top:10px;
-      border-radius:8px;
-      border:1px solid #ccc;
+    h1 {
+      background: rgba(0, 74, 153, 0.85);
+      color: white;
+      padding: 14px;
+      border-radius: 10px;
+      margin: 0 auto 18px auto;
+      font-size: 20px;
     }
 
-    button {
-      background:#004a99;
-      color:white;
-      border:none;
-      cursor:pointer;
-      font-weight:600;
-    }
-
-    button:hover {
-      background:#003366;
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+      gap: 10px;
     }
 
     .back-btn {
-      background:#6b7280;
-      width:auto;
-      padding:8px 16px;
-      margin-bottom:10px;
+      background: #6b7280;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .back-btn:hover {
+      background: #4b5563;
     }
 
     .hint {
-      font-size:13px;
-      color:#666;
-      margin-top:4px;
+      font-size: 13px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
+    input, button {
+      padding: 10px;
+      width: 320px;
+      max-width: 100%;
+      margin-top: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    button.primary {
+      background: #004a99;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button.primary:hover {
+      background: #003366;
+    }
+
+    #map {
+      height: 480px;
+      border-radius: 12px;
+      margin-top: 16px;
+      overflow: hidden;
+    }
+
+    .form-row {
+      margin-top: 14px;
     }
   </style>
 </head>
 
 <body>
 
-<button class="back-btn" onclick="window.location.href='admin.html'">⬅ Back</button>
+<div class="panel">
 
-<h2>📍 Add New Site Location</h2>
-<p>Search address/postcode OR click map to drop a pin.</p>
+  <div class="top-bar">
+    <button class="back-btn" onclick="window.location.href='admin.html'">⬅ Back</button>
+  </div>
 
-<input id="addressSearch" placeholder="Search address or postcode">
+  <h1>📍 Add New Site Location</h1>
 
-<div id="map"></div>
+  <p class="hint">
+    Search by address or postcode, or click the map to drop a pin.<br>
+    Satellite view is enabled by default.
+  </p>
 
-<input id="siteName" placeholder="Site Name">
-<div class="hint">Tip: Use a short clear name (e.g. Lamborghini Poole)</div>
+  <input id="addressSearch" placeholder="Search address or postcode">
 
-<button onclick="saveSite()">Save Site</button>
+  <div id="map"></div>
+
+  <div class="form-row">
+    <input id="siteName" placeholder="Site Name">
+    <div class="hint">Example: Lamborghini Poole, Lakeside HQ</div>
+  </div>
+
+  <button class="primary" onclick="saveSite()">💾 Save Site</button>
+
+</div>
 
 <script>
 const API = "https://sitelog-api.jamie-def.workers.dev";
@@ -82,50 +137,49 @@ let chosenPostcode = null;
 let marker = null;
 
 /* ===============================
-   INITIALISE MAP
+   MAP INITIALISATION
 =================================*/
 const map = new google.maps.Map(document.getElementById("map"), {
   center: { lat: 51.5, lng: -0.12 },
-  zoom: 6
+  zoom: 6,
+  mapTypeId: "satellite", // 👈 satellite by default
+  mapTypeControl: true,   // allow switching to map view
+  streetViewControl: false,
+  fullscreenControl: true
 });
 
 /* ===============================
    AUTOCOMPLETE SEARCH
 =================================*/
-const input = document.getElementById("addressSearch");
-
-const autocomplete = new google.maps.places.Autocomplete(input, {
-  types: ["geocode"], // allows address + postcode
-  componentRestrictions: { country: "gb" }
-});
+const autocomplete = new google.maps.places.Autocomplete(
+  document.getElementById("addressSearch"),
+  {
+    types: ["geocode"],
+    componentRestrictions: { country: "gb" }
+  }
+);
 
 autocomplete.addListener("place_changed", () => {
   const place = autocomplete.getPlace();
-
-  if (!place.geometry) {
-    alert("No location details available.");
-    return;
-  }
+  if (!place.geometry) return;
 
   chosenLat = place.geometry.location.lat();
   chosenLng = place.geometry.location.lng();
   chosenAddress = place.formatted_address;
-
-  // Try extract postcode
   chosenPostcode = null;
+
   if (place.address_components) {
-    place.address_components.forEach(component => {
-      if (component.types.includes("postal_code")) {
-        chosenPostcode = component.long_name;
+    place.address_components.forEach(c => {
+      if (c.types.includes("postal_code")) {
+        chosenPostcode = c.long_name;
       }
     });
   }
 
   map.setCenter({ lat: chosenLat, lng: chosenLng });
-  map.setZoom(15);
+  map.setZoom(16);
 
   if (marker) marker.setMap(null);
-
   marker = new google.maps.Marker({
     position: { lat: chosenLat, lng: chosenLng },
     map
@@ -133,7 +187,7 @@ autocomplete.addListener("place_changed", () => {
 });
 
 /* ===============================
-   CLICK MAP TO OVERRIDE
+   MANUAL MAP CLICK OVERRIDE
 =================================*/
 map.addListener("click", (e) => {
   chosenLat = e.latLng.lat();
@@ -142,7 +196,6 @@ map.addListener("click", (e) => {
   chosenPostcode = null;
 
   if (marker) marker.setMap(null);
-
   marker = new google.maps.Marker({
     position: { lat: chosenLat, lng: chosenLng },
     map
@@ -156,7 +209,7 @@ async function saveSite() {
   const name = document.getElementById("siteName").value.trim();
 
   if (!name || chosenLat == null) {
-    alert("Search or drop a pin and enter a site name.");
+    alert("Please enter a site name and choose a location.");
     return;
   }
 
@@ -174,7 +227,6 @@ async function saveSite() {
 
   alert("✅ Site saved: " + name);
 
-  // Reset form
   document.getElementById("siteName").value = "";
   document.getElementById("addressSearch").value = "";
 }

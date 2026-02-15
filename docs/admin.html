@@ -285,6 +285,7 @@ async function fetchRange(from,to){
 function renderLive(){
   const tbody=document.getElementById("liveRows");
   const live=allVisits.filter(v=>!v.check_out_at).filter(passFilters);
+
   tbody.innerHTML=live.map(v=>`
     <tr>
       <td><span class="pill pill-live">LIVE</span></td>
@@ -294,7 +295,13 @@ function renderLive(){
       <td>${v.site_code||"-"}</td>
       <td>${toLocal(v.check_in_at)}</td>
       <td>${fmtDuration(minutesBetween(v.check_in_at,v.check_out_at))}</td>
-      <td>${v.accuracy||"-"}</td>
+      <td>${v.device_token || "-"}</td>
+      <td>
+        ${v.lat!=null && v.lng!=null
+          ? `${v.lat.toFixed(5)}, ${v.lng.toFixed(5)}`
+          : "-"
+        }
+      </td>
     </tr>
   `).join("");
 }

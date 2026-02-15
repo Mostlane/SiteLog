@@ -301,21 +301,98 @@ function renderLive(){
 
 function renderLogs(){
   const tbody=document.getElementById("logRows");
+  tbody.innerHTML="";
+
   const logs=filteredVisits.filter(passFilters);
-  tbody.innerHTML=logs.map(v=>`
-    <tr>
-      <td>${v.check_out_at?"OUT":"LIVE"}</td>
-      <td>${nameOf(v)}</td>
-      <td>${v.company||"-"}</td>
-      <td>${v.purpose||"-"}</td>
-      <td>${v.site_code||"-"}</td>
-      <td>${toLocal(v.check_in_at)}</td>
-      <td>${v.check_out_at?toLocal(v.check_out_at):"-"}</td>
-      <td>${v.check_out_at?fmtDuration(minutesBetween(v.check_in_at,v.check_out_at)):"On Site"}</td>
-      <td>${v.accuracy||"-"}</td>
-      <td><button class="dangerBtn" onclick="openDeleteModal('${v.visit_id}','${nameOf(v)}','${v.site_code}')">Delete</button></td>
-    </tr>
-  `).join("");
+
+  if(!logs.length){
+    tbody.innerHTML=`<tr><td colspan="10" class="muted" style="text-align:center;">No logs found.</td></tr>`;
+    return;
+  }
+
+  // -------- GROUP BY ENGINEER --------
+  const grouped={};
+
+  logs.forEach(v=>{
+    const person=nameOf(v);
+    if(!grouped[person]) grouped[person]={};
+    const day=(v.check_in_at||"").slice(0,10);
+    if(!grouped[person][day]) grouped[person][day]=[];
+    grouped[person][day].push(v);
+  });
+
+  Object.keys(grouped).sort().forEach(person=>{
+
+    // Engineer Header Row
+    const headerRow=document.createElement("tr");
+    headerRow.innerHTML=`
+      <td colspan="10" style="background:#eef2f7;font-weight:800;">
+        👤 ${person}
+      </td>
+    `;
+    tbody.appendChild(headerRow);
+
+    let engineerTotal=0;
+
+    Object.keys(grouped[person]).sort().forEach(day=>{
+
+      let dayTotal=0;
+
+      // Day Header
+      const dayRow=document.createElement("tr");
+      dayRow.innerHTML=`
+        <td colspan="10" style="background:#f8fafc;font-weight:700;">
+          📅 ${day}
+        </td>
+      `;
+      tbody.appendChild(dayRow);
+
+      grouped[person][day].forEach(v=>{
+        const mins=minutesBetween(v.check_in_at,v.check_out_at);
+        if(v.check_out_at) dayTotal+=mins;
+
+        const row=document.createElement("tr");
+        row.innerHTML=`
+          <td>${v.check_out_at?"OUT":"LIVE"}</td>
+          <td>${nameOf(v)}</td>
+          <td>${v.company||"-"}</td>
+          <td>${v.purpose||"-"}</td>
+          <td>${v.site_code||"-"}</td>
+          <td>${toLocal(v.check_in_at)}</td>
+          <td>${v.check_out_at?toLocal(v.check_out_at):"-"}</td>
+          <td>${v.check_out_at?fmtDuration(mins):"On Site"}</td>
+          <td>${v.accuracy||"-"}</td>
+          <td>
+            <button class="dangerBtn"
+              onclick="openDeleteModal('${v.visit_id}','${nameOf(v)}','${v.site_code}')">
+              Delete
+            </button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      engineerTotal+=dayTotal;
+
+      // Day Total Row
+      const totalRow=document.createElement("tr");
+      totalRow.innerHTML=`
+        <td colspan="10" style="text-align:right;font-weight:700;color:#1b8f2a;">
+          Total for ${day}: ${fmtDuration(dayTotal)}
+        </td>
+      `;
+      tbody.appendChild(totalRow);
+    });
+
+    // Engineer Grand Total
+    const grandRow=document.createElement("tr");
+    grandRow.innerHTML=`
+      <td colspan="10" style="text-align:right;font-weight:800;color:#004a99;">
+        Grand Total for ${person}: ${fmtDuration(engineerTotal)}
+      </td>
+    `;
+    tbody.appendChild(grandRow);
+  });
 }
 
 function renderAll(){

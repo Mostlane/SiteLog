@@ -96,12 +96,158 @@
     .form-row {
       margin-top: 14px;
     }
+
+    /* =========================================================
+       MOBILE / SMARTPHONE FRIENDLY ADDITIONS (doesn't break desktop)
+       ========================================================= */
+    :root{
+      --ml-blue:#004a99;
+      --ml-blue-dark:#003366;
+      --panel-bg:rgba(255,255,255,0.95);
+      --muted:#6b7280;
+      --ok:#16a34a;
+      --bad:#dc2626;
+    }
+
+    /* Better mobile padding + allow free scrolling */
+    html, body{
+      height: 100%;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Prevent iOS zoom on input focus (>=16px) */
+    input, button{
+      font-size: 16px;
+    }
+
+    /* Keep your look, but make it responsive */
+    @media (max-width: 720px){
+      body{
+        padding: 14px;
+      }
+      .panel{
+        padding: 14px;
+        border-radius: 14px;
+      }
+      h1{
+        font-size: 18px;
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+      .top-bar{
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      input, button{
+        width: 100%;
+      }
+      #map{
+        height: 52vh;     /* map adapts to phone height */
+        min-height: 300px;
+        margin-top: 12px;
+      }
+      .hint{
+        font-size: 13px;
+        line-height: 1.3;
+      }
+    }
+
+    /* Sticky action bar on mobile so Save is always reachable */
+    .sticky-actions{
+      position: sticky;
+      bottom: 0;
+      z-index: 50;
+      background: linear-gradient(to top, rgba(230,232,235,0.96), rgba(230,232,235,0));
+      padding: 12px 0 0 0;
+      margin-top: 10px;
+    }
+    .sticky-actions .actions-inner{
+      background: var(--panel-bg);
+      border-radius: 14px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+      padding: 10px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+    }
+    .sticky-actions .actions-inner button{
+      width: min(360px, 100%);
+      margin-top: 0;
+    }
+
+    /* Success / error toast that we can "snap up" to */
+    .toast{
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      top: 12px;
+      width: min(620px, calc(100% - 24px));
+      background: rgba(255,255,255,0.96);
+      border: 1px solid rgba(15,23,42,0.15);
+      border-radius: 14px;
+      padding: 12px 14px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.25);
+      z-index: 9999;
+      display: none;
+      text-align: left;
+    }
+    .toast.show{ display:block; }
+    .toast .row{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .toast .title{
+      font-weight: 800;
+      margin: 0 0 2px 0;
+      color:#0f172a;
+    }
+    .toast .msg{
+      margin:0;
+      color:#334155;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+    .toast .close{
+      border: none;
+      background: #eef2f7;
+      color:#0f172a;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-weight: 800;
+      cursor:pointer;
+      flex: 0 0 auto;
+      font-size: 14px;
+    }
+    .toast.ok{ border-left: 6px solid var(--ok); }
+    .toast.err{ border-left: 6px solid var(--bad); }
+
+    /* Small inline loading state */
+    .saving{
+      opacity: 0.75;
+      pointer-events: none;
+    }
   </style>
 </head>
 
 <body>
 
-<div class="panel">
+<!-- Toast for success/error (snap target) -->
+<div id="toast" class="toast" role="status" aria-live="polite">
+  <div class="row">
+    <div>
+      <div id="toastTitle" class="title">Saved</div>
+      <p id="toastMsg" class="msg"></p>
+    </div>
+    <button class="close" onclick="hideToast()">✕</button>
+  </div>
+</div>
+
+<div class="panel" id="topPanel">
 
   <div class="top-bar">
     <button class="back-btn" onclick="window.location.href='admin.html'">⬅ Back</button>
@@ -114,16 +260,24 @@
     Satellite view is enabled by default.
   </p>
 
-  <input id="addressSearch" placeholder="Search address or postcode">
+  <input id="addressSearch" placeholder="Search address or postcode" autocomplete="off" inputmode="search">
 
   <div id="map"></div>
 
   <div class="form-row">
-    <input id="siteName" placeholder="Site Name">
+    <input id="siteName" placeholder="Site Name" autocomplete="off">
     <div class="hint">Example: Lamborghini Poole, Lakeside HQ</div>
   </div>
 
-  <button class="primary" onclick="saveSite()">💾 Save Site</button>
+  <!-- Keep your original button (unchanged) -->
+  <button class="primary" id="saveBtn" onclick="saveSite()">💾 Save Site</button>
+
+  <!-- Mobile-friendly sticky actions (adds convenience without removing anything) -->
+  <div class="sticky-actions">
+    <div class="actions-inner">
+      <button class="primary" id="saveBtnSticky" onclick="saveSite()">💾 Save Site</button>
+    </div>
+  </div>
 
 </div>
 
@@ -145,7 +299,8 @@ const map = new google.maps.Map(document.getElementById("map"), {
   mapTypeId: "satellite", // 👈 satellite by default
   mapTypeControl: true,   // allow switching to map view
   streetViewControl: false,
-  fullscreenControl: true
+  fullscreenControl: true,
+  gestureHandling: "greedy" // IMPORTANT: allows scrolling/panning map on mobile without fighting the page
 });
 
 /* ===============================
@@ -203,6 +358,43 @@ map.addListener("click", (e) => {
 });
 
 /* ===============================
+   TOAST HELPERS (snap up after save)
+=================================*/
+function showToast(type, title, msg){
+  const t = document.getElementById("toast");
+  t.classList.remove("ok","err");
+  t.classList.add(type === "err" ? "err" : "ok");
+  document.getElementById("toastTitle").textContent = title || (type === "err" ? "Error" : "Saved");
+  document.getElementById("toastMsg").textContent = msg || "";
+  t.classList.add("show");
+
+  // "Snap up" to the toast area so user sees success immediately
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function hideToast(){
+  document.getElementById("toast").classList.remove("show");
+}
+
+/* ===============================
+   UI LOCK/UNLOCK DURING SAVE
+=================================*/
+function setSaving(isSaving){
+  const panel = document.getElementById("topPanel");
+  const btn1 = document.getElementById("saveBtn");
+  const btn2 = document.getElementById("saveBtnSticky");
+
+  if(isSaving){
+    panel.classList.add("saving");
+    btn1.textContent = "Saving…";
+    btn2.textContent = "Saving…";
+  }else{
+    panel.classList.remove("saving");
+    btn1.textContent = "💾 Save Site";
+    btn2.textContent = "💾 Save Site";
+  }
+}
+
+/* ===============================
    SAVE SITE
 =================================*/
 async function saveSite() {
@@ -213,23 +405,57 @@ async function saveSite() {
     return;
   }
 
-  await fetch(API + "/add-site", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      siteName: name,
-      lat: chosenLat,
-      lng: chosenLng,
-      address: chosenAddress,
-      postcode: chosenPostcode
-    })
-  });
+  setSaving(true);
 
-  alert("✅ Site saved: " + name);
+  try{
+    const res = await fetch(API + "/add-site", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        siteName: name,
+        lat: chosenLat,
+        lng: chosenLng,
+        address: chosenAddress,
+        postcode: chosenPostcode
+      })
+    });
 
-  document.getElementById("siteName").value = "";
-  document.getElementById("addressSearch").value = "";
+    // If worker ever returns non-200, show helpful message
+    if(!res.ok){
+      let txt = "";
+      try { txt = await res.text(); } catch(e){}
+      showToast("err", "Save failed", `Server returned ${res.status}. ${txt ? "Details: " + txt : ""}`);
+      return;
+    }
+
+    // Keep your original alert (does not remove anything)
+    alert("✅ Site saved: " + name);
+
+    // Also show an on-screen toast + snap to top so success is visible
+    showToast("ok", "✅ Site saved", name);
+
+    // Reset fields (existing behaviour retained)
+    document.getElementById("siteName").value = "";
+    document.getElementById("addressSearch").value = "";
+
+    // Keep pin where it is (useful for adding multiple nearby sites)
+    // (no marker removal)
+  }catch(err){
+    showToast("err", "Network error", "Could not reach the SiteLog API. Check your connection and try again.");
+  }finally{
+    setSaving(false);
+  }
 }
+
+/* ===============================
+   QUALITY OF LIFE: Enter key saves (mobile friendly)
+=================================*/
+document.getElementById("siteName").addEventListener("keydown", (e)=>{
+  if(e.key === "Enter"){
+    e.preventDefault();
+    saveSite();
+  }
+});
 </script>
 
 </body>

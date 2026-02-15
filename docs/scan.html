@@ -50,14 +50,33 @@
       pointer-events: none;
     }
 
+    /* ✅ iOS-centred, consistent inputs/selects/buttons */
     input, select, button {
+      display: block;
       width: 100%;
-      padding: 10px;
-      margin-top: 8px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
+      max-width: 480px;          /* keeps everything visually centred */
+      box-sizing: border-box;     /* stops iOS sizing weirdness */
+      margin: 10px auto 0;        /* true centre */
+      padding: 12px 14px;         /* consistent internal spacing */
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
       text-align: center;
       background: #fff;
+      font-size: 16px;            /* prevents iOS zoom on focus */
+      line-height: 1.2;
+      -webkit-appearance: none;   /* normalise iOS input rendering */
+      appearance: none;
+    }
+
+    /* Keep select arrow visible on iOS */
+    select {
+      -webkit-appearance: menulist;
+      appearance: menulist;
+    }
+
+    input::placeholder {
+      text-align: center;
+      color: #9aa3af;
     }
 
     select:invalid { color: #6b7280; } /* placeholder grey */
@@ -69,6 +88,7 @@
       border: none;
       cursor: pointer;
       font-weight: bold;
+      padding: 14px 14px;
     }
 
     .site-notice {
@@ -85,6 +105,27 @@
 
     .site-notice strong {
       color: #003b82;
+    }
+
+    /* Make checkbox row look cleaner on mobile */
+    #registerBox label{
+      max-width: 480px;
+      margin: 14px auto 0;
+      text-align: left;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      color:#0f172a;
+      line-height: 1.25;
+    }
+    #registerBox label input[type="checkbox"]{
+      width: 26px;
+      height: 26px;
+      margin: 0;
+      padding: 0;
+      border-radius: 6px;
+      -webkit-appearance: auto;
+      appearance: auto;
     }
   </style>
 </head>
@@ -122,9 +163,9 @@
       <!-- Dynamically populated -->
     </select>
 
-    <label style="display:block; margin-top:12px;">
+    <label>
       <input type="checkbox" id="hsAck">
-      I have read site rules and will report to site foreman
+      <span>I have read site rules and will report to site foreman</span>
     </label>
 
     <button onclick="register()">Confirm & Check In</button>

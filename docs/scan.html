@@ -41,10 +41,13 @@
       box-shadow: 0 6px 18px rgba(0,0,0,0.15);
     }
 
+    /* 🔒 MAP LOCKED */
     #map {
       height: 260px;
       border-radius: 10px;
       margin-top: 10px;
+      touch-action: none;
+      pointer-events: none;
     }
 
     input, select, button {
@@ -86,11 +89,7 @@
 
 <h1 id="title">Checking Location…</h1>
 
-<img
-  src="/SiteLog/Mostlane%20Logo.jpg"
-  alt="Mostlane"
-  class="logo"
-/>
+<img src="/SiteLog/Mostlane%20Logo.jpg" alt="Mostlane" class="logo"/>
 
 <div class="site-notice" id="noticeBox">
   <strong>⚠️ Site Notice:</strong> Report to site foreman
@@ -138,19 +137,25 @@ if (!deviceToken) {
 let lastLocation = null;
 let currentSite = null;
 
+/* 🔒 LOCKED MAP VERSION */
 function showMap(lat, lng) {
   const map = new google.maps.Map(document.getElementById("map"), {
     center: { lat, lng },
     zoom: 18,
     mapTypeId: "hybrid",
-    disableDefaultUI: true
+    disableDefaultUI: true,
+    draggable: false,
+    scrollwheel: false,
+    disableDoubleClickZoom: true,
+    keyboardShortcuts: false,
+    gestureHandling: "none"
   });
 
   new google.maps.Marker({ position: { lat, lng }, map });
 }
 
 /* ======================================
-   LOAD COMPANIES FOR SITE (NEW)
+   LOAD COMPANIES FOR SITE
 ======================================*/
 async function loadCompaniesForSite(siteName) {
   try {
@@ -197,7 +202,6 @@ async function scan() {
 
   currentSite = data.site;
 
-  // NEW: Load companies dynamically for this site
   await loadCompaniesForSite(currentSite);
 
   const firstName = data.firstName || "";
@@ -234,7 +238,6 @@ async function scan() {
   }
 
   if (data.status === "checked_out") {
-
     const start = localStorage.getItem("mostlane_last_checkin");
 
     let durationText = "";

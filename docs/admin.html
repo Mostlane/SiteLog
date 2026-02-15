@@ -1049,7 +1049,6 @@ async function renderCompaniesAdmin(){
 async function saveCompanyMappings(){
 
   const checkboxes = document.querySelectorAll("#companiesAdminBody input[type='checkbox']");
-
   const map = {};
 
   checkboxes.forEach(cb=>{
@@ -1060,13 +1059,29 @@ async function saveCompanyMappings(){
     if(cb.checked) map[site].push(company);
   });
 
-  await fetch(`${API_BASE}/update-site-companies`,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(map)
-  });
+  try {
 
-  alert("Company mappings updated.");
+    const res = await fetch(`${API_BASE}/update-site-companies`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(map)
+    });
+
+    const data = await res.json();
+
+    if(!res.ok || !data.ok){
+      alert("❌ Failed to save changes.\n\n" + (data.error || "Unknown error"));
+      return;
+    }
+
+    alert("✅ Company mappings saved successfully.");
+
+    // Reload the grid so it reflects saved state
+    await renderCompaniesAdmin();
+
+  } catch(err){
+    alert("❌ Network error while saving.\n\n" + err.message);
+  }
 }
 </script>
 

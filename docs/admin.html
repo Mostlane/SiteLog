@@ -982,7 +982,7 @@ let companiesAll = [];
 
 async function fetchCompaniesMaster(){
   try{
-    const res = await fetch(`${API_BASE}/companies-for-site?site=${encodeURIComponent(sitesActive[0]?.site_name || "")}`);
+    const res = await fetch(`${API_BASE}/companies`);
     const data = await res.json();
     companiesAll = data.companies || [];
   }catch(e){

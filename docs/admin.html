@@ -269,6 +269,7 @@
     <!-- NEW: inline admin panels (does not remove anything) -->
     <button class="ghostBtn" onclick="openSitesModal()">🗂 View/Edit Sites</button>
     <button class="ghostBtn" onclick="openEngineersModal()">👷 Engineers</button>
+    <button class="ghostBtn" onclick="openCompaniesModal()">🏢 Companies</button>
 
     <button onclick="loadData()">🔄 Refresh</button>
   </div>
@@ -973,6 +974,100 @@ async function toggleEngineer(id){
   renderEngineersAdminTable();
   renderAll();
 }
+  /* ======================================================================
+   NEW: COMPANIES ADMIN MODAL (assign companies per site)
+====================================================================== */
+
+let companiesAll = [];
+
+async function fetchCompaniesMaster(){
+  try{
+    const res = await fetch(`${API_BASE}/companies-for-site?site=${encodeURIComponent(sitesActive[0]?.site_name || "")}`);
+    const data = await res.json();
+    companiesAll = data.companies || [];
+  }catch(e){
+    companiesAll = [];
+  }
+}
+
+async function openCompaniesModal(){
+  await fetchSites();
+  await fetchCompaniesMaster();
+  document.getElementById("companiesModal").style.display="flex";
+  renderCompaniesAdmin();
+}
+
+function closeCompaniesModal(){
+  document.getElementById("companiesModal").style.display="none";
+}
+
+async function renderCompaniesAdmin(){
+
+  const wrap = document.getElementById("companiesAdminBody");
+
+  if(!sitesActive.length){
+    wrap.innerHTML = `<div class="muted">No active sites found.</div>`;
+    return;
+  }
+
+  let html = `<table class="adminTable"><thead><tr>
+    <th>Site</th>
+    ${companiesAll.map(c=>`<th>${escapeHtml(c.name)}</th>`).join("")}
+  </tr></thead><tbody>`;
+
+  for(const site of sitesActive){
+
+    const res = await fetch(`${API_BASE}/companies-for-site?site=${encodeURIComponent(site.site_name)}`);
+    const data = await res.json();
+    const assigned = (data.companies || []).map(c=>c.id);
+
+    html += `<tr><td style="text-align:left;font-weight:600;">${escapeHtml(site.site_name)}</td>`;
+
+    for(const c of companiesAll){
+      const checked = assigned.includes(c.id) ? "checked" : "";
+      html += `
+        <td style="text-align:center;">
+          <input type="checkbox"
+            data-site="${escapeHtml(site.id)}"
+            data-company="${escapeHtml(c.id)}"
+            ${checked}>
+        </td>
+      `;
+    }
+
+    html += `</tr>`;
+  }
+
+  html += `</tbody></table>
+    <div style="margin-top:15px;">
+      <button onclick="saveCompanyMappings()">💾 Save Changes</button>
+    </div>`;
+
+  wrap.innerHTML = html;
+}
+
+async function saveCompanyMappings(){
+
+  const checkboxes = document.querySelectorAll("#companiesAdminBody input[type='checkbox']");
+
+  const map = {};
+
+  checkboxes.forEach(cb=>{
+    const site = cb.dataset.site;
+    const company = cb.dataset.company;
+
+    if(!map[site]) map[site] = [];
+    if(cb.checked) map[site].push(company);
+  });
+
+  await fetch(`${API_BASE}/update-site-companies`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(map)
+  });
+
+  alert("Company mappings updated.");
+}
 </script>
 
 <!-- DELETE MODAL (EXISTING) -->
@@ -1024,6 +1119,19 @@ async function toggleEngineer(id){
     <div id="engineersAdminBody"></div>
   </div>
 </div>
-
+<!-- NEW: COMPANIES ADMIN MODAL -->
+<div id="companiesModal" class="modal">
+  <div class="modalContent">
+    <div class="modalHead">
+      <h3>🏢 Assign Companies Per Site</h3>
+      <button class="ghostBtn" onclick="closeCompaniesModal()">✕ Close</button>
+    </div>
+    <div class="modalNote">
+      Tick which companies should appear during registration for each site.
+      Changes apply immediately to new registrations.
+    </div>
+    <div id="companiesAdminBody"></div>
+  </div>
+</div>
 </body>
 </html>

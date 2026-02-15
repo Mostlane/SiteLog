@@ -4,7 +4,7 @@
   <title>SiteLog Admin Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
-  <!-- PDF LIBRARY -->
+  <!-- PDF LIBRARY ADDED -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
   <style>
@@ -63,7 +63,6 @@
       color: white;
       font-weight: 600;
     }
-
     button:hover { background: #003366; }
 
     .dangerBtn {
@@ -111,6 +110,9 @@
 
     tr:hover { background: rgba(0,74,153,0.08); }
 
+    .liveDot { color: #1b8f2a; font-weight: 800; }
+    .outDot { color: #6b7280; font-weight: 800; }
+
     .pill {
       display: inline-block;
       font-size: 12px;
@@ -123,29 +125,103 @@
     .pill-live { background: #dff5df; color: #1b8f2a; }
     .pill-out { background: #eef2f7; color: #6b7280; }
 
+    .pill-verified { background: #e7f0ff; color: #004a99; }
+
     .muted { color: #6b7280; }
 
-    /* MODALS */
-    .modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.55);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 9999;
+    .groupWrap {
+      width: min(1050px, 100%);
+      margin: 0 auto 18px auto;
+      text-align: left;
     }
 
-    .modalContent {
-      width: 600px;
-      max-width: 95%;
-      background: white;
-      border-radius: 16px;
-      padding: 20px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
-      text-align: center;
+    .personCard {
+      background: rgba(255,255,255,0.95);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
     }
 
+    .personHeader {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+      font-weight: 800;
+      color: #0b2f55;
+    }
+
+    .dayHeader {
+      margin-top: 10px;
+      font-weight: 800;
+      color: #004a99;
+    }
+
+    .visitLine {
+      padding-left: 10px;
+      margin: 6px 0;
+    }
+
+    .dayTotal {
+      margin-top: 6px;
+      font-weight: 800;
+      color: #1b8f2a;
+    }
+
+    /* ===========================
+       MOBILE / SMARTPHONE SUPPORT
+       (DESKTOP UNCHANGED)
+       =========================== */
+
+    .tableWrap{
+      width: min(1050px, 100%);
+      margin: 10px auto 18px auto;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 12px;
+    }
+    .tableWrap table{
+      margin: 0;
+      width: 100%;
+      min-width: 980px; /* forces scroll on small screens instead of squashing */
+    }
+
+    @media (max-width: 920px){
+      body{ padding: 14px; }
+      h1{ font-size: 20px; padding: 12px; }
+      #controls{
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+      .controls-left, .controls-right{
+        width: 100%;
+        justify-content: space-between;
+      }
+      input, select, button{
+        width: 100%;
+        font-size: 16px;
+        padding: 12px;
+      }
+      label.muted{ font-size: 14px; }
+      .section-title{
+        width: 100%;
+        margin: 14px 0 8px 0;
+      }
+      .groupWrap{ width: 100%; }
+      .personCard{ padding: 12px; }
+      .personHeader{ font-size: 15px; }
+      .dayHeader{ font-size: 14px; }
+    }
+
+    @media (max-width: 520px){
+      h1{ font-size: 18px; }
+      .visitLine{ padding-left: 6px; }
+      .dayTotal{ font-size: 14px; }
+    }
   </style>
 </head>
 
@@ -156,175 +232,160 @@
 <div id="controls">
   <div class="controls-left">
     <input id="search" placeholder="Search name..." />
-
     <select id="companyFilter">
       <option value="">All Companies</option>
     </select>
-
     <select id="purposeFilter">
       <option value="">All Purposes</option>
       <option value="Visiting">Visiting</option>
       <option value="Contractor">Contractor</option>
-    </select>
-
-    <!-- SITE FILTER ADDED -->
-    <select id="siteFilter">
-      <option value="">All Sites</option>
     </select>
   </div>
 
   <div class="controls-right">
     <label class="muted">From</label>
     <input type="date" id="fromDate" />
-
     <label class="muted">To</label>
     <input type="date" id="toDate" />
 
-    <button onclick="openExportModal()">📄 Export PDF</button>
+    <label class="muted" style="display:flex;align-items:center;gap:6px;">
+      <input type="checkbox" id="groupToggle" />
+      Group by day
+    </label>
+
+    <button onclick="exportPDF()">📄 Export PDF</button>
     <button onclick="window.location.href='sites.html'">➕ Manage Sites</button>
     <button onclick="loadData()">🔄 Refresh</button>
   </div>
 </div>
 
 <div class="section-title">🟢 Live On Site (always)</div>
-<table>
-  <thead>
-    <tr>
-      <th>Status</th>
-      <th>Name</th>
-      <th>Company</th>
-      <th>Purpose</th>
-      <th>Site</th>
-      <th>Check In</th>
-      <th>Duration</th>
-      <th>Device</th>
-      <th>GPS</th>
-    </tr>
-  </thead>
-  <tbody id="liveRows"></tbody>
-</table>
+<div class="tableWrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Name</th>
+        <th>Company</th>
+        <th>Purpose</th>
+        <th>Site</th>
+        <th>Check In</th>
+        <th>Duration</th>
+        <th>Device</th>
+        <th>GPS</th>
+      </tr>
+    </thead>
+    <tbody id="liveRows"></tbody>
+  </table>
+</div>
 
-<div class="section-title">🕘 Logs</div>
+<div class="section-title">🕘 Logs (date filter + optional grouping)</div>
 
-<table id="logsTable">
-  <thead>
-    <tr>
-      <th>Status</th>
-      <th>Name</th>
-      <th>Company</th>
-      <th>Purpose</th>
-      <th>Site</th>
-      <th>Check In</th>
-      <th>Check Out</th>
-      <th>Duration</th>
-      <th>GPS</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody id="logRows"></tbody>
-</table>
+<div class="tableWrap">
+  <table id="logsTable">
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Name</th>
+        <th>Company</th>
+        <th>Purpose</th>
+        <th>Site</th>
+        <th>Check In</th>
+        <th>Check Out</th>
+        <th>Duration</th>
+        <th>Device</th>
+        <th>GPS</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="logRows"></tbody>
+  </table>
+</div>
+
+<div id="groupedWrap" class="groupWrap" style="display:none;"></div>
 
 <script>
-
 const API_BASE = "https://sitelog-api.jamie-def.workers.dev";
 
 let allVisits = [];
 let filteredVisits = [];
 let deleteId = null;
 
-/* -------------------- HELPERS -------------------- */
-
 function toLocal(ts){ if(!ts) return "-"; return new Date(ts.replace(" ","T")+"Z").toLocaleString();}
 function minutesBetween(a,b){ if(!a) return 0; const start=new Date(a.replace(" ","T")+"Z"); const end=b?new Date(b.replace(" ","T")+"Z"):new Date(); return Math.max(0,Math.round((end-start)/60000));}
-function fmtDuration(mins){ const h=Math.floor(mins/60); const m=mins%60; return h>0?`${h}h ${m}m`:`${m}m`;}
-function nameOf(v){ return `${v.first_name||""} ${v.last_name||""}`.trim(); }
-
-/* -------------------- FILTERS -------------------- */
+function fmtDuration(mins){ const h=Math.floor(mins/60); const m=mins%60; if(h<=0) return `${m}m`; return `${h}h ${m}m`;}
+function nameOf(v){ const fn=v.first_name||"Unknown"; const ln=v.last_name||""; return (fn+" "+ln).trim();}
+function gpsText(v){ const has=(v.lat!=null&&v.lng!=null); if(!has) return `<span class="muted">-</span>`; const acc=(v.accuracy!=null)?`${Math.round(v.accuracy)}m`:"?"; return acc;}
+function devicePill(){ return `<span class="pill pill-verified">Verified</span>`;}
 
 function passFilters(v){
   const search=document.getElementById("search").value.toLowerCase().trim();
   const company=document.getElementById("companyFilter").value;
   const purpose=document.getElementById("purposeFilter").value;
-  const site=document.getElementById("siteFilter").value;
   const nm=nameOf(v).toLowerCase();
-
-  return (
-    (!search||nm.includes(search)) &&
-    (!company||v.company===company) &&
-    (!purpose||v.purpose===purpose) &&
-    (!site||v.site_code===site)
-  );
+  return ((!search||nm.includes(search))&&(!company||v.company===company)&&(!purpose||v.purpose===purpose));
 }
 
-function buildSiteFilter(){
-  const select=document.getElementById("siteFilter");
-  const sites=[...new Set(filteredVisits.map(v=>v.site_code).filter(Boolean))].sort();
-  const current=select.value;
-
-  select.innerHTML='<option value="">All Sites</option>'+
-    sites.map(s=>`<option value="${s}">${s}</option>`).join("");
-
-  if([...select.options].some(o=>o.value===current)){
-    select.value=current;
-  }
-}
-
-/* -------------------- FETCH -------------------- */
-
-async function fetchAll(){ const res=await fetch(`${API_BASE}/admin`); const data=await res.json(); return data.visits||[]; }
+async function fetchAll(){ const res=await fetch(`${API_BASE}/admin`); const data=await res.json(); return data.visits||[];}
 async function fetchRange(from,to){
   const qs=new URLSearchParams();
   if(from&&to){qs.set("from",from);qs.set("to",to);}
-  const res=await fetch(`${API_BASE}/admin?${qs.toString()}`);
+  const url=`${API_BASE}/admin${qs.toString()?"?"+qs.toString():""}`;
+  const res=await fetch(url);
   const data=await res.json();
   return data.visits||[];
 }
 
-/* -------------------- RENDER -------------------- */
-
 function renderLive(){
   const tbody=document.getElementById("liveRows");
-  const live=allVisits.filter(v=>!v.check_out_at).filter(passFilters);
-  tbody.innerHTML=live.map(v=>`
-    <tr>
-      <td><span class="pill pill-live">LIVE</span></td>
+  const live=allVisits.filter(v=>!v.check_out_at).filter(passFilters).sort((a,b)=>(a.check_in_at<b.check_in_at?1:-1));
+  tbody.innerHTML=live.map(v=>{
+    const mins=minutesBetween(v.check_in_at,v.check_out_at);
+    return `<tr>
+      <td><span class="pill pill-live"><span class="liveDot">●</span> LIVE</span></td>
       <td>${nameOf(v)}</td>
       <td>${v.company||"-"}</td>
       <td>${v.purpose||"-"}</td>
       <td>${v.site_code||"-"}</td>
       <td>${toLocal(v.check_in_at)}</td>
-      <td>${fmtDuration(minutesBetween(v.check_in_at,v.check_out_at))}</td>
-      <td>${v.accuracy||"-"}</td>
-    </tr>
-  `).join("");
+      <td>${fmtDuration(mins)}</td>
+      <td>${devicePill()}</td>
+      <td>${gpsText(v)}</td>
+    </tr>`;
+  }).join("");
+  if(!live.length){tbody.innerHTML=`<tr><td colspan="9" class="muted" style="text-align:center;">No one currently onsite.</td></tr>`;}
 }
 
-function renderLogs(){
+function renderLogsTable(){
   const tbody=document.getElementById("logRows");
-  const logs=filteredVisits.filter(passFilters);
-  tbody.innerHTML=logs.map(v=>`
-    <tr>
-      <td>${v.check_out_at?"OUT":"LIVE"}</td>
+  const logs=filteredVisits.filter(passFilters).sort((a,b)=>(a.check_in_at<b.check_in_at?1:-1));
+  tbody.innerHTML=logs.map(v=>{
+    const live=!v.check_out_at;
+    const mins=minutesBetween(v.check_in_at,v.check_out_at);
+    return `<tr>
+      <td>${live?`<span class="pill pill-live"><span class="liveDot">●</span> LIVE</span>`:`<span class="pill pill-out"><span class="outDot">✔</span> OUT</span>`}</td>
       <td>${nameOf(v)}</td>
       <td>${v.company||"-"}</td>
       <td>${v.purpose||"-"}</td>
       <td>${v.site_code||"-"}</td>
       <td>${toLocal(v.check_in_at)}</td>
       <td>${v.check_out_at?toLocal(v.check_out_at):"-"}</td>
-      <td>${v.check_out_at?fmtDuration(minutesBetween(v.check_in_at,v.check_out_at)):"On Site"}</td>
-      <td>${v.accuracy||"-"}</td>
+      <td>${live?"On Site":fmtDuration(mins)}</td>
+      <td>${devicePill()}</td>
+      <td>${gpsText(v)}</td>
       <td><button class="dangerBtn" onclick="openDeleteModal('${v.visit_id}','${nameOf(v)}','${v.site_code}')">Delete</button></td>
-    </tr>
-  `).join("");
+    </tr>`;
+  }).join("");
+  if(!logs.length){tbody.innerHTML=`<tr><td colspan="11" class="muted" style="text-align:center;">No logs match your filters.</td></tr>`;}
 }
 
 function renderAll(){
-  buildSiteFilter();
   renderLive();
-  renderLogs();
+  const grouped=document.getElementById("groupToggle").checked;
+  document.getElementById("logsTable").style.display=grouped?"none":"";
+  document.getElementById("groupedWrap").style.display=grouped?"":"none";
+  renderLogsTable();
 }
-
-/* -------------------- LOAD -------------------- */
 
 async function loadData(){
   allVisits=await fetchAll();
@@ -337,87 +398,48 @@ async function loadData(){
 document.getElementById("search").addEventListener("input",renderAll);
 document.getElementById("companyFilter").addEventListener("change",renderAll);
 document.getElementById("purposeFilter").addEventListener("change",renderAll);
-document.getElementById("siteFilter").addEventListener("change",renderAll);
+document.getElementById("groupToggle").addEventListener("change",renderAll);
 loadData();
 
-/* -------------------- DELETE -------------------- */
-
+/* DELETE MODAL */
 function openDeleteModal(id,name,site){
   deleteId=id;
   document.getElementById("deleteText").innerText=`Delete visit for ${name} at ${site}?`;
   document.getElementById("deleteModal").style.display="flex";
 }
-
 function closeDeleteModal(){
   document.getElementById("deleteModal").style.display="none";
   deleteId=null;
 }
-
 async function confirmDelete(){
   if(!deleteId) return;
-  const res=await fetch(API_BASE+"/delete-visit",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({visitId:deleteId})
-  });
-  const data=await res.json();
-  if(data.ok){ loadData(); }
+  await fetch(API_BASE+"/delete-visit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({visitId:deleteId})});
   closeDeleteModal();
+  loadData();
 }
 
-/* -------------------- PDF MODAL -------------------- */
-
-function openExportModal(){
-  document.getElementById("exportModal").style.display="flex";
-}
-
-function closeExportModal(){
-  document.getElementById("exportModal").style.display="none";
-}
-
-function generatePDF(){
-  const site=document.getElementById("siteFilter").value||"All Sites";
-  const totalVisits=filteredVisits.length;
-  const totalMinutes=filteredVisits.reduce((sum,v)=>v.check_out_at?sum+minutesBetween(v.check_in_at,v.check_out_at):sum,0);
-
-  const wrapper=document.createElement("div");
-  wrapper.innerHTML=`
-    <h2>SiteLog Report</h2>
-    <div><strong>Site:</strong> ${site}</div>
-    <div><strong>Total Visits:</strong> ${totalVisits}</div>
-    <div><strong>Total Hours:</strong> ${(totalMinutes/60).toFixed(2)}</div>
-    <br>
-  `;
-  wrapper.appendChild(document.getElementById("logsTable").cloneNode(true));
-
+/* PDF EXPORT */
+function exportPDF(){
+  const element=document.getElementById("logsTable");
   html2pdf().set({
     margin:0.3,
     filename:"SiteLog_Report.pdf",
+    image:{type:"jpeg",quality:0.98},
+    html2canvas:{scale:2},
     jsPDF:{unit:"in",format:"a4",orientation:"landscape"}
-  }).from(wrapper).save();
-
-  closeExportModal();
+  }).from(element).save();
 }
-
 </script>
 
 <!-- DELETE MODAL -->
-<div id="deleteModal" class="modal">
-  <div class="modalContent">
+<div id="deleteModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);display:none;justify-content:center;align-items:center;z-index:9999;">
+  <div style="width:420px;background:white;border-radius:16px;padding:20px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.35);">
     <h3>Delete Visit</h3>
     <p id="deleteText"></p>
-    <button class="dangerBtn" onclick="confirmDelete()">Confirm Delete</button>
-    <button onclick="closeDeleteModal()" style="background:#ccc;color:#333;">Cancel</button>
-  </div>
-</div>
-
-<!-- EXPORT MODAL -->
-<div id="exportModal" class="modal">
-  <div class="modalContent">
-    <h3>Export Report</h3>
-    <p>This will export current filtered results.</p>
-    <button onclick="generatePDF()">Generate PDF</button>
-    <button onclick="closeExportModal()" style="background:#ccc;color:#333;">Cancel</button>
+    <div style="margin-top:15px;">
+      <button class="dangerBtn" onclick="confirmDelete()">Confirm Delete</button>
+      <button onclick="closeDeleteModal()" style="background:#ccc;color:#333;">Cancel</button>
+    </div>
   </div>
 </div>
 

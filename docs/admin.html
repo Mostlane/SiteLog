@@ -295,15 +295,22 @@ function renderLive(){
       <td>${v.site_code||"-"}</td>
       <td>${toLocal(v.check_in_at)}</td>
       <td>${fmtDuration(minutesBetween(v.check_in_at,v.check_out_at))}</td>
-      <td>${v.device_token || "-"}</td>
-      <td>
-        ${v.lat!=null && v.lng!=null
-          ? `${v.lat.toFixed(5)}, ${v.lng.toFixed(5)}`
-          : "-"
-        }
+
+      <!-- Device column: tick if device_token exists -->
+      <td style="text-align:center;">
+        ${v.device_token ? `<span style="color:#16a34a;font-weight:900;font-size:16px;">✓</span>` : `<span class="muted">-</span>`}
+      </td>
+
+      <!-- GPS column: tick if lat/lng exist -->
+      <td style="text-align:center;">
+        ${(v.lat!=null && v.lng!=null) ? `<span style="color:#16a34a;font-weight:900;font-size:16px;">✓</span>` : `<span class="muted">-</span>`}
       </td>
     </tr>
   `).join("");
+
+  if(!live.length){
+    tbody.innerHTML=`<tr><td colspan="9" class="muted" style="text-align:center;">No one currently onsite.</td></tr>`;
+  }
 }
 
 function renderLogs(){

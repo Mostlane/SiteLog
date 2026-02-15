@@ -8,124 +8,154 @@
 
   <style>
     body {
-      font-family: "Segoe UI", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #e6e8eb url('Mostlane_Embossed.png') no-repeat center center fixed;
       background-size: 180%;
       margin: 0;
-      padding: 40px 20px;
+      padding: 32px 16px;
       text-align: center;
     }
 
     h1 {
-      background: rgba(0, 74, 153, 0.7);
+      background: rgba(0, 59, 130, 0.85);
       color: white;
-      padding: 12px;
-      border-radius: 10px;
+      padding: 14px;
+      border-radius: 12px;
       max-width: 520px;
       margin: auto;
+      font-size: 20px;
+      font-weight: 600;
     }
 
     .logo {
       display: block;
-      margin: 16px auto 10px;
-      max-width: 220px;
-      width: 100%;
+      margin: 18px auto 8px;
+      max-width: 200px;
     }
 
     #card {
       margin: 20px auto;
       max-width: 520px;
-      background: rgba(255,255,255,0.95);
-      padding: 15px;
-      border-radius: 12px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+      background: rgba(255,255,255,0.97);
+      padding: 20px;
+      border-radius: 18px;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.15);
     }
 
-    /* 🔒 MAP LOCKED */
     #map {
       height: 260px;
-      border-radius: 10px;
-      margin-top: 10px;
-      touch-action: none;
+      border-radius: 16px;
+      margin-top: 14px;
       pointer-events: none;
+      touch-action: none;
     }
 
-    /* ✅ iOS-centred, consistent inputs/selects/buttons */
-    input, select, button {
-      display: block;
+    .field {
+      position: relative;
+      margin-top: 18px;
+    }
+
+    .field input,
+    .field select {
       width: 100%;
-      max-width: 480px;          /* keeps everything visually centred */
-      box-sizing: border-box;     /* stops iOS sizing weirdness */
-      margin: 10px auto 0;        /* true centre */
-      padding: 12px 14px;         /* consistent internal spacing */
-      border-radius: 10px;
-      border: 1px solid #cbd5e1;
-      text-align: center;
-      background: #fff;
-      font-size: 16px;            /* prevents iOS zoom on focus */
-      line-height: 1.2;
-      -webkit-appearance: none;   /* normalise iOS input rendering */
+      padding: 18px 14px 8px;
+      border-radius: 14px;
+      border: 1px solid #d1d5db;
+      font-size: 16px;
+      background: #f8fafc;
       appearance: none;
     }
 
-    /* Keep select arrow visible on iOS */
-    select {
-      -webkit-appearance: menulist;
-      appearance: menulist;
+    .field label {
+      position: absolute;
+      left: 14px;
+      top: 14px;
+      font-size: 14px;
+      color: #64748b;
+      pointer-events: none;
+      transition: all 0.2s ease;
     }
 
-    input::placeholder {
-      text-align: center;
-      color: #9aa3af;
-    }
-
-    select:invalid { color: #6b7280; } /* placeholder grey */
-    option { color: #0f172a; }
-
-    button {
-      background: #004a99;
-      color: white;
-      border: none;
-      cursor: pointer;
-      font-weight: bold;
-      padding: 14px 14px;
-    }
-
-    .site-notice {
-      margin: 12px auto 18px;
-      padding: 14px 16px;
-      max-width: 520px;
-      border-radius: 14px;
-      background: rgba(255,255,255,0.9);
-      border: 2px solid rgba(0,59,130,0.25);
-      color: #0f172a;
-      font-size: 18px;
-      text-align: center;
-    }
-
-    .site-notice strong {
+    .field input:focus + label,
+    .field input:not(:placeholder-shown) + label,
+    .field select:focus + label,
+    .field select:valid + label {
+      top: 4px;
+      font-size: 11px;
       color: #003b82;
     }
 
-    /* Make checkbox row look cleaner on mobile */
-    #registerBox label{
-      max-width: 480px;
-      margin: 14px auto 0;
-      text-align: left;
-      display: flex;
-      gap: 10px;
-      align-items: flex-start;
-      color:#0f172a;
-      line-height: 1.25;
+    button {
+      width: 100%;
+      margin-top: 24px;
+      padding: 16px;
+      border-radius: 16px;
+      border: none;
+      background: linear-gradient(135deg,#003b82,#0057c2);
+      color: white;
+      font-size: 17px;
+      font-weight: 600;
+      box-shadow: 0 8px 20px rgba(0,59,130,0.4);
+      cursor: pointer;
     }
-    #registerBox label input[type="checkbox"]{
-      width: 26px;
-      height: 26px;
-      margin: 0;
-      padding: 0;
-      border-radius: 6px;
-      -webkit-appearance: auto;
-      appearance: auto;
+
+    .site-notice {
+      margin: 14px auto;
+      padding: 14px;
+      max-width: 520px;
+      border-radius: 16px;
+      background: white;
+      border: 2px solid rgba(0,59,130,0.25);
+      font-weight: 500;
+    }
+
+    /* ===== SUCCESS OVERLAY ===== */
+    #successOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      z-index: 9999;
+    }
+
+    #successOverlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .success-box {
+      background: white;
+      padding: 40px;
+      border-radius: 28px;
+      text-align: center;
+      animation: pop 0.4s ease;
+    }
+
+    .success-box h2 {
+      margin: 14px 0 0;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .tick {
+      font-size: 70px;
+      color: #16a34a;
+      animation: scaleIn 0.5s ease;
+    }
+
+    @keyframes pop {
+      from { transform: scale(0.8); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes scaleIn {
+      from { transform: scale(0); }
+      to { transform: scale(1); }
     }
   </style>
 </head>
@@ -134,41 +164,59 @@
 
 <h1 id="title">Checking Location…</h1>
 
-<img src="/SiteLog/Mostlane%20Logo.jpg" alt="Mostlane" class="logo"/>
+<img src="/SiteLog/Mostlane%20Logo.jpg" class="logo"/>
 
 <div class="site-notice" id="noticeBox">
-  <strong>⚠️ Site Notice:</strong> Report to site foreman
+  ⚠️ Report to site foreman
 </div>
 
 <div id="card">
   <div id="status">Requesting GPS…</div>
   <div id="map"></div>
 
-  <div id="registerBox" style="display:none; text-align:center;">
+  <div id="registerBox" style="display:none;">
     <h3>First Visit Registration</h3>
 
-    <input id="firstName" placeholder="First Name">
-    <input id="lastName" placeholder="Last Name">
+    <div class="field">
+      <input id="firstName" placeholder=" " />
+      <label>First Name</label>
+    </div>
 
-    <!-- ✅ PURPOSE DROPDOWN WITH PLACEHOLDER -->
-    <select id="purpose" required>
-      <option value="" disabled selected>Select from list</option>
-      <option value="Visiting">Visiting</option>
-      <option value="Contractor">Contractor</option>
-    </select>
+    <div class="field">
+      <input id="lastName" placeholder=" " />
+      <label>Last Name</label>
+    </div>
 
-    <!-- ✅ COMPANY DROPDOWN WITH PLACEHOLDER -->
-    <select id="company" required>
-      <option value="" disabled selected>Select from list</option>
-      <!-- Dynamically populated -->
-    </select>
+    <div class="field">
+      <select id="purpose" required>
+        <option value="" disabled selected hidden></option>
+        <option>Visiting</option>
+        <option>Contractor</option>
+      </select>
+      <label>Select from list</label>
+    </div>
 
-    <label>
+    <div class="field">
+      <select id="company" required>
+        <option value="" disabled selected hidden></option>
+      </select>
+      <label>Select from list</label>
+    </div>
+
+    <label style="display:block; margin-top:16px;">
       <input type="checkbox" id="hsAck">
-      <span>I have read site rules and will report to site foreman</span>
+      I have read site rules
     </label>
 
     <button onclick="register()">Confirm & Check In</button>
+  </div>
+</div>
+
+<!-- SUCCESS OVERLAY -->
+<div id="successOverlay">
+  <div class="success-box">
+    <div class="tick">✓</div>
+    <h2 id="successText">Checked In</h2>
   </div>
 </div>
 
@@ -184,7 +232,16 @@ if (!deviceToken) {
 let lastLocation = null;
 let currentSite = null;
 
-/* 🔒 LOCKED MAP VERSION */
+function showSuccess(message) {
+  document.getElementById("successText").innerText = message;
+  const overlay = document.getElementById("successOverlay");
+  overlay.classList.add("active");
+
+  setTimeout(() => {
+    overlay.classList.remove("active");
+  }, 1800);
+}
+
 function showMap(lat, lng) {
   const map = new google.maps.Map(document.getElementById("map"), {
     center: { lat, lng },
@@ -193,56 +250,29 @@ function showMap(lat, lng) {
     disableDefaultUI: true,
     draggable: false,
     scrollwheel: false,
-    disableDoubleClickZoom: true,
-    keyboardShortcuts: false,
     gestureHandling: "none"
   });
-
   new google.maps.Marker({ position: { lat, lng }, map });
 }
 
-/* ======================================
-   LOAD COMPANIES FOR SITE
-======================================*/
+/* Load companies dynamically */
 async function loadCompaniesForSite(siteName) {
-  try {
-    const res = await fetch(API + "/companies-for-site?site=" + encodeURIComponent(siteName));
-    const data = await res.json();
-
-    const companySelect = document.getElementById("company");
-
-    // reset to placeholder
-    companySelect.innerHTML = `<option value="" disabled selected>Select from list</option>`;
-
-    if (data.companies && data.companies.length > 0) {
-      data.companies.forEach(c => {
-        const option = document.createElement("option");
-        option.value = c.name;
-        option.textContent = c.name;
-        companySelect.appendChild(option);
-      });
-    }
-
-    // If we have a saved profile company and it exists in this site’s list, preselect it
-    const savedProfile = localStorage.getItem("mostlane_profile");
-    if (savedProfile) {
-      const profile = JSON.parse(savedProfile);
-      const savedCompany = (profile.company || "").trim();
-      if (savedCompany) {
-        const exists = [...companySelect.options].some(o => o.value === savedCompany);
-        if (exists) companySelect.value = savedCompany;
-      }
-    }
-
-  } catch (err) {
-    console.error("Company load failed:", err);
-  }
+  const res = await fetch(API + "/companies-for-site?site=" + encodeURIComponent(siteName));
+  const data = await res.json();
+  const select = document.getElementById("company");
+  select.innerHTML = '<option value="" disabled selected hidden></option>';
+  data.companies.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.name;
+    opt.textContent = c.name;
+    select.appendChild(opt);
+  });
 }
 
 async function scan() {
   const res = await fetch(API + "/scan", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {"Content-Type":"application/json"},
     body: JSON.stringify({
       deviceToken,
       lat: lastLocation.lat,
@@ -252,80 +282,26 @@ async function scan() {
   });
 
   const data = await res.json();
-  const noticeBox = document.getElementById("noticeBox");
 
   if (data.status === "unknown_site") {
-    document.getElementById("title").innerText = "❌ Unknown Site";
-    document.getElementById("status").innerText =
-      "You are not within range of an active Mostlane job.";
+    document.getElementById("title").innerText = "Unknown Site";
     return;
   }
 
   currentSite = data.site;
-
-  // load companies for this site (used for registration)
   await loadCompaniesForSite(currentSite);
 
-  const firstName = data.firstName || "";
-  const companyName = data.company || "";
-
   if (data.status === "first_visit") {
-    document.getElementById("status").innerText =
-      "First visit at " + currentSite + " — please register.";
-
-    const savedProfile = localStorage.getItem("mostlane_profile");
-    if (savedProfile) {
-      const profile = JSON.parse(savedProfile);
-      document.getElementById("firstName").value = profile.firstName || "";
-      document.getElementById("lastName").value = profile.lastName || "";
-
-      // purpose preselect if valid
-      const savedPurpose = (profile.purpose || "").trim();
-      if (savedPurpose === "Visiting" || savedPurpose === "Contractor") {
-        document.getElementById("purpose").value = savedPurpose;
-      } else {
-        document.getElementById("purpose").value = "";
-      }
-      // company is preselected inside loadCompaniesForSite()
-    }
-
     document.getElementById("registerBox").style.display = "block";
     return;
   }
 
   if (data.status === "checked_in") {
-    localStorage.setItem("mostlane_last_checkin", Date.now());
-
-    document.getElementById("title").innerText = "✅ Checked In";
-    document.getElementById("status").innerText =
-      (firstName && companyName)
-        ? `Welcome Back ${firstName} from ${companyName}`
-        : "You are now on site: " + currentSite;
-
-    noticeBox.innerHTML =
-      "<strong>⚠️ Site Notice:</strong> Report to site foreman";
+    showSuccess("Checked In");
   }
 
   if (data.status === "checked_out") {
-    const start = localStorage.getItem("mostlane_last_checkin");
-
-    let durationText = "";
-    if (start) {
-      const mins = Math.round((Date.now() - start) / 60000);
-      const hrs = Math.floor(mins / 60);
-      const rem = mins % 60;
-      durationText = hrs > 0 ? `${hrs}h ${rem}m` : `${mins}m`;
-      localStorage.removeItem("mostlane_last_checkin");
-    }
-
-    document.getElementById("title").innerText = "👋 Checked Out";
-    document.getElementById("status").innerText =
-      firstName
-        ? `Goodbye ${firstName} — Total time on site: ${durationText || "Recorded"}`
-        : "Total time on site: " + (durationText || "Recorded");
-
-    noticeBox.innerHTML =
-      "<strong>✅ Visit Complete:</strong> Thank you, you may now leave site.";
+    showSuccess("Checked Out");
   }
 }
 
@@ -337,73 +313,42 @@ async function register() {
   const hsAck = document.getElementById("hsAck").checked;
 
   if (!firstName || !lastName || !purpose || !company || !hsAck) {
-    alert("Complete all fields and confirm site rules.");
+    alert("Complete all fields.");
     return;
   }
 
-  localStorage.setItem("mostlane_profile", JSON.stringify({
-    firstName,
-    lastName,
-    purpose,
-    company
-  }));
-
   await fetch(API + "/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
       deviceToken,
       firstName,
       lastName,
       purpose,
       company,
-      siteCode: currentSite,
-      lat: lastLocation.lat,
-      lng: lastLocation.lng,
-      accuracy: lastLocation.accuracy
+      siteCode:currentSite,
+      lat:lastLocation.lat,
+      lng:lastLocation.lng,
+      accuracy:lastLocation.accuracy
     })
   });
 
-  document.getElementById("registerBox").style.display = "none";
-  document.getElementById("title").innerText = "✅ Checked In";
-  document.getElementById("status").innerText =
-    "Registered successfully at " + currentSite;
-
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  showSuccess("Checked In");
 }
 
-function startLocation() {
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      lastLocation = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracy: pos.coords.accuracy
-      };
-
-      showMap(lastLocation.lat, lastLocation.lng);
-      scan();
-    },
-    (err) => {
-      document.getElementById("status").innerText =
-        "Location required: " + err.message;
-    },
-    { enableHighAccuracy: true, timeout: 20000 }
-  );
-}
-
-if (navigator.permissions && navigator.permissions.query) {
-  navigator.permissions.query({ name: "geolocation" }).then((result) => {
-    if (result.state === "granted" || result.state === "prompt") {
-      startLocation();
-    } else {
-      document.getElementById("status").innerText =
-        "Location access is required. Please enable it in your browser settings.";
-    }
-  }).catch(() => startLocation());
-} else {
-  startLocation();
-}
+navigator.geolocation.getCurrentPosition(
+  (pos)=>{
+    lastLocation={
+      lat:pos.coords.latitude,
+      lng:pos.coords.longitude,
+      accuracy:pos.coords.accuracy
+    };
+    showMap(lastLocation.lat,lastLocation.lng);
+    scan();
+  },
+  ()=>{},
+  {enableHighAccuracy:true}
+);
 </script>
 
 </body>

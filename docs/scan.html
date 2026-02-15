@@ -57,7 +57,11 @@
       border-radius: 8px;
       border: 1px solid #ccc;
       text-align: center;
+      background: #fff;
     }
+
+    select:invalid { color: #6b7280; } /* placeholder grey */
+    option { color: #0f172a; }
 
     button {
       background: #004a99;
@@ -105,16 +109,18 @@
     <input id="firstName" placeholder="First Name">
     <input id="lastName" placeholder="Last Name">
 
-    <select id="purpose">
-      <option>Visiting</option>
-      <option>Contractor</option>
+    <!-- ✅ PURPOSE DROPDOWN WITH PLACEHOLDER -->
+    <select id="purpose" required>
+      <option value="" disabled selected>Select from list</option>
+      <option value="Visiting">Visiting</option>
+      <option value="Contractor">Contractor</option>
     </select>
 
-    <input id="company" placeholder="Company Name" list="companyList">
-
-    <datalist id="companyList">
+    <!-- ✅ COMPANY DROPDOWN WITH PLACEHOLDER -->
+    <select id="company" required>
+      <option value="" disabled selected>Select from list</option>
       <!-- Dynamically populated -->
-    </datalist>
+    </select>
 
     <label style="display:block; margin-top:12px;">
       <input type="checkbox" id="hsAck">
@@ -162,15 +168,29 @@ async function loadCompaniesForSite(siteName) {
     const res = await fetch(API + "/companies-for-site?site=" + encodeURIComponent(siteName));
     const data = await res.json();
 
-    const list = document.getElementById("companyList");
-    list.innerHTML = "";
+    const companySelect = document.getElementById("company");
+
+    // reset to placeholder
+    companySelect.innerHTML = `<option value="" disabled selected>Select from list</option>`;
 
     if (data.companies && data.companies.length > 0) {
       data.companies.forEach(c => {
         const option = document.createElement("option");
         option.value = c.name;
-        list.appendChild(option);
+        option.textContent = c.name;
+        companySelect.appendChild(option);
       });
+    }
+
+    // If we have a saved profile company and it exists in this site’s list, preselect it
+    const savedProfile = localStorage.getItem("mostlane_profile");
+    if (savedProfile) {
+      const profile = JSON.parse(savedProfile);
+      const savedCompany = (profile.company || "").trim();
+      if (savedCompany) {
+        const exists = [...companySelect.options].some(o => o.value === savedCompany);
+        if (exists) companySelect.value = savedCompany;
+      }
     }
 
   } catch (err) {
@@ -202,6 +222,7 @@ async function scan() {
 
   currentSite = data.site;
 
+  // load companies for this site (used for registration)
   await loadCompaniesForSite(currentSite);
 
   const firstName = data.firstName || "";
@@ -216,8 +237,15 @@ async function scan() {
       const profile = JSON.parse(savedProfile);
       document.getElementById("firstName").value = profile.firstName || "";
       document.getElementById("lastName").value = profile.lastName || "";
-      document.getElementById("purpose").value = profile.purpose || "Visiting";
-      document.getElementById("company").value = profile.company || "";
+
+      // purpose preselect if valid
+      const savedPurpose = (profile.purpose || "").trim();
+      if (savedPurpose === "Visiting" || savedPurpose === "Contractor") {
+        document.getElementById("purpose").value = savedPurpose;
+      } else {
+        document.getElementById("purpose").value = "";
+      }
+      // company is preselected inside loadCompaniesForSite()
     }
 
     document.getElementById("registerBox").style.display = "block";
@@ -264,10 +292,10 @@ async function register() {
   const firstName = document.getElementById("firstName").value.trim();
   const lastName = document.getElementById("lastName").value.trim();
   const purpose = document.getElementById("purpose").value;
-  const company = document.getElementById("company").value.trim();
+  const company = document.getElementById("company").value;
   const hsAck = document.getElementById("hsAck").checked;
 
-  if (!firstName || !lastName || !company || !hsAck) {
+  if (!firstName || !lastName || !purpose || !company || !hsAck) {
     alert("Complete all fields and confirm site rules.");
     return;
   }

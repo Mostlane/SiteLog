@@ -74,6 +74,14 @@
       background: #b91c1c;
     }
 
+    .ghostBtn{
+      background:#eef2f7;
+      color:#0f172a;
+      border:1px solid #cbd5e1;
+      font-weight:700;
+    }
+    .ghostBtn:hover{ background:#e2e8f0; }
+
     .section-title {
       width: min(1050px, 100%);
       margin: 18px auto 8px auto;
@@ -122,6 +130,8 @@
 
     .pill-live { background: #dff5df; color: #1b8f2a; }
     .pill-out { background: #eef2f7; color: #6b7280; }
+    .pill-active{ background:#dbeafe; color:#1d4ed8; }
+    .pill-arch{ background:#f1f5f9; color:#64748b; }
 
     .muted { color: #6b7280; }
 
@@ -137,15 +147,81 @@
     }
 
     .modalContent {
-      width: 600px;
-      max-width: 95%;
+      width: 900px;              /* wider for admin tables */
+      max-width: 96%;
+      max-height: 86vh;
+      overflow: auto;
       background: white;
       border-radius: 16px;
-      padding: 20px;
+      padding: 18px;
       box-shadow: 0 20px 60px rgba(0,0,0,0.35);
       text-align: center;
     }
 
+    .modalHead{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    }
+
+    .modalHead h3{
+      margin:0;
+      color:#0b2f55;
+      font-size:18px;
+      text-align:left;
+    }
+
+    .modalNote{
+      text-align:left;
+      margin:6px 0 14px 0;
+      color:#475569;
+      font-size:13px;
+    }
+
+    .adminTable{
+      width:100%;
+      border-collapse:collapse;
+      margin:10px 0 0 0;
+      box-shadow:none;
+      border-radius:12px;
+      overflow:hidden;
+    }
+
+    .adminTable th{
+      position:sticky;
+      top:0;
+      z-index:2;
+    }
+
+    .adminTable td input{
+      width:100%;
+      box-sizing:border-box;
+      padding:8px;
+      border-radius:8px;
+      border:1px solid #cbd5e1;
+      font-size:13px;
+    }
+
+    .rowBtns{
+      display:flex;
+      gap:8px;
+      justify-content:flex-end;
+      flex-wrap:wrap;
+    }
+
+    .tinyBtn{
+      padding:8px 10px;
+      font-size:12px;
+      border-radius:8px;
+    }
+
+    .okTick{
+      color:#16a34a;
+      font-weight:900;
+      font-size:16px;
+    }
   </style>
 </head>
 
@@ -157,6 +233,11 @@
   <div class="controls-left">
     <input id="search" placeholder="Search name..." />
 
+    <!-- PERSON FILTER (NEW) -->
+    <select id="personFilter">
+      <option value="">All People</option>
+    </select>
+
     <select id="companyFilter">
       <option value="">All Companies</option>
     </select>
@@ -167,7 +248,7 @@
       <option value="Contractor">Contractor</option>
     </select>
 
-    <!-- SITE FILTER ADDED -->
+    <!-- SITE FILTER (NOW EXCLUDES ARCHIVED SITES) -->
     <select id="siteFilter">
       <option value="">All Sites</option>
     </select>
@@ -181,7 +262,14 @@
     <input type="date" id="toDate" />
 
     <button onclick="openExportModal()">📄 Export PDF</button>
+
+    <!-- KEEP EXISTING ELEMENT (unchanged) -->
     <button onclick="window.location.href='sites.html'">➕ Manage Sites</button>
+
+    <!-- NEW: inline admin panels (does not remove anything) -->
+    <button class="ghostBtn" onclick="openSitesModal()">🗂 View/Edit Sites</button>
+    <button class="ghostBtn" onclick="openEngineersModal()">👷 Engineers</button>
+
     <button onclick="loadData()">🔄 Refresh</button>
   </div>
 </div>
@@ -218,68 +306,191 @@
       <th>Check Out</th>
       <th>Duration</th>
       <th>Device</th>
-<th>GPS</th>
-<th>Location</th>
-<th>Actions</th>
+      <th>GPS</th>
+      <th>Location</th>
+      <th>Actions</th>
     </tr>
   </thead>
   <tbody id="logRows"></tbody>
 </table>
 
 <script>
-
 const API_BASE = "https://sitelog-api.jamie-def.workers.dev";
 
 let allVisits = [];
 let filteredVisits = [];
 let deleteId = null;
 
+/* NEW: cached admin data */
+let sitesAll = [];         // all sites (including archived)
+let sitesActive = [];      // archived=0 only
+let engineersAll = [];     // all engineers/people (including archived)
+let engineersActive = [];  // archived=0 only
+
 /* -------------------- HELPERS -------------------- */
 
-function toLocal(ts){ if(!ts) return "-"; return new Date(ts.replace(" ","T")+"Z").toLocaleString();}
-function minutesBetween(a,b){ if(!a) return 0; const start=new Date(a.replace(" ","T")+"Z"); const end=b?new Date(b.replace(" ","T")+"Z"):new Date(); return Math.max(0,Math.round((end-start)/60000));}
-function fmtDuration(mins){ const h=Math.floor(mins/60); const m=mins%60; return h>0?`${h}h ${m}m`:`${m}m`;}
-function nameOf(v){ return `${v.first_name||""} ${v.last_name||""}`.trim(); }
+function toLocal(ts){
+  if(!ts) return "-";
+  return new Date(ts.replace(" ","T")+"Z").toLocaleString();
+}
+function minutesBetween(a,b){
+  if(!a) return 0;
+  const start=new Date(a.replace(" ","T")+"Z");
+  const end=b?new Date(b.replace(" ","T")+"Z"):new Date();
+  return Math.max(0,Math.round((end-start)/60000));
+}
+function fmtDuration(mins){
+  const h=Math.floor(mins/60);
+  const m=mins%60;
+  return h>0?`${h}h ${m}m`:`${m}m`;
+}
+function nameOf(v){
+  return `${v.first_name||""} ${v.last_name||""}`.trim();
+}
+
+/* --- DD/MM/YY helper --- */
+function fmtDay(dayStr){
+  if(!dayStr || dayStr.length < 10) return dayStr || "-";
+  const y=dayStr.slice(2,4);
+  const m=dayStr.slice(5,7);
+  const d=dayStr.slice(8,10);
+  return `${d}/${m}/${y}`;
+}
 
 /* -------------------- FILTERS -------------------- */
 
 function passFilters(v){
   const search=document.getElementById("search").value.toLowerCase().trim();
+  const personSel=document.getElementById("personFilter").value;
   const company=document.getElementById("companyFilter").value;
   const purpose=document.getElementById("purposeFilter").value;
   const site=document.getElementById("siteFilter").value;
   const nm=nameOf(v).toLowerCase();
 
+  const personKey = `${(v.first_name||"").trim()} ${(v.last_name||"").trim()}`.trim();
+
   return (
     (!search||nm.includes(search)) &&
+    (!personSel || personKey === personSel) &&
     (!company||v.company===company) &&
     (!purpose||v.purpose===purpose) &&
     (!site||v.site_code===site)
   );
 }
 
+/* Site dropdown must NOT show archived sites */
 function buildSiteFilter(){
   const select=document.getElementById("siteFilter");
-  const sites=[...new Set(filteredVisits.map(v=>v.site_code).filter(Boolean))].sort();
   const current=select.value;
 
-  select.innerHTML='<option value="">All Sites</option>'+
-    sites.map(s=>`<option value="${s}">${s}</option>`).join("");
+  // Prefer the active sites list from /sites (archived=0)
+  const names = sitesActive.length
+    ? sitesActive.map(s => s.site_name).filter(Boolean)
+    : [...new Set(filteredVisits.map(v=>v.site_code).filter(Boolean))];
+
+  const sites=[...new Set(names)].sort((a,b)=>a.localeCompare(b));
+
+  select.innerHTML =
+    '<option value="">All Sites</option>' +
+    sites.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
 
   if([...select.options].some(o=>o.value===current)){
     select.value=current;
   }
 }
 
+/* NEW: person dropdown must NOT show archived engineers */
+function buildPersonFilter(){
+  const select=document.getElementById("personFilter");
+  const current=select.value;
+
+  let names = [];
+
+  if(engineersActive.length){
+    names = engineersActive.map(p => `${(p.first_name||"").trim()} ${(p.last_name||"").trim()}`.trim()).filter(Boolean);
+  }else{
+    // fallback from visits if engineers endpoint not yet returning
+    names = [...new Set(filteredVisits.map(v=>nameOf(v)).filter(Boolean))];
+  }
+
+  names = [...new Set(names)].sort((a,b)=>a.localeCompare(b));
+
+  select.innerHTML =
+    '<option value="">All People</option>' +
+    names.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+
+  if([...select.options].some(o=>o.value===current)){
+    select.value=current;
+  }
+}
+
+/* Keep existing company filter, but now actually populate (doesn't remove anything) */
+function buildCompanyFilter(){
+  const select=document.getElementById("companyFilter");
+  const current=select.value;
+
+  const companies=[...new Set(filteredVisits.map(v=>v.company).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  select.innerHTML =
+    '<option value="">All Companies</option>' +
+    companies.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+
+  if([...select.options].some(o=>o.value===current)){
+    select.value=current;
+  }
+}
+
+function escapeHtml(str){
+  return String(str)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
 /* -------------------- FETCH -------------------- */
 
-async function fetchAll(){ const res=await fetch(`${API_BASE}/admin`); const data=await res.json(); return data.visits||[]; }
+async function fetchAll(){
+  const res=await fetch(`${API_BASE}/admin`);
+  const data=await res.json();
+  return data.visits||[];
+}
 async function fetchRange(from,to){
   const qs=new URLSearchParams();
   if(from&&to){qs.set("from",from);qs.set("to",to);}
   const res=await fetch(`${API_BASE}/admin?${qs.toString()}`);
   const data=await res.json();
   return data.visits||[];
+}
+
+/* NEW: sites + engineers lists */
+async function fetchSites(){
+  try{
+    const res = await fetch(`${API_BASE}/sites`);
+    const data = await res.json();
+    sitesAll = data.sites || [];
+    sitesActive = sitesAll.filter(s => Number(s.archived||0) === 0);
+  }catch(e){
+    sitesAll = [];
+    sitesActive = [];
+  }
+}
+
+/* Requires worker endpoints:
+   GET /engineers
+   POST /update-engineer  { id, firstName, lastName, company, purpose, hourlyRate }
+   POST /toggle-engineer  { id }
+*/
+async function fetchEngineers(){
+  try{
+    const res = await fetch(`${API_BASE}/engineers`);
+    const data = await res.json();
+    engineersAll = data.engineers || data.people || [];
+    engineersActive = engineersAll.filter(p => Number(p.archived||0) === 0);
+  }catch(e){
+    engineersAll = [];
+    engineersActive = [];
+  }
 }
 
 /* -------------------- RENDER -------------------- */
@@ -291,21 +502,21 @@ function renderLive(){
   tbody.innerHTML=live.map(v=>`
     <tr>
       <td><span class="pill pill-live">LIVE</span></td>
-      <td>${nameOf(v)}</td>
-      <td>${v.company||"-"}</td>
-      <td>${v.purpose||"-"}</td>
-      <td>${v.site_code||"-"}</td>
-      <td>${toLocal(v.check_in_at)}</td>
-      <td>${fmtDuration(minutesBetween(v.check_in_at,v.check_out_at))}</td>
+      <td>${escapeHtml(nameOf(v))}</td>
+      <td>${escapeHtml(v.company||"-")}</td>
+      <td>${escapeHtml(v.purpose||"-")}</td>
+      <td>${escapeHtml(v.site_code||"-")}</td>
+      <td>${escapeHtml(toLocal(v.check_in_at))}</td>
+      <td>${escapeHtml(fmtDuration(minutesBetween(v.check_in_at,v.check_out_at)))}</td>
 
       <!-- Device column: tick if device_token exists -->
       <td style="text-align:center;">
-        ${v.device_token ? `<span style="color:#16a34a;font-weight:900;font-size:16px;">✓</span>` : `<span class="muted">-</span>`}
+        ${v.device_token ? `<span class="okTick">✓</span>` : `<span class="muted">-</span>`}
       </td>
 
       <!-- GPS column: tick if lat/lng exist -->
       <td style="text-align:center;">
-        ${(v.lat!=null && v.lng!=null) ? `<span style="color:#16a34a;font-weight:900;font-size:16px;">✓</span>` : `<span class="muted">-</span>`}
+        ${(v.lat!=null && v.lng!=null) ? `<span class="okTick">✓</span>` : `<span class="muted">-</span>`}
       </td>
     </tr>
   `).join("");
@@ -326,15 +537,6 @@ function renderLogs(){
     return;
   }
 
-  // --- DD/MM/YY helper ---
-  function fmtDay(dayStr){
-    if(!dayStr || dayStr.length < 10) return dayStr || "-";
-    const y=dayStr.slice(2,4);
-    const m=dayStr.slice(5,7);
-    const d=dayStr.slice(8,10);
-    return `${d}/${m}/${y}`;
-  }
-
   // -------- GROUP BY ENGINEER + DAY --------
   const grouped={};
 
@@ -351,7 +553,7 @@ function renderLogs(){
     const headerRow=document.createElement("tr");
     headerRow.innerHTML=`
       <td colspan="12" style="background:#eef2f7;font-weight:800;text-align:center;">
-        👤 ${person}
+        👤 ${escapeHtml(person)}
       </td>
     `;
     tbody.appendChild(headerRow);
@@ -365,7 +567,7 @@ function renderLogs(){
       const dayRow=document.createElement("tr");
       dayRow.innerHTML=`
         <td colspan="12" style="background:#f8fafc;font-weight:700;text-align:center;">
-          📅 ${fmtDay(day)}
+          📅 ${escapeHtml(fmtDay(day))}
         </td>
       `;
       tbody.appendChild(dayRow);
@@ -382,28 +584,28 @@ function renderLogs(){
         const hasDevice = !!v.device_token;
 
         const locationLink = hasGPS
-          ? `<a href="https://www.google.com/maps?q=${v.lat},${v.lng}" target="_blank" style="text-decoration:none;font-size:18px;">📍</a>`
+          ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(v.lat)},${encodeURIComponent(v.lng)}" target="_blank" style="text-decoration:none;font-size:18px;">📍</a>`
           : `<span class="muted">-</span>`;
 
         const row=document.createElement("tr");
         row.innerHTML=`
           <td>${v.check_out_at?"OUT":"LIVE"}</td>
-          <td>${nameOf(v)}</td>
-          <td>${v.company||"-"}</td>
-          <td>${v.purpose||"-"}</td>
-          <td>${v.site_code||"-"}</td>
-          <td>${toLocal(v.check_in_at)}</td>
-          <td>${v.check_out_at?toLocal(v.check_out_at):"-"}</td>
-          <td>${v.check_out_at?fmtDuration(mins):"On Site"}</td>
+          <td>${escapeHtml(nameOf(v))}</td>
+          <td>${escapeHtml(v.company||"-")}</td>
+          <td>${escapeHtml(v.purpose||"-")}</td>
+          <td>${escapeHtml(v.site_code||"-")}</td>
+          <td>${escapeHtml(toLocal(v.check_in_at))}</td>
+          <td>${escapeHtml(v.check_out_at?toLocal(v.check_out_at):"-")}</td>
+          <td>${escapeHtml(v.check_out_at?fmtDuration(mins):"On Site")}</td>
 
           <!-- Device Tick -->
           <td style="text-align:center;">
-            ${hasDevice ? `<span style="color:#16a34a;font-weight:900;font-size:16px;">✓</span>` : `<span class="muted">-</span>`}
+            ${hasDevice ? `<span class="okTick">✓</span>` : `<span class="muted">-</span>`}
           </td>
 
           <!-- GPS Tick -->
           <td style="text-align:center;">
-            ${hasGPS ? `<span style="color:#16a34a;font-weight:900;font-size:16px;">✓</span>` : `<span class="muted">-</span>`}
+            ${hasGPS ? `<span class="okTick">✓</span>` : `<span class="muted">-</span>`}
           </td>
 
           <!-- Location Pin -->
@@ -413,7 +615,7 @@ function renderLogs(){
 
           <td>
             <button class="dangerBtn"
-              onclick="openDeleteModal('${v.visit_id}','${nameOf(v)}','${v.site_code}')">
+              onclick="openDeleteModal('${escapeHtml(v.visit_id)}','${escapeHtml(nameOf(v))}','${escapeHtml(v.site_code)}')">
               Delete
             </button>
           </td>
@@ -426,7 +628,7 @@ function renderLogs(){
       const totalRow=document.createElement("tr");
       totalRow.innerHTML=`
         <td colspan="12" style="text-align:center;font-weight:700;color:#1b8f2a;">
-          Total for ${fmtDay(day)}: ${fmtDuration(dayTotal)}
+          Total for ${escapeHtml(fmtDay(day))}: ${escapeHtml(fmtDuration(dayTotal))}
         </td>
       `;
       tbody.appendChild(totalRow);
@@ -435,7 +637,7 @@ function renderLogs(){
     const grandRow=document.createElement("tr");
     grandRow.innerHTML=`
       <td colspan="12" style="text-align:center;font-weight:800;color:#004a99;">
-        Grand Total for ${person}: ${fmtDuration(engineerTotal)}
+        Grand Total for ${escapeHtml(person)}: ${escapeHtml(fmtDuration(engineerTotal))}
       </td>
     `;
     tbody.appendChild(grandRow);
@@ -443,6 +645,8 @@ function renderLogs(){
 }
 
 function renderAll(){
+  buildCompanyFilter();
+  buildPersonFilter();
   buildSiteFilter();
   renderLive();
   renderLogs();
@@ -451,14 +655,19 @@ function renderAll(){
 /* -------------------- LOAD -------------------- */
 
 async function loadData(){
+  // NEW: keep these in sync for dropdown rules (archived sites/engineers)
+  await Promise.all([fetchSites(), fetchEngineers()]);
+
   allVisits=await fetchAll();
   const from=document.getElementById("fromDate").value;
   const to=document.getElementById("toDate").value;
   filteredVisits=await fetchRange(from,to);
+
   renderAll();
 }
 
 document.getElementById("search").addEventListener("input",renderAll);
+document.getElementById("personFilter").addEventListener("change",renderAll);
 document.getElementById("companyFilter").addEventListener("change",renderAll);
 document.getElementById("purposeFilter").addEventListener("change",renderAll);
 document.getElementById("siteFilter").addEventListener("change",renderAll);
@@ -501,15 +710,17 @@ function closeExportModal(){
 
 function generatePDF(){
   const site=document.getElementById("siteFilter").value||"All Sites";
-  const totalVisits=filteredVisits.length;
-  const totalMinutes=filteredVisits.reduce((sum,v)=>v.check_out_at?sum+minutesBetween(v.check_in_at,v.check_out_at):sum,0);
+  const totalVisits=filteredVisits.filter(passFilters).length;
+  const totalMinutes=filteredVisits
+    .filter(passFilters)
+    .reduce((sum,v)=>v.check_out_at?sum+minutesBetween(v.check_in_at,v.check_out_at):sum,0);
 
   const wrapper=document.createElement("div");
   wrapper.innerHTML=`
     <h2>SiteLog Report</h2>
-    <div><strong>Site:</strong> ${site}</div>
-    <div><strong>Total Visits:</strong> ${totalVisits}</div>
-    <div><strong>Total Hours:</strong> ${(totalMinutes/60).toFixed(2)}</div>
+    <div><strong>Site:</strong> ${escapeHtml(site)}</div>
+    <div><strong>Total Visits:</strong> ${escapeHtml(totalVisits)}</div>
+    <div><strong>Total Hours:</strong> ${escapeHtml((totalMinutes/60).toFixed(2))}</div>
     <br>
   `;
   wrapper.appendChild(document.getElementById("logsTable").cloneNode(true));
@@ -523,9 +734,241 @@ function generatePDF(){
   closeExportModal();
 }
 
+/* ======================================================================
+   NEW: SITES ADMIN MODAL (edit + archive toggle)
+   Uses worker:
+     GET  /sites
+     POST /update-site { id, siteName, radius }
+     POST /toggle-site { id }
+====================================================================== */
+
+function openSitesModal(){
+  document.getElementById("sitesModal").style.display="flex";
+  renderSitesAdminTable();
+}
+
+function closeSitesModal(){
+  document.getElementById("sitesModal").style.display="none";
+}
+
+function renderSitesAdminTable(){
+  const wrap = document.getElementById("sitesAdminBody");
+  if(!sitesAll.length){
+    wrap.innerHTML = `<div class="muted" style="text-align:left;">No sites returned from /sites.</div>`;
+    return;
+  }
+
+  const rows = sitesAll
+    .slice()
+    .sort((a,b)=>String(a.site_name||"").localeCompare(String(b.site_name||"")))
+    .map(s=>{
+      const isArch = Number(s.archived||0) === 1;
+      const statusPill = isArch
+        ? `<span class="pill pill-arch">ARCHIVED</span>`
+        : `<span class="pill pill-active">ACTIVE</span>`;
+
+      return `
+        <tr>
+          <td style="text-align:left;">${statusPill}</td>
+          <td style="text-align:left;">
+            <input data-site-name="${escapeHtml(s.id)}" value="${escapeHtml(s.site_name||"")}" />
+          </td>
+          <td style="text-align:left;max-width:220px;">
+            <span class="muted">${escapeHtml((s.lat ?? "-") + ", " + (s.lng ?? "-"))}</span>
+          </td>
+          <td style="text-align:left;width:120px;">
+            <input data-site-radius="${escapeHtml(s.id)}" type="number" min="50" step="10" value="${escapeHtml(s.radius_m ?? 500)}" />
+          </td>
+          <td>
+            <div class="rowBtns">
+              <button class="tinyBtn" onclick="saveSite('${escapeHtml(s.id)}')">💾 Save</button>
+              <button class="tinyBtn ${isArch ? '' : 'ghostBtn'}" onclick="toggleSite('${escapeHtml(s.id)}')">
+                ${isArch ? 'Unarchive' : 'Archive'}
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+  wrap.innerHTML = `
+    <table class="adminTable">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Site Name</th>
+          <th>Lat/Lng</th>
+          <th>Radius (m)</th>
+          <th style="text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+async function saveSite(id){
+  const nameEl = document.querySelector(`input[data-site-name="${CSS.escape(id)}"]`);
+  const radEl  = document.querySelector(`input[data-site-radius="${CSS.escape(id)}"]`);
+  const siteName = (nameEl?.value || "").trim();
+  const radius = Number(radEl?.value || 500);
+
+  if(!siteName){
+    alert("Site name cannot be blank.");
+    return;
+  }
+
+  await fetch(`${API_BASE}/update-site`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ id, siteName, radius })
+  });
+
+  await fetchSites();
+  renderSitesAdminTable();
+  renderAll(); // updates dropdowns immediately
+}
+
+async function toggleSite(id){
+  await fetch(`${API_BASE}/toggle-site`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ id })
+  });
+
+  await fetchSites();
+  renderSitesAdminTable();
+  renderAll(); // site dropdown excludes archived
+}
+
+/* ======================================================================
+   NEW: ENGINEERS ADMIN MODAL (edit + archive toggle + save rate)
+   Requires worker endpoints:
+     GET  /engineers
+     POST /update-engineer { id, firstName, lastName, company, purpose, hourlyRate }
+     POST /toggle-engineer { id }
+====================================================================== */
+
+function openEngineersModal(){
+  document.getElementById("engineersModal").style.display="flex";
+  renderEngineersAdminTable();
+}
+
+function closeEngineersModal(){
+  document.getElementById("engineersModal").style.display="none";
+}
+
+function renderEngineersAdminTable(){
+  const wrap = document.getElementById("engineersAdminBody");
+  if(!engineersAll.length){
+    wrap.innerHTML = `<div class="muted" style="text-align:left;">No engineers returned from /engineers.</div>`;
+    return;
+  }
+
+  const rows = engineersAll
+    .slice()
+    .sort((a,b)=>{
+      const an = `${a.first_name||""} ${a.last_name||""}`.trim();
+      const bn = `${b.first_name||""} ${b.last_name||""}`.trim();
+      return an.localeCompare(bn);
+    })
+    .map(p=>{
+      const isArch = Number(p.archived||0) === 1;
+      const statusPill = isArch
+        ? `<span class="pill pill-arch">ARCHIVED</span>`
+        : `<span class="pill pill-active">ACTIVE</span>`;
+
+      return `
+        <tr>
+          <td style="text-align:left;">${statusPill}</td>
+
+          <td style="text-align:left;width:140px;">
+            <input data-eng-first="${escapeHtml(p.id)}" value="${escapeHtml(p.first_name||"")}" />
+          </td>
+          <td style="text-align:left;width:160px;">
+            <input data-eng-last="${escapeHtml(p.id)}" value="${escapeHtml(p.last_name||"")}" />
+          </td>
+
+          <td style="text-align:left;width:220px;">
+            <input data-eng-company="${escapeHtml(p.id)}" value="${escapeHtml(p.company||"")}" />
+          </td>
+
+          <td style="text-align:left;width:140px;">
+            <input data-eng-purpose="${escapeHtml(p.id)}" value="${escapeHtml(p.purpose||"")}" />
+          </td>
+
+          <td style="text-align:left;width:120px;">
+            <input data-eng-rate="${escapeHtml(p.id)}" type="number" step="0.01" min="0" value="${escapeHtml(p.hourly_rate ?? p.rate ?? "")}" placeholder="(optional)" />
+          </td>
+
+          <td>
+            <div class="rowBtns">
+              <button class="tinyBtn" onclick="saveEngineer('${escapeHtml(p.id)}')">💾 Save</button>
+              <button class="tinyBtn ${isArch ? '' : 'ghostBtn'}" onclick="toggleEngineer('${escapeHtml(p.id)}')">
+                ${isArch ? 'Unarchive' : 'Archive'}
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+  wrap.innerHTML = `
+    <table class="adminTable">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>First</th>
+          <th>Last</th>
+          <th>Company</th>
+          <th>Purpose</th>
+          <th>Rate (£/hr)</th>
+          <th style="text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+async function saveEngineer(id){
+  const firstName = (document.querySelector(`input[data-eng-first="${CSS.escape(id)}"]`)?.value || "").trim();
+  const lastName  = (document.querySelector(`input[data-eng-last="${CSS.escape(id)}"]`)?.value || "").trim();
+  const company   = (document.querySelector(`input[data-eng-company="${CSS.escape(id)}"]`)?.value || "").trim();
+  const purpose   = (document.querySelector(`input[data-eng-purpose="${CSS.escape(id)}"]`)?.value || "").trim();
+  const rateRaw   = (document.querySelector(`input[data-eng-rate="${CSS.escape(id)}"]`)?.value || "").trim();
+  const hourlyRate = rateRaw === "" ? null : Number(rateRaw);
+
+  if(!firstName && !lastName){
+    alert("Engineer must have at least a first or last name.");
+    return;
+  }
+
+  await fetch(`${API_BASE}/update-engineer`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate })
+  });
+
+  await fetchEngineers();
+  renderEngineersAdminTable();
+  renderAll(); // person dropdown excludes archived engineers
+}
+
+async function toggleEngineer(id){
+  await fetch(`${API_BASE}/toggle-engineer`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ id })
+  });
+
+  await fetchEngineers();
+  renderEngineersAdminTable();
+  renderAll();
+}
 </script>
 
-<!-- DELETE MODAL -->
+<!-- DELETE MODAL (EXISTING) -->
 <div id="deleteModal" class="modal">
   <div class="modalContent">
     <h3>Delete Visit</h3>
@@ -535,13 +978,43 @@ function generatePDF(){
   </div>
 </div>
 
-<!-- EXPORT MODAL -->
+<!-- EXPORT MODAL (EXISTING) -->
 <div id="exportModal" class="modal">
   <div class="modalContent">
     <h3>Export Report</h3>
     <p>This will export current filtered results.</p>
     <button onclick="generatePDF()">Generate PDF</button>
     <button onclick="closeExportModal()" style="background:#ccc;color:#333;">Cancel</button>
+  </div>
+</div>
+
+<!-- NEW: SITES ADMIN MODAL -->
+<div id="sitesModal" class="modal">
+  <div class="modalContent">
+    <div class="modalHead">
+      <h3>🗂 Sites — View / Edit / Archive</h3>
+      <button class="ghostBtn" onclick="closeSitesModal()">✕ Close</button>
+    </div>
+    <div class="modalNote">
+      Archived sites are hidden from the <strong>Site</strong> dropdown and are excluded from <strong>/scan</strong> matching.
+      Historical logs will still show archived site names where they occurred.
+    </div>
+    <div id="sitesAdminBody"></div>
+  </div>
+</div>
+
+<!-- NEW: ENGINEERS ADMIN MODAL -->
+<div id="engineersModal" class="modal">
+  <div class="modalContent">
+    <div class="modalHead">
+      <h3>👷 Engineers — View / Edit / Archive / Rates</h3>
+      <button class="ghostBtn" onclick="closeEngineersModal()">✕ Close</button>
+    </div>
+    <div class="modalNote">
+      Archived engineers are hidden from the <strong>People</strong> dropdown.
+      Rates are stored here for later use (does not change any current hours logic).
+    </div>
+    <div id="engineersAdminBody"></div>
   </div>
 </div>
 

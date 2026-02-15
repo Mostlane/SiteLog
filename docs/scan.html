@@ -25,7 +25,6 @@
       margin: auto;
     }
 
-    /* --- LOGO --- */
     .logo {
       display: block;
       margin: 16px auto 10px;
@@ -87,7 +86,6 @@
 
 <h1 id="title">Checking Location…</h1>
 
-<!-- MOSTLANE LOGO (ABSOLUTE PATH so it works from /docs/) -->
 <img
   src="/SiteLog/Mostlane%20Logo.jpg"
   alt="Mostlane"
@@ -116,11 +114,7 @@
     <input id="company" placeholder="Company Name" list="companyList">
 
     <datalist id="companyList">
-      <option value="Mostlane">
-      <option value="DCI">
-      <option value="L&B">
-      <option value="NVC">
-      <option value="Vail Williams">
+      <!-- Dynamically populated -->
     </datalist>
 
     <label style="display:block; margin-top:12px;">
@@ -155,6 +149,30 @@ function showMap(lat, lng) {
   new google.maps.Marker({ position: { lat, lng }, map });
 }
 
+/* ======================================
+   LOAD COMPANIES FOR SITE (NEW)
+======================================*/
+async function loadCompaniesForSite(siteName) {
+  try {
+    const res = await fetch(API + "/companies-for-site?site=" + encodeURIComponent(siteName));
+    const data = await res.json();
+
+    const list = document.getElementById("companyList");
+    list.innerHTML = "";
+
+    if (data.companies && data.companies.length > 0) {
+      data.companies.forEach(c => {
+        const option = document.createElement("option");
+        option.value = c.name;
+        list.appendChild(option);
+      });
+    }
+
+  } catch (err) {
+    console.error("Company load failed:", err);
+  }
+}
+
 async function scan() {
   const res = await fetch(API + "/scan", {
     method: "POST",
@@ -168,7 +186,7 @@ async function scan() {
   });
 
   const data = await res.json();
-const noticeBox = document.getElementById("noticeBox");
+  const noticeBox = document.getElementById("noticeBox");
 
   if (data.status === "unknown_site") {
     document.getElementById("title").innerText = "❌ Unknown Site";
@@ -178,8 +196,12 @@ const noticeBox = document.getElementById("noticeBox");
   }
 
   currentSite = data.site;
-const firstName = data.firstName || "";
-const companyName = data.company || "";
+
+  // NEW: Load companies dynamically for this site
+  await loadCompaniesForSite(currentSite);
+
+  const firstName = data.firstName || "";
+  const companyName = data.company || "";
 
   if (data.status === "first_visit") {
     document.getElementById("status").innerText =
@@ -198,61 +220,41 @@ const companyName = data.company || "";
     return;
   }
 
-// -----------------------------
-// Checked In
-// -----------------------------
-if (data.status === "checked_in") {
+  if (data.status === "checked_in") {
+    localStorage.setItem("mostlane_last_checkin", Date.now());
 
-  // Save check-in timestamp locally
-  localStorage.setItem("mostlane_last_checkin", Date.now());
+    document.getElementById("title").innerText = "✅ Checked In";
+    document.getElementById("status").innerText =
+      (firstName && companyName)
+        ? `Welcome Back ${firstName} from ${companyName}`
+        : "You are now on site: " + currentSite;
 
-  document.getElementById("title").innerText = "✅ Checked In";
-  document.getElementById("status").innerText =
-  (firstName && companyName)
-    ? `Welcome Back ${firstName} from ${companyName}`
-    : "You are now on site: " + currentSite;
-
-  noticeBox.innerHTML =
-    "<strong>⚠️ Site Notice:</strong> Report to site foreman";
-
-}
-
-// -----------------------------
-// Checked Out
-// -----------------------------
-if (data.status === "checked_out") {
-
-  // Calculate duration from stored check-in
-  const start = localStorage.getItem("mostlane_last_checkin");
-
-  let durationText = "";
-  if (start) {
-    const mins = Math.round((Date.now() - start) / 60000);
-    const hrs = Math.floor(mins / 60);
-    const rem = mins % 60;
-
-    durationText =
-      hrs > 0
-        ? `${hrs}h ${rem}m`
-        : `${mins}m`;
-
-    localStorage.removeItem("mostlane_last_checkin");
+    noticeBox.innerHTML =
+      "<strong>⚠️ Site Notice:</strong> Report to site foreman";
   }
 
-  document.getElementById("title").innerText = "👋 Checked Out";
+  if (data.status === "checked_out") {
 
-  document.getElementById("status").innerText =
-  firstName
-    ? `Goodbye ${firstName} — Total time on site: ${durationText || "Recorded"}`
-    : "Total time on site: " + (durationText || "Recorded");
+    const start = localStorage.getItem("mostlane_last_checkin");
 
+    let durationText = "";
+    if (start) {
+      const mins = Math.round((Date.now() - start) / 60000);
+      const hrs = Math.floor(mins / 60);
+      const rem = mins % 60;
+      durationText = hrs > 0 ? `${hrs}h ${rem}m` : `${mins}m`;
+      localStorage.removeItem("mostlane_last_checkin");
+    }
 
-  // Replace foreman notice with checkout message
-  noticeBox.innerHTML =
-    "<strong>✅ Visit Complete:</strong> Thank you, you may now leave site.";
+    document.getElementById("title").innerText = "👋 Checked Out";
+    document.getElementById("status").innerText =
+      firstName
+        ? `Goodbye ${firstName} — Total time on site: ${durationText || "Recorded"}`
+        : "Total time on site: " + (durationText || "Recorded");
 
-}
-
+    noticeBox.innerHTML =
+      "<strong>✅ Visit Complete:</strong> Thank you, you may now leave site.";
+  }
 }
 
 async function register() {
@@ -290,15 +292,11 @@ async function register() {
     })
   });
 
-  // Hide registration box so it’s obvious it worked
   document.getElementById("registerBox").style.display = "none";
-
-  // Update title + status at top
   document.getElementById("title").innerText = "✅ Checked In";
   document.getElementById("status").innerText =
     "Registered successfully at " + currentSite;
 
-  // Scroll to top so user sees the confirmation
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -324,17 +322,13 @@ function startLocation() {
 
 if (navigator.permissions && navigator.permissions.query) {
   navigator.permissions.query({ name: "geolocation" }).then((result) => {
-    if (result.state === "granted") {
-      startLocation();
-    } else if (result.state === "prompt") {
+    if (result.state === "granted" || result.state === "prompt") {
       startLocation();
     } else {
       document.getElementById("status").innerText =
         "Location access is required. Please enable it in your browser settings.";
     }
-  }).catch(() => {
-    startLocation();
-  });
+  }).catch(() => startLocation());
 } else {
   startLocation();
 }

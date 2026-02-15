@@ -246,13 +246,13 @@
 </div>
 
 <script>
-  // =====================================
-// TAB REUSE DETECTION
+ // =====================================
+// TAB REUSE DETECTION (SAFER VERSION)
 // =====================================
 const TAB_KEY = "mostlane_active_tab";
+const TAB_ID = crypto.randomUUID();
 
 if (localStorage.getItem(TAB_KEY)) {
-  // Another tab is already active
   document.body.innerHTML = `
     <div style="padding:40px;font-family:Segoe UI;text-align:center;">
       <h2>SiteLog Already Open</h2>
@@ -261,11 +261,13 @@ if (localStorage.getItem(TAB_KEY)) {
   `;
   throw new Error("Duplicate tab stopped");
 } else {
-  localStorage.setItem(TAB_KEY, Date.now());
+  localStorage.setItem(TAB_KEY, TAB_ID);
 }
 
 window.addEventListener("beforeunload", () => {
-  localStorage.removeItem(TAB_KEY);
+  if (localStorage.getItem(TAB_KEY) === TAB_ID) {
+    localStorage.removeItem(TAB_KEY);
+  }
 });
 const API = "https://sitelog-api.jamie-def.workers.dev";
 

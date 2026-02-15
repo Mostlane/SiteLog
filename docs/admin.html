@@ -217,8 +217,10 @@
       <th>Check In</th>
       <th>Check Out</th>
       <th>Duration</th>
-      <th>GPS</th>
-      <th>Actions</th>
+      <th>Device</th>
+<th>GPS</th>
+<th>Location</th>
+<th>Actions</th>
     </tr>
   </thead>
   <tbody id="logRows"></tbody>
@@ -320,11 +322,11 @@ function renderLogs(){
   const logs=filteredVisits.filter(passFilters);
 
   if(!logs.length){
-    tbody.innerHTML=`<tr><td colspan="10" class="muted" style="text-align:center;">No logs found.</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="12" class="muted" style="text-align:center;">No logs found.</td></tr>`;
     return;
   }
 
-  // --- DD/MM/YY helper for day headers (input is YYYY-MM-DD) ---
+  // --- DD/MM/YY helper ---
   function fmtDay(dayStr){
     if(!dayStr || dayStr.length < 10) return dayStr || "-";
     const y=dayStr.slice(2,4);
@@ -346,10 +348,9 @@ function renderLogs(){
 
   Object.keys(grouped).sort().forEach(person=>{
 
-    // Engineer Header Row
     const headerRow=document.createElement("tr");
     headerRow.innerHTML=`
-      <td colspan="10" style="background:#eef2f7;font-weight:800;text-align:center;">
+      <td colspan="12" style="background:#eef2f7;font-weight:800;text-align:center;">
         👤 ${person}
       </td>
     `;
@@ -361,25 +362,28 @@ function renderLogs(){
 
       let dayTotal=0;
 
-      // Day Header
       const dayRow=document.createElement("tr");
       dayRow.innerHTML=`
-        <td colspan="10" style="background:#f8fafc;font-weight:700;text-align:center;">
+        <td colspan="12" style="background:#f8fafc;font-weight:700;text-align:center;">
           📅 ${fmtDay(day)}
         </td>
       `;
       tbody.appendChild(dayRow);
 
-      // sort within day: oldest -> newest
       grouped[person][day].sort((a,b)=>{
-        const aa=(a.check_in_at||"");
-        const bb=(b.check_in_at||"");
-        return aa>bb ? 1 : (aa<bb ? -1 : 0);
+        return (a.check_in_at||"") > (b.check_in_at||"") ? 1 : -1;
       });
 
       grouped[person][day].forEach(v=>{
         const mins=minutesBetween(v.check_in_at,v.check_out_at);
         if(v.check_out_at) dayTotal+=mins;
+
+        const hasGPS = (v.lat!=null && v.lng!=null);
+        const hasDevice = !!v.device_token;
+
+        const locationLink = hasGPS
+          ? `<a href="https://www.google.com/maps?q=${v.lat},${v.lng}" target="_blank" style="text-decoration:none;font-size:18px;">📍</a>`
+          : `<span class="muted">-</span>`;
 
         const row=document.createElement("tr");
         row.innerHTML=`
@@ -391,7 +395,22 @@ function renderLogs(){
           <td>${toLocal(v.check_in_at)}</td>
           <td>${v.check_out_at?toLocal(v.check_out_at):"-"}</td>
           <td>${v.check_out_at?fmtDuration(mins):"On Site"}</td>
-          <td>${v.accuracy||"-"}</td>
+
+          <!-- Device Tick -->
+          <td style="text-align:center;">
+            ${hasDevice ? `<span style="color:#16a34a;font-weight:900;font-size:16px;">✓</span>` : `<span class="muted">-</span>`}
+          </td>
+
+          <!-- GPS Tick -->
+          <td style="text-align:center;">
+            ${hasGPS ? `<span style="color:#16a34a;font-weight:900;font-size:16px;">✓</span>` : `<span class="muted">-</span>`}
+          </td>
+
+          <!-- Location Pin -->
+          <td style="text-align:center;">
+            ${locationLink}
+          </td>
+
           <td>
             <button class="dangerBtn"
               onclick="openDeleteModal('${v.visit_id}','${nameOf(v)}','${v.site_code}')">
@@ -404,20 +423,18 @@ function renderLogs(){
 
       engineerTotal+=dayTotal;
 
-      // Day Total Row (CENTRED)
       const totalRow=document.createElement("tr");
       totalRow.innerHTML=`
-        <td colspan="10" style="text-align:center;font-weight:700;color:#1b8f2a;">
+        <td colspan="12" style="text-align:center;font-weight:700;color:#1b8f2a;">
           Total for ${fmtDay(day)}: ${fmtDuration(dayTotal)}
         </td>
       `;
       tbody.appendChild(totalRow);
     });
 
-    // Engineer Grand Total (CENTRED)
     const grandRow=document.createElement("tr");
     grandRow.innerHTML=`
-      <td colspan="10" style="text-align:center;font-weight:800;color:#004a99;">
+      <td colspan="12" style="text-align:center;font-weight:800;color:#004a99;">
         Grand Total for ${person}: ${fmtDuration(engineerTotal)}
       </td>
     `;

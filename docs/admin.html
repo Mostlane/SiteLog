@@ -310,13 +310,22 @@ function renderLogs(){
     return;
   }
 
-  // -------- GROUP BY ENGINEER --------
+  // --- DD/MM/YY helper for day headers (input is YYYY-MM-DD) ---
+  function fmtDay(dayStr){
+    if(!dayStr || dayStr.length < 10) return dayStr || "-";
+    const y=dayStr.slice(2,4);
+    const m=dayStr.slice(5,7);
+    const d=dayStr.slice(8,10);
+    return `${d}/${m}/${y}`;
+  }
+
+  // -------- GROUP BY ENGINEER + DAY --------
   const grouped={};
 
   logs.forEach(v=>{
-    const person=nameOf(v);
+    const person=nameOf(v) || "Unknown";
     if(!grouped[person]) grouped[person]={};
-    const day=(v.check_in_at||"").slice(0,10);
+    const day=(v.check_in_at||"").slice(0,10) || "Unknown";
     if(!grouped[person][day]) grouped[person][day]=[];
     grouped[person][day].push(v);
   });
@@ -326,7 +335,7 @@ function renderLogs(){
     // Engineer Header Row
     const headerRow=document.createElement("tr");
     headerRow.innerHTML=`
-      <td colspan="10" style="background:#eef2f7;font-weight:800;">
+      <td colspan="10" style="background:#eef2f7;font-weight:800;text-align:center;">
         👤 ${person}
       </td>
     `;
@@ -341,11 +350,18 @@ function renderLogs(){
       // Day Header
       const dayRow=document.createElement("tr");
       dayRow.innerHTML=`
-        <td colspan="10" style="background:#f8fafc;font-weight:700;">
-          📅 ${day}
+        <td colspan="10" style="background:#f8fafc;font-weight:700;text-align:center;">
+          📅 ${fmtDay(day)}
         </td>
       `;
       tbody.appendChild(dayRow);
+
+      // sort within day: oldest -> newest
+      grouped[person][day].sort((a,b)=>{
+        const aa=(a.check_in_at||"");
+        const bb=(b.check_in_at||"");
+        return aa>bb ? 1 : (aa<bb ? -1 : 0);
+      });
 
       grouped[person][day].forEach(v=>{
         const mins=minutesBetween(v.check_in_at,v.check_out_at);
@@ -374,20 +390,20 @@ function renderLogs(){
 
       engineerTotal+=dayTotal;
 
-      // Day Total Row
+      // Day Total Row (CENTRED)
       const totalRow=document.createElement("tr");
       totalRow.innerHTML=`
-        <td colspan="10" style="text-align:right;font-weight:700;color:#1b8f2a;">
-          Total for ${day}: ${fmtDuration(dayTotal)}
+        <td colspan="10" style="text-align:center;font-weight:700;color:#1b8f2a;">
+          Total for ${fmtDay(day)}: ${fmtDuration(dayTotal)}
         </td>
       `;
       tbody.appendChild(totalRow);
     });
 
-    // Engineer Grand Total
+    // Engineer Grand Total (CENTRED)
     const grandRow=document.createElement("tr");
     grandRow.innerHTML=`
-      <td colspan="10" style="text-align:right;font-weight:800;color:#004a99;">
+      <td colspan="10" style="text-align:center;font-weight:800;color:#004a99;">
         Grand Total for ${person}: ${fmtDuration(engineerTotal)}
       </td>
     `;

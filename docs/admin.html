@@ -655,13 +655,20 @@ function renderAll(){
 /* -------------------- LOAD -------------------- */
 
 async function loadData(){
-  // NEW: keep these in sync for dropdown rules (archived sites/engineers)
+
   await Promise.all([fetchSites(), fetchEngineers()]);
 
-  allVisits=await fetchAll();
-  const from=document.getElementById("fromDate").value;
-  const to=document.getElementById("toDate").value;
-  filteredVisits=await fetchRange(from,to);
+  allVisits = await fetchAll();
+
+  const from = document.getElementById("fromDate").value;
+  const to   = document.getElementById("toDate").value;
+
+  // If no date filter selected, use all visits
+  if (!from || !to) {
+    filteredVisits = allVisits.slice();
+  } else {
+    filteredVisits = await fetchRange(from, to);
+  }
 
   renderAll();
 }

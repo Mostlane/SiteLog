@@ -246,29 +246,7 @@
 </div>
 
 <script>
- // =====================================
-// TAB REUSE DETECTION (SAFER VERSION)
-// =====================================
-const TAB_KEY = "mostlane_active_tab";
-const TAB_ID = crypto.randomUUID();
 
-if (localStorage.getItem(TAB_KEY)) {
-  document.body.innerHTML = `
-    <div style="padding:40px;font-family:Segoe UI;text-align:center;">
-      <h2>SiteLog Already Open</h2>
-      <p>Please return to the existing SiteLog window.</p>
-    </div>
-  `;
-  throw new Error("Duplicate tab stopped");
-} else {
-  localStorage.setItem(TAB_KEY, TAB_ID);
-}
-
-window.addEventListener("beforeunload", () => {
-  if (localStorage.getItem(TAB_KEY) === TAB_ID) {
-    localStorage.removeItem(TAB_KEY);
-  }
-});
 const API = "https://sitelog-api.jamie-def.workers.dev";
 
 let deviceToken = localStorage.getItem("mostlane_device_id");
@@ -315,12 +293,20 @@ function showSuccessOverlay(type, siteName) {
   // small haptic if supported
   try { if (navigator.vibrate) navigator.vibrate(70); } catch(e){}
 
-  // auto-hide (keeps page behind intact)
-  window.clearTimeout(window.__mlOverlayT);
-  window.__mlOverlayT = window.setTimeout(() => {
-    overlay.classList.remove("active");
-    overlay.setAttribute("aria-hidden", "true");
-  }, 1700);
+  // clear previous timers
+clearTimeout(window.__mlFadeT);
+clearTimeout(window.__mlCloseT);
+
+// ⏳ Fade out after 2 seconds
+window.__mlFadeT = setTimeout(() => {
+  overlay.classList.remove("active");
+  overlay.setAttribute("aria-hidden", "true");
+}, 2000);
+
+// 🚪 Close tab after 10 seconds
+window.__mlCloseT = setTimeout(() => {
+  window.close();
+}, 10000);
 }
 
 /* 🔒 LOCKED MAP VERSION */

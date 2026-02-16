@@ -262,7 +262,7 @@ let currentSite = null;
    ✅ BIG OVERLAY POPUP (NEW)
    type: "in" | "out" | "reg"
 ============================== */
-function showSuccessOverlay(type, siteName, firstName) {
+function showSuccessOverlay(type, siteName, firstName, durationText) {
   const overlay = document.getElementById("successOverlay");
   const icon = document.getElementById("successIcon");
   const title = document.getElementById("successTitle");
@@ -282,11 +282,18 @@ function showSuccessOverlay(type, siteName, firstName) {
   sub.textContent = siteName
     ? `Signed in at ${siteName}`
     : "You're signed in on site";
-}else if (type === "out") {
-    icon.textContent = "👋";
-    title.textContent = "Checked Out";
+ } else if (type === "out") {
+  icon.textContent = "👋";
+  title.textContent = firstName ? `Goodbye ${firstName}` : "Checked Out";
+
+  if (siteName && durationText) {
+    sub.textContent = `Signed out from ${siteName} — ${durationText} on site`;
+  } else if (durationText) {
+    sub.textContent = `${durationText} on site`;
+  } else {
     sub.textContent = "Visit completed";
-  } else { // reg
+  }
+}else { // reg
     icon.textContent = "✅";
     title.textContent = "Registered";
     sub.textContent = "Check-in confirmed";
@@ -461,7 +468,7 @@ async function scan() {
       "<strong>✅ Visit Complete:</strong> Thank you, you may now leave site.";
 
     // ✅ overlay (NEW)
-    showSuccessOverlay("out", currentSite);
+    showSuccessOverlay("out", currentSite, firstName, durationText);
   }
 }
 

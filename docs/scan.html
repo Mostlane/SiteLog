@@ -190,6 +190,20 @@
 #successSite {
   display: none !important;
 }
+    /* 🔁 Subtle backup reset link */
+.not-you{
+  margin: 8px auto 0;
+  max-width: 520px;
+  font-size: 12px;
+  color: rgba(15,23,42,0.45);
+  text-align: right;
+}
+.not-you a{
+  color: rgba(0,74,153,0.6);
+  font-weight: 600;
+  text-decoration: underline;
+}
+.not-you a:active{ opacity: 0.7; }
   </style>
 </head>
 
@@ -206,6 +220,9 @@
 <div id="card">
   <div id="status">Requesting GPS…</div>
   <div id="map"></div>
+  <div class="not-you" id="notYouRow" style="display:none;">
+  Backup: <a href="#" onclick="resetDeviceAndRegister(); return false;">Reset device</a>
+</div>
 
   <div id="registerBox" style="display:none; text-align:center;">
     <h3>First Visit Registration</h3>
@@ -257,6 +274,18 @@ if (!deviceToken) {
 
 let lastLocation = null;
 let currentSite = null;
+  function resetDeviceAndRegister() {
+  const confirmReset = confirm(
+    "Backup action.\n\nThis will reset this device and return to first-time registration."
+  );
+  if (!confirmReset) return;
+
+  localStorage.removeItem("mostlane_device_id");
+  localStorage.removeItem("mostlane_last_checkin");
+  localStorage.removeItem("mostlane_profile");
+
+  location.reload();
+}
 
 /* ==============================
    ✅ BIG OVERLAY POPUP (NEW)
@@ -392,6 +421,7 @@ async function scan() {
   const noticeBox = document.getElementById("noticeBox");
 
   if (data.status === "unknown_site") {
+    document.getElementById("notYouRow").style.display = "none";
     document.getElementById("title").innerText = "❌ Unknown Site";
     document.getElementById("status").innerText =
       "You are not within range of an active Mostlane job.";
@@ -407,6 +437,7 @@ async function scan() {
   const companyName = data.company || "";
 
   if (data.status === "first_visit") {
+    document.getElementById("notYouRow").style.display = "none";
     document.getElementById("status").innerText =
       "First visit at " + currentSite + " — please register.";
 
@@ -431,6 +462,7 @@ async function scan() {
   }
 
   if (data.status === "checked_in") {
+    document.getElementById("notYouRow").style.display = "block";
     localStorage.setItem("mostlane_last_checkin", Date.now());
 
     document.getElementById("title").innerText = "✅ Checked In";
@@ -447,6 +479,7 @@ async function scan() {
   }
 
   if (data.status === "checked_out") {
+    document.getElementById("notYouRow").style.display = "block";
     const start = localStorage.getItem("mostlane_last_checkin");
 
     let durationText = "";

@@ -233,14 +233,11 @@
   <div class="controls-left">
     <input id="search" placeholder="Search name..." />
 
-    <!-- PERSON FILTER (NEW) -->
-    <select id="personFilter">
-      <option value="">All People</option>
-    </select>
+    <!-- MULTI SELECT PEOPLE -->
+<select id="personFilter" multiple size="5" style="min-width:160px;"></select>
 
-    <select id="companyFilter">
-      <option value="">All Companies</option>
-    </select>
+<!-- MULTI SELECT COMPANIES -->
+<select id="companyFilter" multiple size="5" style="min-width:160px;"></select>
 
     <select id="purposeFilter">
       <option value="">All Purposes</option>
@@ -256,11 +253,18 @@
 
   <div class="controls-right">
     <label class="muted">From</label>
-    <input type="date" id="fromDate" />
+<input type="date" id="fromDate" />
 
-    <label class="muted">To</label>
-    <input type="date" id="toDate" />
-
+<label class="muted">To</label>
+<input type="date" id="toDate" />
+    
+<div style="display:flex; gap:6px; flex-wrap:wrap;">
+  <button type="button" onclick="setPreset('week')">This Week</button>
+  <button type="button" onclick="setPreset(7)">Last 7</button>
+  <button type="button" onclick="setPreset(14)">Last 14</button>
+  <button type="button" onclick="setPreset(28)">Last 28</button>
+  <button type="button" onclick="setPreset('all')">All Time</button>
+</div>
     <button onclick="openExportModal()">📄 Export PDF</button>
 
     <!-- KEEP EXISTING ELEMENT (unchanged) -->
@@ -430,21 +434,29 @@ function fmtDay(dayStr){
 /* -------------------- FILTERS -------------------- */
 
 function passFilters(v){
-  const search=document.getElementById("search").value.toLowerCase().trim();
-  const personSel=document.getElementById("personFilter").value;
-  const company=document.getElementById("companyFilter").value;
-  const purpose=document.getElementById("purposeFilter").value;
-  const site=document.getElementById("siteFilter").value;
-  const nm=nameOf(v).toLowerCase();
 
-  const personKey = `${(v.first_name||"").trim()} ${(v.last_name||"").trim()}`.trim();
+  const search = document.getElementById("search").value.toLowerCase().trim();
+
+  const selectedPeople = Array.from(
+    document.getElementById("personFilter").selectedOptions
+  ).map(o => o.value);
+
+  const selectedCompanies = Array.from(
+    document.getElementById("companyFilter").selectedOptions
+  ).map(o => o.value);
+
+  const selectedPurpose = document.getElementById("purposeFilter").value;
+  const selectedSite = document.getElementById("siteFilter").value;
+
+  const name = nameOf(v);
+  const nameLower = name.toLowerCase();
 
   return (
-    (!search||nm.includes(search)) &&
-    (!personSel || personKey === personSel) &&
-    (!company||v.company===company) &&
-    (!purpose||v.purpose===purpose) &&
-    (!site||v.site_code===site)
+    (!search || nameLower.includes(search)) &&
+    (!selectedPeople.length || selectedPeople.includes(name)) &&
+    (!selectedCompanies.length || selectedCompanies.includes(v.company)) &&
+    (!selectedPurpose || v.purpose === selectedPurpose) &&
+    (!selectedSite || v.site_code === selectedSite)
   );
 }
 
@@ -471,42 +483,43 @@ function buildSiteFilter(){
 
 /* NEW: person dropdown must NOT show archived engineers */
 function buildPersonFilter(){
-  const select=document.getElementById("personFilter");
-  const current=select.value;
+  const select = document.getElementById("personFilter");
+  const current = Array.from(select.selectedOptions).map(o => o.value);
 
   let names = [];
 
   if(engineersActive.length){
-    names = engineersActive.map(p => `${(p.first_name||"").trim()} ${(p.last_name||"").trim()}`.trim()).filter(Boolean);
-  }else{
-    // fallback from visits if engineers endpoint not yet returning
+    names = engineersActive
+      .map(p => `${(p.first_name||"").trim()} ${(p.last_name||"").trim()}`.trim())
+      .filter(Boolean);
+  } else {
     names = [...new Set(filteredVisits.map(v=>nameOf(v)).filter(Boolean))];
   }
 
   names = [...new Set(names)].sort((a,b)=>a.localeCompare(b));
 
   select.innerHTML =
-    '<option value="">All People</option>' +
     names.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
 
-  if([...select.options].some(o=>o.value===current)){
-    select.value=current;
-  }
+  Array.from(select.options).forEach(o=>{
+    if(current.includes(o.value)) o.selected = true;
+  });
 }
-
 /* Keep existing company filter, but now actually populate (doesn't remove anything) */
 function buildCompanyFilter(){
-  const select=document.getElementById("companyFilter");
-  const current=select.value;
+  const select = document.getElementById("companyFilter");
+  const current = Array.from(select.selectedOptions).map(o => o.value);
 
-  const companies=[...new Set(filteredVisits.map(v=>v.company).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const companies = [...new Set(
+    filteredVisits.map(v=>v.company).filter(Boolean)
+  )].sort((a,b)=>a.localeCompare(b));
+
   select.innerHTML =
-    '<option value="">All Companies</option>' +
     companies.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
 
-  if([...select.options].some(o=>o.value===current)){
-    select.value=current;
-  }
+  Array.from(select.options).forEach(o=>{
+    if(current.includes(o.value)) o.selected = true;
+  });
 }
 
 function escapeHtml(str){
@@ -1160,6 +1173,35 @@ async function saveCompanyMappings(){
   } catch(err){
     alert("❌ Network error while saving.\n\n" + err.message);
   }
+}
+  function setPreset(type){
+
+  const today = new Date();
+  let fromDate = null;
+
+  if(type === "all"){
+    document.getElementById("fromDate").value = "";
+    document.getElementById("toDate").value = "";
+    loadData();
+    return;
+  }
+
+  if(type === "week"){
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  fromDate = new Date(now.getFullYear(), now.getMonth(), diff);
+} else {
+  const now = new Date();
+  fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - type);
+}
+
+  const format = d => d.toISOString().slice(0,10);
+
+  document.getElementById("fromDate").value = format(fromDate);
+  document.getElementById("toDate").value = format(new Date());
+
+  loadData();
 }
 </script>
 

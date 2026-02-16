@@ -262,7 +262,7 @@ let currentSite = null;
    ✅ BIG OVERLAY POPUP (NEW)
    type: "in" | "out" | "reg"
 ============================== */
-function showSuccessOverlay(type, siteName) {
+function showSuccessOverlay(type, siteName, firstName) {
   const overlay = document.getElementById("successOverlay");
   const icon = document.getElementById("successIcon");
   const title = document.getElementById("successTitle");
@@ -273,11 +273,16 @@ function showSuccessOverlay(type, siteName) {
   site.style.display = (siteName ? "inline-block" : "none");
   site.textContent = siteName ? siteName : "";
 
-  if (type === "in") {
-    icon.textContent = "✅";
-    title.textContent = "Checked In";
-    sub.textContent = "You're signed in on site";
-  } else if (type === "out") {
+   if (type === "in") {
+  icon.textContent = "✅";
+  title.textContent = firstName
+    ? `Welcome ${firstName}`
+    : "Checked In";
+
+  sub.textContent = siteName
+    ? `Signed in at ${siteName}`
+    : "You're signed in on site";
+}else if (type === "out") {
     icon.textContent = "👋";
     title.textContent = "Checked Out";
     sub.textContent = "Visit completed";
@@ -431,7 +436,7 @@ async function scan() {
       "<strong>⚠️ Site Notice:</strong> Report to site foreman";
 
     // ✅ overlay (NEW)
-    showSuccessOverlay("in", currentSite);
+    showSuccessOverlay("in", currentSite, firstName);
   }
 
   if (data.status === "checked_out") {

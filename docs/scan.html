@@ -479,29 +479,33 @@ async function register() {
     company
   }));
 
-  await fetch(API + "/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      deviceToken,
-      firstName,
-      lastName,
-      purpose,
-      company,
-      siteCode: currentSite,
-      lat: lastLocation.lat,
-      lng: lastLocation.lng,
-      accuracy: lastLocation.accuracy
-    })
-  });
+  const res = await fetch(API + "/register", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    deviceToken,
+    firstName,
+    lastName,
+    purpose,
+    company,
+    siteCode: currentSite,
+    lat: lastLocation.lat,
+    lng: lastLocation.lng,
+    accuracy: lastLocation.accuracy
+  })
+});
 
-  document.getElementById("registerBox").style.display = "none";
-  document.getElementById("title").innerText = "✅ Checked In";
-  document.getElementById("status").innerText =
-    "Registered successfully at " + currentSite;
+const data = await res.json();
 
-  // ✅ overlay (NEW)
-  showSuccessOverlay("reg", currentSite);
+if (!data.ok) {
+  alert("Registration failed");
+  return;
+}
+
+document.getElementById("registerBox").style.display = "none";
+
+// 🔥 Immediately run scan again to create visit
+await scan();
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 }

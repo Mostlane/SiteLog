@@ -4,7 +4,6 @@
   <title>SiteLog Admin Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
-  <!-- PDF LIBRARY -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
   <style>
@@ -130,12 +129,12 @@
 
     .pill-live { background: #dff5df; color: #1b8f2a; }
     .pill-out { background: #eef2f7; color: #6b7280; }
+    .pill-auto { background: #fee2e2; color: #b91c1c; }
     .pill-active{ background:#dbeafe; color:#1d4ed8; }
     .pill-arch{ background:#f1f5f9; color:#64748b; }
 
     .muted { color: #6b7280; }
 
-    /* MODALS */
     .modal {
       position: fixed;
       inset: 0;
@@ -147,7 +146,7 @@
     }
 
     .modalContent {
-      width: 900px;              /* wider for admin tables */
+      width: 900px;
       max-width: 96%;
       max-height: 86vh;
       overflow: auto;
@@ -233,11 +232,8 @@
   <div class="controls-left">
     <input id="search" placeholder="Search name..." />
 
-    <!-- MULTI SELECT PEOPLE -->
-<select id="personFilter" multiple size="5" style="min-width:160px;"></select>
-
-<!-- MULTI SELECT COMPANIES -->
-<select id="companyFilter" multiple size="5" style="min-width:160px;"></select>
+    <select id="personFilter" multiple size="5" style="min-width:160px;"></select>
+    <select id="companyFilter" multiple size="5" style="min-width:160px;"></select>
 
     <select id="purposeFilter">
       <option value="">All Purposes</option>
@@ -245,7 +241,6 @@
       <option value="Contractor">Contractor</option>
     </select>
 
-    <!-- SITE FILTER (NOW EXCLUDES ARCHIVED SITES) -->
     <select id="siteFilter">
       <option value="">All Sites</option>
     </select>
@@ -253,28 +248,24 @@
 
   <div class="controls-right">
     <label class="muted">From</label>
-<input type="date" id="fromDate" />
+    <input type="date" id="fromDate" />
 
-<label class="muted">To</label>
-<input type="date" id="toDate" />
+    <label class="muted">To</label>
+    <input type="date" id="toDate" />
     
-<div style="display:flex; gap:6px; flex-wrap:wrap;">
-  <button type="button" onclick="setPreset('week')">This Week</button>
-  <button type="button" onclick="setPreset(7)">Last 7</button>
-  <button type="button" onclick="setPreset(14)">Last 14</button>
-  <button type="button" onclick="setPreset(28)">Last 28</button>
-  <button type="button" onclick="setPreset('all')">All Time</button>
-</div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+      <button type="button" onclick="setPreset('week')">This Week</button>
+      <button type="button" onclick="setPreset(7)">Last 7</button>
+      <button type="button" onclick="setPreset(14)">Last 14</button>
+      <button type="button" onclick="setPreset(28)">Last 28</button>
+      <button type="button" onclick="setPreset('all')">All Time</button>
+    </div>
+
     <button onclick="openExportModal()">📄 Export PDF</button>
-
-    <!-- KEEP EXISTING ELEMENT (unchanged) -->
     <button onclick="window.location.href='sites.html'">➕ Manage Sites</button>
-
-    <!-- NEW: inline admin panels (does not remove anything) -->
     <button class="ghostBtn" onclick="openSitesModal()">🗂 View/Edit Sites</button>
     <button class="ghostBtn" onclick="openEngineersModal()">👷 Engineers</button>
     <button class="ghostBtn" onclick="openCompaniesModal()">🏢 Companies</button>
-
     <button onclick="loadData()">🔄 Refresh</button>
   </div>
 </div>
@@ -292,7 +283,7 @@
       <th>Duration</th>
       <th>Device</th>
       <th>GPS</th>
-      <th>Actions</th> <!-- NEW -->
+      <th>Actions</th>
     </tr>
   </thead>
   <tbody id="liveRows"></tbody>
@@ -326,18 +317,18 @@ const API_BASE = "https://sitelog-api.jamie-def.workers.dev";
 let allVisits = [];
 let filteredVisits = [];
 let deleteId = null;
-  let manualCheckoutId = null;
+let manualCheckoutId = null;
 let manualCheckoutCheckIn = null;
 
-/* NEW: cached admin data */
-let sitesAll = [];         // all sites (including archived)
-let sitesActive = [];      // archived=0 only
-let engineersAll = [];     // all engineers/people (including archived)
-let engineersActive = [];  // archived=0 only
+let sitesAll = [];
+let sitesActive = [];
+let engineersAll = [];
+let engineersActive = [];
+let companiesAll = [];
 
 /* -------------------- HELPERS -------------------- */
-function openManualCheckoutModal(id, name, checkIn){
 
+function openManualCheckoutModal(id, name, checkIn){
   manualCheckoutId = id;
   manualCheckoutCheckIn = checkIn;
 
@@ -345,16 +336,16 @@ function openManualCheckoutModal(id, name, checkIn){
     `Sign out ${name} (checked in ${toLocal(checkIn)})`;
 
   document.getElementById("manualCheckoutTime").value = "";
-
   document.getElementById("manualCheckoutModal").style.display="flex";
 }
-  function closeManualCheckoutModal(){
+
+function closeManualCheckoutModal(){
   document.getElementById("manualCheckoutModal").style.display="none";
   manualCheckoutId = null;
   manualCheckoutCheckIn = null;
 }
-  async function confirmManualCheckout(){
 
+async function confirmManualCheckout(){
   const timeValue = document.getElementById("manualCheckoutTime").value;
 
   if(!timeValue){
@@ -369,20 +360,18 @@ function openManualCheckoutModal(id, name, checkIn){
   const dd   = String(checkInDate.getUTCDate()).padStart(2,"0");
 
   const manualTime = `${yyyy}-${mm}-${dd} ${timeValue}:00`;
-    const manualDateObj = new Date(manualTime.replace(" ","T")+"Z");
+  const manualDateObj = new Date(manualTime.replace(" ","T")+"Z");
 
-// 🚨 Prevent checkout before check-in
-if (manualDateObj <= checkInDate) {
-  alert("Sign out time must be after check-in time.");
-  return;
-}
+  if (manualDateObj <= checkInDate) {
+    alert("Sign out time must be after check-in time.");
+    return;
+  }
 
-// 🚨 Prevent future checkout
-const now = new Date();
-if (manualDateObj > now) {
-  alert("Sign out time cannot be in the future.");
-  return;
-}
+  const now = new Date();
+  if (manualDateObj > now) {
+    alert("Sign out time cannot be in the future.");
+    return;
+  }
 
   const res = await fetch(`${API_BASE}/manual-checkout`,{
     method:"POST",
@@ -403,26 +392,29 @@ if (manualDateObj > now) {
   closeManualCheckoutModal();
   loadData();
 }
+
 function toLocal(ts){
   if(!ts) return "-";
   return new Date(ts.replace(" ","T")+"Z").toLocaleString();
 }
+
 function minutesBetween(a,b){
   if(!a) return 0;
   const start=new Date(a.replace(" ","T")+"Z");
   const end=b?new Date(b.replace(" ","T")+"Z"):new Date();
   return Math.max(0,Math.round((end-start)/60000));
 }
+
 function fmtDuration(mins){
   const h=Math.floor(mins/60);
   const m=mins%60;
   return h>0?`${h}h ${m}m`:`${m}m`;
 }
+
 function nameOf(v){
   return `${v.first_name||""} ${v.last_name||""}`.trim();
 }
 
-/* --- DD/MM/YY helper --- */
 function fmtDay(dayStr){
   if(!dayStr || dayStr.length < 10) return dayStr || "-";
   const y=dayStr.slice(2,4);
@@ -431,10 +423,30 @@ function fmtDay(dayStr){
   return `${d}/${m}/${y}`;
 }
 
+function escapeHtml(str){
+  return String(str)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+function getLogStatusHtml(v){
+  if (!v.check_out_at) {
+    return `<span class="pill pill-live">LIVE</span>`;
+  }
+
+  if (Number(v.auto_checkout || 0) === 1 || v.sign_out_status === "No Sign Out") {
+    return `<span class="pill pill-auto">NO SIGN OUT</span>`;
+  }
+
+  return `<span class="pill pill-out">SIGNED OUT</span>`;
+}
+
 /* -------------------- FILTERS -------------------- */
 
 function passFilters(v){
-
   const search = document.getElementById("search").value.toLowerCase().trim();
 
   const selectedPeople = Array.from(
@@ -460,12 +472,10 @@ function passFilters(v){
   );
 }
 
-/* Site dropdown must NOT show archived sites */
 function buildSiteFilter(){
   const select=document.getElementById("siteFilter");
   const current=select.value;
 
-  // Prefer the active sites list from /sites (archived=0)
   const names = sitesActive.length
     ? sitesActive.map(s => s.site_name).filter(Boolean)
     : [...new Set(filteredVisits.map(v=>v.site_code).filter(Boolean))];
@@ -481,7 +491,6 @@ function buildSiteFilter(){
   }
 }
 
-/* NEW: person dropdown must NOT show archived engineers */
 function buildPersonFilter(){
   const select = document.getElementById("personFilter");
   const current = Array.from(select.selectedOptions).map(o => o.value);
@@ -505,7 +514,7 @@ function buildPersonFilter(){
     if(current.includes(o.value)) o.selected = true;
   });
 }
-/* Keep existing company filter, but now actually populate (doesn't remove anything) */
+
 function buildCompanyFilter(){
   const select = document.getElementById("companyFilter");
   const current = Array.from(select.selectedOptions).map(o => o.value);
@@ -522,15 +531,6 @@ function buildCompanyFilter(){
   });
 }
 
-function escapeHtml(str){
-  return String(str)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
 /* -------------------- FETCH -------------------- */
 
 async function fetchAll(){
@@ -538,6 +538,7 @@ async function fetchAll(){
   const data=await res.json();
   return data.visits||[];
 }
+
 async function fetchRange(from,to){
   const qs=new URLSearchParams();
   if(from&&to){qs.set("from",from);qs.set("to",to);}
@@ -546,7 +547,6 @@ async function fetchRange(from,to){
   return data.visits||[];
 }
 
-/* NEW: sites + engineers lists */
 async function fetchSites(){
   try{
     const res = await fetch(`${API_BASE}/sites`);
@@ -559,11 +559,6 @@ async function fetchSites(){
   }
 }
 
-/* Requires worker endpoints:
-   GET /engineers
-   POST /update-engineer  { id, firstName, lastName, company, purpose, hourlyRate }
-   POST /toggle-engineer  { id }
-*/
 async function fetchEngineers(){
   try{
     const res = await fetch(`${API_BASE}/engineers`);
@@ -576,6 +571,16 @@ async function fetchEngineers(){
   }
 }
 
+async function fetchCompaniesMaster(){
+  try{
+    const res = await fetch(`${API_BASE}/companies`);
+    const data = await res.json();
+    companiesAll = data.companies || [];
+  }catch(e){
+    companiesAll = [];
+  }
+}
+
 /* -------------------- RENDER -------------------- */
 
 function renderLive(){
@@ -583,35 +588,32 @@ function renderLive(){
   const live=allVisits.filter(v=>!v.check_out_at).filter(passFilters);
 
   tbody.innerHTML=live.map(v=>`
-  <tr>
-    <td><span class="pill pill-live">LIVE</span></td>
-    <td>${escapeHtml(nameOf(v))}</td>
-    <td>${escapeHtml(v.company||"-")}</td>
-    <td>${escapeHtml(v.purpose||"-")}</td>
-    <td>${escapeHtml(v.site_code||"-")}</td>
-    <td>${escapeHtml(toLocal(v.check_in_at))}</td>
-    <td>${escapeHtml(fmtDuration(minutesBetween(v.check_in_at,v.check_out_at)))}</td>
-
-    <td style="text-align:center;">
-      ${v.device_token ? `<span class="okTick">✓</span>` : `<span class="muted">-</span>`}
-    </td>
-
-    <td style="text-align:center;">
-      ${(v.lat!=null && v.lng!=null) ? `<span class="okTick">✓</span>` : `<span class="muted">-</span>`}
-    </td>
-
-    <td>
-      <button class="dangerBtn tinyBtn"
-        onclick="openManualCheckoutModal(
-          '${escapeHtml(v.visit_id)}',
-          '${escapeHtml(nameOf(v))}',
-          '${escapeHtml(v.check_in_at)}'
-        )">
-        Sign Out
-      </button>
-    </td>
-  </tr>
-`).join("");
+    <tr>
+      <td><span class="pill pill-live">LIVE</span></td>
+      <td>${escapeHtml(nameOf(v))}</td>
+      <td>${escapeHtml(v.company||"-")}</td>
+      <td>${escapeHtml(v.purpose||"-")}</td>
+      <td>${escapeHtml(v.site_code||"-")}</td>
+      <td>${escapeHtml(toLocal(v.check_in_at))}</td>
+      <td>${escapeHtml(fmtDuration(minutesBetween(v.check_in_at,v.check_out_at)))}</td>
+      <td style="text-align:center;">
+        ${v.device_token ? `<span class="okTick">✓</span>` : `<span class="muted">-</span>`}
+      </td>
+      <td style="text-align:center;">
+        ${(v.lat!=null && v.lng!=null) ? `<span class="okTick">✓</span>` : `<span class="muted">-</span>`}
+      </td>
+      <td>
+        <button class="dangerBtn tinyBtn"
+          onclick="openManualCheckoutModal(
+            '${escapeHtml(v.visit_id)}',
+            '${escapeHtml(nameOf(v))}',
+            '${escapeHtml(v.check_in_at)}'
+          )">
+          Sign Out
+        </button>
+      </td>
+    </tr>
+  `).join("");
 
   if(!live.length){
     tbody.innerHTML=`<tr><td colspan="10" class="muted" style="text-align:center;">No one currently onsite.</td></tr>`;
@@ -629,7 +631,6 @@ function renderLogs(){
     return;
   }
 
-  // -------- GROUP BY ENGINEER + DAY --------
   const grouped={};
 
   logs.forEach(v=>{
@@ -653,7 +654,6 @@ function renderLogs(){
     let engineerTotal=0;
 
     Object.keys(grouped[person]).sort().forEach(day=>{
-
       let dayTotal=0;
 
       const dayRow=document.createElement("tr");
@@ -681,26 +681,23 @@ function renderLogs(){
 
         const row=document.createElement("tr");
         row.innerHTML=`
-          <td>${v.check_out_at?"OUT":"LIVE"}</td>
+          <td>${getLogStatusHtml(v)}</td>
           <td>${escapeHtml(nameOf(v))}</td>
           <td>${escapeHtml(v.company||"-")}</td>
           <td>${escapeHtml(v.purpose||"-")}</td>
           <td>${escapeHtml(v.site_code||"-")}</td>
           <td>${escapeHtml(toLocal(v.check_in_at))}</td>
-          <td>${escapeHtml(v.check_out_at?toLocal(v.check_out_at):"-")}</td>
-          <td>${escapeHtml(v.check_out_at?fmtDuration(mins):"On Site")}</td>
+          <td>${escapeHtml(v.check_out_at ? toLocal(v.check_out_at) : "-")}</td>
+          <td>${escapeHtml(v.check_out_at ? fmtDuration(mins) : "On Site")}</td>
 
-          <!-- Device Tick -->
           <td style="text-align:center;">
             ${hasDevice ? `<span class="okTick">✓</span>` : `<span class="muted">-</span>`}
           </td>
 
-          <!-- GPS Tick -->
           <td style="text-align:center;">
             ${hasGPS ? `<span class="okTick">✓</span>` : `<span class="muted">-</span>`}
           </td>
 
-          <!-- Location Pin -->
           <td style="text-align:center;">
             ${locationLink}
           </td>
@@ -747,7 +744,6 @@ function renderAll(){
 /* -------------------- LOAD -------------------- */
 
 async function loadData(){
-
   await Promise.all([fetchSites(), fetchEngineers()]);
 
   allVisits = await fetchAll();
@@ -755,7 +751,6 @@ async function loadData(){
   const from = document.getElementById("fromDate").value;
   const to   = document.getElementById("toDate").value;
 
-  // If no date filter selected, use all visits
   if (!from || !to) {
     filteredVisits = allVisits.slice();
   } else {
@@ -770,6 +765,7 @@ document.getElementById("personFilter").addEventListener("change",renderAll);
 document.getElementById("companyFilter").addEventListener("change",renderAll);
 document.getElementById("purposeFilter").addEventListener("change",renderAll);
 document.getElementById("siteFilter").addEventListener("change",renderAll);
+
 loadData();
 
 /* -------------------- DELETE -------------------- */
@@ -833,13 +829,7 @@ function generatePDF(){
   closeExportModal();
 }
 
-/* ======================================================================
-   NEW: SITES ADMIN MODAL (edit + archive toggle)
-   Uses worker:
-     GET  /sites
-     POST /update-site { id, siteName, radius }
-     POST /toggle-site { id }
-====================================================================== */
+/* -------------------- SITES MODAL -------------------- */
 
 function openSitesModal(){
   document.getElementById("sitesModal").style.display="flex";
@@ -925,7 +915,7 @@ async function saveSite(id){
 
   await fetchSites();
   renderSitesAdminTable();
-  renderAll(); // updates dropdowns immediately
+  renderAll();
 }
 
 async function toggleSite(id){
@@ -937,16 +927,10 @@ async function toggleSite(id){
 
   await fetchSites();
   renderSitesAdminTable();
-  renderAll(); // site dropdown excludes archived
+  renderAll();
 }
 
-/* ======================================================================
-   NEW: ENGINEERS ADMIN MODAL (edit + archive toggle + save rate)
-   Requires worker endpoints:
-     GET  /engineers
-     POST /update-engineer { id, firstName, lastName, company, purpose, hourlyRate }
-     POST /toggle-engineer { id }
-====================================================================== */
+/* -------------------- ENGINEERS MODAL -------------------- */
 
 function openEngineersModal(){
   document.getElementById("engineersModal").style.display="flex";
@@ -980,26 +964,21 @@ function renderEngineersAdminTable(){
       return `
         <tr>
           <td style="text-align:left;">${statusPill}</td>
-
           <td style="text-align:left;width:140px;">
             <input data-eng-first="${escapeHtml(p.id)}" value="${escapeHtml(p.first_name||"")}" />
           </td>
           <td style="text-align:left;width:160px;">
             <input data-eng-last="${escapeHtml(p.id)}" value="${escapeHtml(p.last_name||"")}" />
           </td>
-
           <td style="text-align:left;width:220px;">
             <input data-eng-company="${escapeHtml(p.id)}" value="${escapeHtml(p.company||"")}" />
           </td>
-
           <td style="text-align:left;width:140px;">
             <input data-eng-purpose="${escapeHtml(p.id)}" value="${escapeHtml(p.purpose||"")}" />
           </td>
-
           <td style="text-align:left;width:120px;">
             <input data-eng-rate="${escapeHtml(p.id)}" type="number" step="0.01" min="0" value="${escapeHtml(p.hourly_rate ?? p.rate ?? "")}" placeholder="(optional)" />
           </td>
-
           <td>
             <div class="rowBtns">
               <button class="tinyBtn" onclick="saveEngineer('${escapeHtml(p.id)}')">💾 Save</button>
@@ -1051,7 +1030,7 @@ async function saveEngineer(id){
 
   await fetchEngineers();
   renderEngineersAdminTable();
-  renderAll(); // person dropdown excludes archived engineers
+  renderAll();
 }
 
 async function toggleEngineer(id){
@@ -1065,21 +1044,8 @@ async function toggleEngineer(id){
   renderEngineersAdminTable();
   renderAll();
 }
-  /* ======================================================================
-   NEW: COMPANIES ADMIN MODAL (assign companies per site)
-====================================================================== */
 
-let companiesAll = [];
-
-async function fetchCompaniesMaster(){
-  try{
-    const res = await fetch(`${API_BASE}/companies`);
-    const data = await res.json();
-    companiesAll = data.companies || [];
-  }catch(e){
-    companiesAll = [];
-  }
-}
+/* -------------------- COMPANIES MODAL -------------------- */
 
 async function openCompaniesModal(){
   await fetchSites();
@@ -1093,7 +1059,6 @@ function closeCompaniesModal(){
 }
 
 async function renderCompaniesAdmin(){
-
   const wrap = document.getElementById("companiesAdminBody");
 
   if(!sitesActive.length){
@@ -1107,7 +1072,6 @@ async function renderCompaniesAdmin(){
   </tr></thead><tbody>`;
 
   for(const site of sitesActive){
-
     const res = await fetch(`${API_BASE}/companies-for-site?site=${encodeURIComponent(site.site_name)}`);
     const data = await res.json();
     const assigned = (data.companies || []).map(c=>c.id);
@@ -1138,7 +1102,6 @@ async function renderCompaniesAdmin(){
 }
 
 async function saveCompanyMappings(){
-
   const checkboxes = document.querySelectorAll("#companiesAdminBody input[type='checkbox']");
   const map = {};
 
@@ -1151,7 +1114,6 @@ async function saveCompanyMappings(){
   });
 
   try {
-
     const res = await fetch(`${API_BASE}/update-site-companies`,{
       method:"POST",
       headers:{"Content-Type":"application/json"},
@@ -1166,16 +1128,16 @@ async function saveCompanyMappings(){
     }
 
     alert("✅ Company mappings saved successfully.");
-
-    // Reload the grid so it reflects saved state
     await renderCompaniesAdmin();
 
   } catch(err){
     alert("❌ Network error while saving.\n\n" + err.message);
   }
 }
-  function setPreset(type){
 
+/* -------------------- PRESETS -------------------- */
+
+function setPreset(type){
   const today = new Date();
   let fromDate = null;
 
@@ -1187,14 +1149,14 @@ async function saveCompanyMappings(){
   }
 
   if(type === "week"){
-  const now = new Date();
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-  fromDate = new Date(now.getFullYear(), now.getMonth(), diff);
-} else {
-  const now = new Date();
-  fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - type);
-}
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    fromDate = new Date(now.getFullYear(), now.getMonth(), diff);
+  } else {
+    const now = new Date();
+    fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - type);
+  }
 
   const format = d => d.toISOString().slice(0,10);
 
@@ -1205,7 +1167,6 @@ async function saveCompanyMappings(){
 }
 </script>
 
-<!-- DELETE MODAL (EXISTING) -->
 <div id="deleteModal" class="modal">
   <div class="modalContent">
     <h3>Delete Visit</h3>
@@ -1215,7 +1176,6 @@ async function saveCompanyMappings(){
   </div>
 </div>
 
-<!-- EXPORT MODAL (EXISTING) -->
 <div id="exportModal" class="modal">
   <div class="modalContent">
     <h3>Export Report</h3>
@@ -1225,7 +1185,6 @@ async function saveCompanyMappings(){
   </div>
 </div>
 
-<!-- NEW: SITES ADMIN MODAL -->
 <div id="sitesModal" class="modal">
   <div class="modalContent">
     <div class="modalHead">
@@ -1240,7 +1199,6 @@ async function saveCompanyMappings(){
   </div>
 </div>
 
-<!-- NEW: ENGINEERS ADMIN MODAL -->
 <div id="engineersModal" class="modal">
   <div class="modalContent">
     <div class="modalHead">
@@ -1249,12 +1207,12 @@ async function saveCompanyMappings(){
     </div>
     <div class="modalNote">
       Archived engineers are hidden from the <strong>People</strong> dropdown.
-      Rates are stored here for later use (does not change any current hours logic).
+      Rates are stored here for later use.
     </div>
     <div id="engineersAdminBody"></div>
   </div>
 </div>
-<!-- NEW: COMPANIES ADMIN MODAL -->
+
 <div id="companiesModal" class="modal">
   <div class="modalContent">
     <div class="modalHead">
@@ -1268,11 +1226,10 @@ async function saveCompanyMappings(){
     <div id="companiesAdminBody"></div>
   </div>
 </div>
-  <!-- MANUAL CHECKOUT MODAL -->
+
 <div id="manualCheckoutModal" class="modal">
   <div class="modalContent">
     <h3>Manual Sign Out</h3>
-
     <p id="manualCheckoutText"></p>
 
     <div style="margin:12px 0;">
@@ -1284,5 +1241,6 @@ async function saveCompanyMappings(){
     <button onclick="closeManualCheckoutModal()" style="background:#ccc;color:#333;">Cancel</button>
   </div>
 </div>
+
 </body>
 </html>

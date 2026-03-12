@@ -54,17 +54,17 @@
     input, select, button {
       display: block;
       width: 100%;
-      max-width: 480px;           /* keeps everything visually centred */
-      box-sizing: border-box;     /* stops iOS sizing weirdness */
-      margin: 10px auto 0;        /* true centre */
-      padding: 12px 14px;         /* consistent internal spacing */
+      max-width: 480px;
+      box-sizing: border-box;
+      margin: 10px auto 0;
+      padding: 12px 14px;
       border-radius: 10px;
       border: 1px solid #cbd5e1;
       text-align: center;
       background: #fff;
-      font-size: 16px;            /* prevents iOS zoom on focus */
+      font-size: 16px;
       line-height: 1.2;
-      -webkit-appearance: none;   /* normalise iOS input rendering */
+      -webkit-appearance: none;
       appearance: none;
     }
 
@@ -79,7 +79,7 @@
       color: #9aa3af;
     }
 
-    select:invalid { color: #6b7280; } /* placeholder grey */
+    select:invalid { color: #6b7280; }
     option { color: #0f172a; }
 
     button {
@@ -129,7 +129,7 @@
     }
 
     /* ==============================
-       ✅ BIG SUCCESS OVERLAY (NEW)
+       ✅ BIG SUCCESS OVERLAY
     ============================== */
     #successOverlay {
       position: fixed;
@@ -186,24 +186,57 @@
       color: #003b82;
       font-weight: 700;
     }
+
     /* 🔒 Hide site label on overlay */
-#successSite {
-  display: none !important;
-}
+    #successSite {
+      display: none !important;
+    }
+
     /* 🔁 Subtle backup reset link */
-.not-you{
-  margin: 8px auto 0;
-  max-width: 520px;
-  font-size: 12px;
-  color: rgba(15,23,42,0.45);
-  text-align: right;
-}
-.not-you a{
-  color: rgba(0,74,153,0.6);
-  font-weight: 600;
-  text-decoration: underline;
-}
-.not-you a:active{ opacity: 0.7; }
+    .not-you{
+      margin: 8px auto 0;
+      max-width: 520px;
+      font-size: 12px;
+      color: rgba(15,23,42,0.45);
+      text-align: right;
+    }
+    .not-you a{
+      color: rgba(0,74,153,0.6);
+      font-weight: 600;
+      text-decoration: underline;
+    }
+    .not-you a:active{ opacity: 0.7; }
+
+    /* Confirm sign out modal */
+    #confirmSignOutModal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+    .confirmCard {
+      background: #fff;
+      width: min(520px, calc(100% - 40px));
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      text-align: center;
+    }
+    .confirmTitle {
+      margin-top: 0;
+      color: #0f172a;
+    }
+    .confirmText {
+      color: #334155;
+      margin-bottom: 18px;
+    }
+    .secondaryBtn {
+      background: #ccc;
+      color: #333;
+    }
   </style>
 </head>
 
@@ -220,9 +253,10 @@
 <div id="card">
   <div id="status">Requesting GPS…</div>
   <div id="map"></div>
+
   <div class="not-you" id="notYouRow" style="display:none;">
-  Backup: <a href="#" onclick="resetDeviceAndRegister(); return false;">Reset device</a>
-</div>
+    Backup: <a href="#" onclick="resetDeviceAndRegister(); return false;">Reset device</a>
+  </div>
 
   <div id="registerBox" style="display:none; text-align:center;">
     <h3>First Visit Registration</h3>
@@ -230,17 +264,14 @@
     <input id="firstName" placeholder="First Name">
     <input id="lastName" placeholder="Last Name">
 
-    <!-- ✅ PURPOSE DROPDOWN WITH PLACEHOLDER -->
     <select id="purpose" required>
       <option value="" disabled selected>Select from list</option>
       <option value="Visiting">Visiting</option>
       <option value="Contractor">Contractor</option>
     </select>
 
-    <!-- ✅ COMPANY DROPDOWN WITH PLACEHOLDER -->
     <select id="company" required>
       <option value="" disabled selected>Select from list</option>
-      <!-- Dynamically populated -->
     </select>
 
     <label>
@@ -252,7 +283,6 @@
   </div>
 </div>
 
-<!-- ✅ SUCCESS OVERLAY (NEW) -->
 <div id="successOverlay" aria-hidden="true">
   <div class="successCard" role="dialog" aria-modal="true">
     <div id="successIcon" class="successIcon">✅</div>
@@ -262,8 +292,17 @@
   </div>
 </div>
 
-<script>
+<div id="confirmSignOutModal">
+  <div class="confirmCard">
+    <h3 class="confirmTitle">Confirm Sign Out</h3>
+    <p id="confirmSignOutText" class="confirmText"></p>
 
+    <button onclick="confirmSignOutYes()">Yes, Sign Me Out</button>
+    <button class="secondaryBtn" onclick="confirmSignOutNo()">No, Stay Signed In</button>
+  </div>
+</div>
+
+<script>
 const API = "https://sitelog-api.jamie-def.workers.dev";
 
 let deviceToken = localStorage.getItem("mostlane_device_id");
@@ -274,7 +313,11 @@ if (!deviceToken) {
 
 let lastLocation = null;
 let currentSite = null;
-  function resetDeviceAndRegister() {
+let pendingCheckoutVisitId = null;
+let pendingCheckoutFirstName = "";
+let pendingCheckoutSite = "";
+
+function resetDeviceAndRegister() {
   const confirmReset = confirm(
     "Backup action.\n\nThis will reset this device and return to first-time registration."
   );
@@ -288,7 +331,7 @@ let currentSite = null;
 }
 
 /* ==============================
-   ✅ BIG OVERLAY POPUP (NEW)
+   ✅ BIG OVERLAY POPUP
    type: "in" | "out" | "reg"
 ============================== */
 function showSuccessOverlay(type, siteName, firstName, durationText) {
@@ -298,31 +341,25 @@ function showSuccessOverlay(type, siteName, firstName, durationText) {
   const sub = document.getElementById("successSub");
   const site = document.getElementById("successSite");
 
-  // default
   site.style.display = (siteName ? "inline-block" : "none");
   site.textContent = siteName ? siteName : "";
 
-   if (type === "in") {
-  icon.textContent = "✅";
-  title.textContent = firstName
-    ? `Welcome ${firstName}`
-    : "Checked In";
+  if (type === "in") {
+    icon.textContent = "✅";
+    title.textContent = firstName ? `Welcome ${firstName}` : "Checked In";
+    sub.textContent = siteName ? `Signed in at ${siteName}` : "You're signed in on site";
+  } else if (type === "out") {
+    icon.textContent = "👋";
+    title.textContent = firstName ? `Goodbye ${firstName}` : "Checked Out";
 
-  sub.textContent = siteName
-    ? `Signed in at ${siteName}`
-    : "You're signed in on site";
- } else if (type === "out") {
-  icon.textContent = "👋";
-  title.textContent = firstName ? `Goodbye ${firstName}` : "Checked Out";
-
-  if (siteName && durationText) {
-    sub.textContent = `Signed out from ${siteName} — ${durationText} on site`;
-  } else if (durationText) {
-    sub.textContent = `${durationText} on site`;
+    if (siteName && durationText) {
+      sub.textContent = `Signed out from ${siteName} — ${durationText} on site`;
+    } else if (durationText) {
+      sub.textContent = `${durationText} on site`;
+    } else {
+      sub.textContent = "Visit completed";
+    }
   } else {
-    sub.textContent = "Visit completed";
-  }
-}else { // reg
     icon.textContent = "✅";
     title.textContent = "Registered";
     sub.textContent = "Check-in confirmed";
@@ -331,23 +368,91 @@ function showSuccessOverlay(type, siteName, firstName, durationText) {
   overlay.classList.add("active");
   overlay.setAttribute("aria-hidden", "false");
 
-  // small haptic if supported
   try { if (navigator.vibrate) navigator.vibrate(70); } catch(e){}
 
-  // clear previous timers
-clearTimeout(window.__mlFadeT);
-clearTimeout(window.__mlCloseT);
+  clearTimeout(window.__mlFadeT);
+  clearTimeout(window.__mlCloseT);
 
-// ⏳ Fade out after 2 seconds
-window.__mlFadeT = setTimeout(() => {
-  overlay.classList.remove("active");
-  overlay.setAttribute("aria-hidden", "true");
-}, 2000);
+  window.__mlFadeT = setTimeout(() => {
+    overlay.classList.remove("active");
+    overlay.setAttribute("aria-hidden", "true");
+  }, 2000);
 
-// 🚪 Close tab after 10 seconds
-window.__mlCloseT = setTimeout(() => {
-  window.close();
-}, 10000);
+  window.__mlCloseT = setTimeout(() => {
+    window.close();
+  }, 10000);
+}
+
+function openSignOutConfirm(visitId, siteName, firstName) {
+  pendingCheckoutVisitId = visitId;
+  pendingCheckoutFirstName = firstName || "";
+  pendingCheckoutSite = siteName || "";
+
+  document.getElementById("confirmSignOutText").innerText =
+    firstName
+      ? `${firstName}, are you sure you want to sign out${siteName ? ` from ${siteName}` : ""}?`
+      : `Are you sure you want to sign out${siteName ? ` from ${siteName}` : ""}?`;
+
+  document.getElementById("confirmSignOutModal").style.display = "flex";
+}
+
+function closeSignOutConfirm() {
+  document.getElementById("confirmSignOutModal").style.display = "none";
+  pendingCheckoutVisitId = null;
+  pendingCheckoutFirstName = "";
+  pendingCheckoutSite = "";
+}
+
+async function confirmSignOutYes() {
+  if (!pendingCheckoutVisitId) return;
+
+  const firstName = pendingCheckoutFirstName;
+  const siteName = pendingCheckoutSite;
+
+  const res = await fetch(API + "/confirm-checkout", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      visitId: pendingCheckoutVisitId
+    })
+  });
+
+  const data = await res.json();
+
+  if (!res.ok || !data.ok) {
+    alert(data.error || "Failed to sign out.");
+    return;
+  }
+
+  const start = localStorage.getItem("mostlane_last_checkin");
+  let durationText = "";
+
+  if (start) {
+    const mins = Math.round((Date.now() - start) / 60000);
+    const hrs = Math.floor(mins / 60);
+    const rem = mins % 60;
+    durationText = hrs > 0 ? `${hrs}h ${rem}m` : `${mins}m`;
+    localStorage.removeItem("mostlane_last_checkin");
+  }
+
+  document.getElementById("title").innerText = "👋 Checked Out";
+  document.getElementById("status").innerText =
+    firstName
+      ? `Goodbye ${firstName} — Total time on site: ${durationText || "Recorded"}`
+      : "Total time on site: " + (durationText || "Recorded");
+
+  document.getElementById("noticeBox").innerHTML =
+    "<strong>✅ Visit Complete:</strong> Thank you, you may now leave site.";
+
+  closeSignOutConfirm();
+  showSuccessOverlay("out", siteName, firstName, durationText);
+}
+
+function confirmSignOutNo() {
+  closeSignOutConfirm();
+  document.getElementById("title").innerText = "✅ Still Checked In";
+  document.getElementById("status").innerText =
+    "Sign out cancelled. You are still signed in on site.";
 }
 
 /* 🔒 LOCKED MAP VERSION */
@@ -376,8 +481,6 @@ async function loadCompaniesForSite(siteName) {
     const data = await res.json();
 
     const companySelect = document.getElementById("company");
-
-    // reset to placeholder
     companySelect.innerHTML = `<option value="" disabled selected>Select from list</option>`;
 
     if (data.companies && data.companies.length > 0) {
@@ -389,7 +492,6 @@ async function loadCompaniesForSite(siteName) {
       });
     }
 
-    // If we have a saved profile company and it exists in this site’s list, preselect it
     const savedProfile = localStorage.getItem("mostlane_profile");
     if (savedProfile) {
       const profile = JSON.parse(savedProfile);
@@ -430,7 +532,6 @@ async function scan() {
 
   currentSite = data.site;
 
-  // load companies for this site (used for registration)
   await loadCompaniesForSite(currentSite);
 
   const firstName = data.firstName || "";
@@ -447,17 +548,30 @@ async function scan() {
       document.getElementById("firstName").value = profile.firstName || "";
       document.getElementById("lastName").value = profile.lastName || "";
 
-      // purpose preselect if valid
       const savedPurpose = (profile.purpose || "").trim();
       if (savedPurpose === "Visiting" || savedPurpose === "Contractor") {
         document.getElementById("purpose").value = savedPurpose;
       } else {
         document.getElementById("purpose").value = "";
       }
-      // company is preselected inside loadCompaniesForSite()
     }
 
     document.getElementById("registerBox").style.display = "block";
+    return;
+  }
+
+  if (data.status === "confirm_sign_out") {
+    document.getElementById("notYouRow").style.display = "block";
+    document.getElementById("title").innerText = "Confirm Sign Out";
+    document.getElementById("status").innerText =
+      firstName
+        ? `${firstName}, please confirm if you want to sign out.`
+        : "Please confirm if you want to sign out.";
+
+    noticeBox.innerHTML =
+      "<strong>⚠️ Confirmation Required:</strong> Please confirm before signing out.";
+
+    openSignOutConfirm(data.visitId, currentSite, firstName);
     return;
   }
 
@@ -474,8 +588,8 @@ async function scan() {
     noticeBox.innerHTML =
       "<strong>⚠️ Site Notice:</strong> Report to site foreman";
 
-    // ✅ overlay (NEW)
     showSuccessOverlay("in", currentSite, firstName);
+    return;
   }
 
   if (data.status === "checked_out") {
@@ -500,8 +614,8 @@ async function scan() {
     noticeBox.innerHTML =
       "<strong>✅ Visit Complete:</strong> Thank you, you may now leave site.";
 
-    // ✅ overlay (NEW)
     showSuccessOverlay("out", currentSite, firstName, durationText);
+    return;
   }
 }
 
@@ -525,32 +639,31 @@ async function register() {
   }));
 
   const res = await fetch(API + "/register", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    deviceToken,
-    firstName,
-    lastName,
-    purpose,
-    company,
-    siteCode: currentSite,
-    lat: lastLocation.lat,
-    lng: lastLocation.lng,
-    accuracy: lastLocation.accuracy
-  })
-});
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      deviceToken,
+      firstName,
+      lastName,
+      purpose,
+      company,
+      siteCode: currentSite,
+      lat: lastLocation.lat,
+      lng: lastLocation.lng,
+      accuracy: lastLocation.accuracy
+    })
+  });
 
-const data = await res.json();
+  const data = await res.json();
 
-if (!data.ok) {
-  alert("Registration failed");
-  return;
-}
+  if (!data.ok) {
+    alert("Registration failed");
+    return;
+  }
 
-document.getElementById("registerBox").style.display = "none";
+  document.getElementById("registerBox").style.display = "none";
 
-// 🔥 Immediately run scan again to create visit
-await scan();
+  await scan();
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 }

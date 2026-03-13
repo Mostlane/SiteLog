@@ -7,6 +7,17 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
   <style>
+    :root{
+      --ml-blue:#003366;
+      --ml-accent:#1a73e8;
+      --ml-ink:#27313a;
+      --ml-bg:#e6e8eb;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --ok:#15803d;
+      --warn:#b91c1c;
+    }
+
     body {
       font-family: "Segoe UI", sans-serif;
       background: #e6e8eb url('Mostlane_Embossed.png') no-repeat center center fixed;
@@ -233,6 +244,172 @@
       font-weight:900;
       font-size:16px;
     }
+
+    /* =========================
+       TIMESHEET MODAL STYLES
+    ========================= */
+    .timesheetModalContent{
+      width:min(1180px,96%);
+      max-width:96%;
+      max-height:90vh;
+      overflow:auto;
+      background:white;
+      border-radius:16px;
+      padding:18px;
+      box-shadow:0 20px 60px rgba(0,0,0,0.35);
+      text-align:left;
+    }
+
+    .tsControls{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+      gap:10px;
+      margin:12px 0 18px 0;
+      align-items:end;
+    }
+
+    .tsControls .field{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
+    .tsControls label{
+      font-size:12px;
+      color:#475569;
+      font-weight:700;
+    }
+
+    .tsShell{
+      max-width:1100px;
+      margin:0 auto;
+      background:rgba(255,255,255,0.96);
+      border-radius:16px;
+    }
+
+    .tsCompanyBlock{
+      margin:0 0 26px 0;
+      border:1px solid #dbe4ef;
+      border-radius:16px;
+      overflow:hidden;
+      background:#f8fafc;
+    }
+
+    .tsCompanyHeader{
+      background:var(--ml-blue);
+      color:#fff;
+      padding:12px 16px;
+      font-size:18px;
+      font-weight:800;
+    }
+
+    .tsEngineerWrap{
+      padding:14px;
+      border-top:1px solid #e5e7eb;
+    }
+
+    .tsEngineerTitle{
+      font-weight:800;
+      color:#111827;
+      font-size:18px;
+      margin:0 0 4px 0;
+    }
+
+    .tsEngineerSub{
+      font-size:12px;
+      color:#6b7280;
+      margin-bottom:12px;
+    }
+
+    .day-group{margin-bottom:22px;}
+
+    .day-header{
+      font-weight:700;
+      color:#111827;
+      border-bottom:2px solid #e5e7eb;
+      padding-bottom:6px;
+      margin-bottom:12px;
+    }
+
+    .session-card{
+      background:#fff;
+      border-radius:14px;
+      padding:14px 16px;
+      margin-bottom:12px;
+      border:1px solid #eef2f7;
+      box-shadow:
+        0 1px 2px rgba(0,0,0,0.04),
+        0 6px 16px rgba(0,0,0,0.06);
+    }
+
+    .session-time{
+      font-size:18px;
+      font-weight:700;
+      color:var(--ml-blue);
+    }
+
+    .session-hours{
+      margin-top:6px;
+      font-size:13px;
+      font-weight:600;
+    }
+
+    .session-hours span{margin-right:14px;}
+
+    .location{
+      margin-top:8px;
+      font-size:13px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+
+    .location a{
+      color:var(--ml-accent);
+      text-decoration:none;
+      font-weight:600;
+    }
+
+    .verified{color:var(--ok);font-weight:700;}
+    .unknown{color:var(--warn);}
+    .redNote{
+      margin-top:10px;
+      font-size:13px;
+      color:#b91c1c;
+      font-weight:700;
+    }
+
+    .summary{
+      margin-top:14px;
+      display:grid;
+      gap:10px;
+    }
+
+    .summary div{
+      padding:10px;
+      border-radius:12px;
+      background:#f8fafc;
+      border:1px solid var(--border);
+      font-weight:600;
+      display:flex;
+      justify-content:space-between;
+    }
+
+    .mapPin{
+      font-size:18px;
+      text-decoration:none;
+      line-height:1;
+    }
+
+    .tsEmpty{
+      padding:18px;
+      background:#f8fafc;
+      border:1px dashed #cbd5e1;
+      border-radius:14px;
+      color:#64748b;
+      text-align:center;
+    }
   </style>
 </head>
 
@@ -274,6 +451,7 @@
     </div>
 
     <button onclick="openExportModal()">📄 Export PDF</button>
+    <button class="ghostBtn" onclick="openTimesheetsModal()">🧾 Timesheets</button>
     <button onclick="window.location.href='sites.html'">➕ Manage Sites</button>
     <button class="ghostBtn" onclick="openSitesModal()">🗂 View/Edit Sites</button>
     <button class="ghostBtn" onclick="openEngineersModal()">👷 Engineers</button>
@@ -433,6 +611,12 @@ function fmtDay(dayStr){
   const m=dayStr.slice(5,7);
   const d=dayStr.slice(8,10);
   return `${d}/${m}/${y}`;
+}
+
+function friendlyDayLong(dayStr){
+  if(!dayStr) return "-";
+  const d = new Date(dayStr + "T00:00:00");
+  return d.toLocaleDateString("en-GB",{weekday:"long", day:"2-digit", month:"short"});
 }
 
 function escapeHtml(str){
@@ -865,6 +1049,274 @@ function generatePDF(){
   closeExportModal();
 }
 
+/* -------------------- TIMESHEETS MODAL -------------------- */
+
+function companySortKey(name){
+  const n = (name || "").trim().toLowerCase();
+  if(n === "mostlane") return "0-mostlane";
+  return "1-" + n;
+}
+
+function getMainFilteredVisits(){
+  return filteredVisits.filter(passFilters);
+}
+
+function getTimesheetNoteHtml(v){
+  if (!v.check_out_at) {
+    return `<div class="redNote">No check-out recorded.</div>`;
+  }
+  if (Number(v.auto_checkout || 0) === 1 || v.sign_out_status === "No Sign Out") {
+    return `<div class="redNote">Soft / auto sign-out used.</div>`;
+  }
+  return "";
+}
+
+function mapPinHtml(v){
+  if(v.lat == null || v.lng == null) return `<span class="unknown">No map</span>`;
+  return `<a class="mapPin" href="https://www.google.com/maps?q=${encodeURIComponent(v.lat)},${encodeURIComponent(v.lng)}" target="_blank">📍</a>`;
+}
+
+function deviceStatusHtml(v){
+  return v.device_token
+    ? `<span class="verified">Device ✔ Verified</span>`
+    : `<span class="unknown">Device ✖ Unknown</span>`;
+}
+
+function locationStatusHtml(v){
+  if(v.lat != null && v.lng != null){
+    return `<span class="verified">Location ✔ Verified</span>`;
+  }
+  return `<span class="unknown">Location ✖ Unknown</span>`;
+}
+
+function buildTimesheetDayCards(visits){
+  const byDay = {};
+  visits.forEach(v=>{
+    const day = (v.check_in_at || "").slice(0,10) || "Unknown";
+    if(!byDay[day]) byDay[day] = [];
+    byDay[day].push(v);
+  });
+
+  let html = "";
+  let totalAll = 0;
+  let stdAll = 0;
+  let otAll = 0;
+
+  Object.keys(byDay).sort().forEach(day=>{
+    const dayVisits = byDay[day].sort((a,b)=> (a.check_in_at || "").localeCompare(b.check_in_at || ""));
+    let remainingStd = 8 * 60;
+
+    html += `<div class="day-group">`;
+    html += `<div class="day-header">${escapeHtml(friendlyDayLong(day))}</div>`;
+
+    dayVisits.forEach(v=>{
+      const totalMins = minutesBetween(v.check_in_at, v.check_out_at);
+      const stdMins = Math.min(totalMins, Math.max(remainingStd,0));
+      const otMins = Math.max(totalMins - stdMins, 0);
+      remainingStd -= stdMins;
+
+      totalAll += totalMins;
+      stdAll += stdMins;
+      otAll += otMins;
+
+      const sessionTime = `${escapeHtml(toLocal(v.check_in_at))} → ${escapeHtml(v.check_out_at ? toLocal(v.check_out_at) : "No check-out")}`;
+
+      html += `
+        <div class="session-card">
+          <div class="session-time">${sessionTime}</div>
+
+          <div class="session-hours">
+            <span>Total ${escapeHtml((totalMins/60).toFixed(2))}</span>
+            <span>Std ${escapeHtml((stdMins/60).toFixed(2))}</span>
+            <span>OT ${escapeHtml((otMins/60).toFixed(2))}</span>
+          </div>
+
+          <div class="location">
+            <strong>Site:</strong> ${escapeHtml(v.site_code || "-")}
+          </div>
+
+          <div class="location">
+            ${deviceStatusHtml(v)}
+          </div>
+
+          <div class="location">
+            ${locationStatusHtml(v)}
+            ${mapPinHtml(v)}
+          </div>
+
+          <div class="location">
+            ${Number(v.auto_checkout || 0) === 1 || v.sign_out_status === "No Sign Out"
+              ? `<span class="unknown">Status: No Sign Out</span>`
+              : (!v.check_out_at
+                  ? `<span class="unknown">Status: Still Open</span>`
+                  : `<span class="verified">Status: Signed Out</span>`)}
+          </div>
+
+          ${getTimesheetNoteHtml(v)}
+        </div>
+      `;
+    });
+
+    html += `</div>`;
+  });
+
+  html += `
+    <div class="summary">
+      <div><span>Standard</span><span>${escapeHtml((stdAll/60).toFixed(2))} h</span></div>
+      <div><span>Overtime</span><span>${escapeHtml((otAll/60).toFixed(2))} h</span></div>
+      <div><span>Total</span><span>${escapeHtml((totalAll/60).toFixed(2))} h</span></div>
+    </div>
+  `;
+
+  return html;
+}
+
+function getTimesheetBaseVisits(){
+  return getMainFilteredVisits();
+}
+
+function populateTimesheetFilters(baseVisits){
+  const companySel = document.getElementById("tsCompanyFilter");
+  const personSel = document.getElementById("tsPersonFilter");
+  const siteSel = document.getElementById("tsSiteFilter");
+
+  const currentCompany = companySel.value;
+  const currentPerson = personSel.value;
+  const currentSite = siteSel.value;
+
+  const companies = [...new Set(baseVisits.map(v => (v.company || "").trim()).filter(Boolean))]
+    .sort((a,b)=> companySortKey(a).localeCompare(companySortKey(b)));
+
+  const people = [...new Set(baseVisits.map(v => nameOf(v)).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b));
+
+  const sites = [...new Set(baseVisits.map(v => (v.site_code || "").trim()).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b));
+
+  companySel.innerHTML = `<option value="">All Companies</option>` +
+    companies.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+
+  personSel.innerHTML = `<option value="">All Engineers</option>` +
+    people.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
+
+  siteSel.innerHTML = `<option value="">All Sites</option>` +
+    sites.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
+
+  if([...companySel.options].some(o=>o.value===currentCompany)) companySel.value = currentCompany;
+  if([...personSel.options].some(o=>o.value===currentPerson)) personSel.value = currentPerson;
+  if([...siteSel.options].some(o=>o.value===currentSite)) siteSel.value = currentSite;
+}
+
+function getTimesheetFilteredVisits(){
+  const company = document.getElementById("tsCompanyFilter").value;
+  const person = document.getElementById("tsPersonFilter").value;
+  const site = document.getElementById("tsSiteFilter").value;
+  const from = document.getElementById("tsFromDate").value;
+  const to = document.getElementById("tsToDate").value;
+
+  return getTimesheetBaseVisits().filter(v=>{
+    const day = (v.check_in_at || "").slice(0,10);
+
+    if(company && (v.company || "") !== company) return false;
+    if(person && nameOf(v) !== person) return false;
+    if(site && (v.site_code || "") !== site) return false;
+    if(from && day < from) return false;
+    if(to && day > to) return false;
+    return true;
+  });
+}
+
+function renderTimesheetsModal(){
+  const baseVisits = getTimesheetBaseVisits();
+  populateTimesheetFilters(baseVisits);
+
+  const visits = getTimesheetFilteredVisits();
+  const wrap = document.getElementById("timesheetsBody");
+  const info = document.getElementById("timesheetsMeta");
+
+  const from = document.getElementById("tsFromDate").value || "All";
+  const to = document.getElementById("tsToDate").value || "All";
+  info.innerHTML = `<strong>Date Range:</strong> ${escapeHtml(from)} → ${escapeHtml(to)} &nbsp; | &nbsp; <strong>Sessions:</strong> ${escapeHtml(visits.length)}`;
+
+  if(!visits.length){
+    wrap.innerHTML = `<div class="tsEmpty">No timesheets found for the current filters.</div>`;
+    return;
+  }
+
+  const grouped = {};
+  visits.forEach(v=>{
+    const company = (v.company || "No Company").trim() || "No Company";
+    const person = nameOf(v) || "Unknown";
+    if(!grouped[company]) grouped[company] = {};
+    if(!grouped[company][person]) grouped[company][person] = [];
+    grouped[company][person].push(v);
+  });
+
+  const companies = Object.keys(grouped).sort((a,b)=> companySortKey(a).localeCompare(companySortKey(b)));
+
+  let html = `<div class="tsShell">`;
+
+  companies.forEach(company=>{
+    html += `
+      <div class="tsCompanyBlock">
+        <div class="tsCompanyHeader">${escapeHtml(company)}</div>
+    `;
+
+    const people = Object.keys(grouped[company]).sort((a,b)=>a.localeCompare(b));
+
+    people.forEach(person=>{
+      const engineerVisits = grouped[company][person].sort((a,b)=> (a.check_in_at || "").localeCompare(b.check_in_at || ""));
+      html += `
+        <div class="tsEngineerWrap">
+          <div class="tsEngineerTitle">${escapeHtml(person)}</div>
+          <div class="tsEngineerSub">Company: ${escapeHtml(company)}</div>
+          ${buildTimesheetDayCards(engineerVisits)}
+        </div>
+      `;
+    });
+
+    html += `</div>`;
+  });
+
+  html += `</div>`;
+  wrap.innerHTML = html;
+}
+
+function openTimesheetsModal(){
+  document.getElementById("timesheetsModal").style.display = "flex";
+
+  const mainFrom = document.getElementById("fromDate").value;
+  const mainTo = document.getElementById("toDate").value;
+
+  document.getElementById("tsFromDate").value = mainFrom || "";
+  document.getElementById("tsToDate").value = mainTo || "";
+
+  renderTimesheetsModal();
+}
+
+function closeTimesheetsModal(){
+  document.getElementById("timesheetsModal").style.display = "none";
+}
+
+function clearTimesheetFilters(){
+  document.getElementById("tsCompanyFilter").value = "";
+  document.getElementById("tsPersonFilter").value = "";
+  document.getElementById("tsSiteFilter").value = "";
+  document.getElementById("tsFromDate").value = document.getElementById("fromDate").value || "";
+  document.getElementById("tsToDate").value = document.getElementById("toDate").value || "";
+  renderTimesheetsModal();
+}
+
+function exportTimesheetsPdf(){
+  const el = document.getElementById("timesheetsPdfRoot");
+  html2pdf().set({
+    margin:0.3,
+    filename:"SiteLog_Timesheets.pdf",
+    jsPDF:{unit:"in",format:"a4",orientation:"portrait"},
+    html2canvas:{scale:2,useCORS:true}
+  }).from(el).save();
+}
+
 /* -------------------- SITES MODAL -------------------- */
 
 function openSitesModal(){
@@ -1174,7 +1626,6 @@ async function saveCompanyMappings(){
 /* -------------------- PRESETS -------------------- */
 
 function setPreset(type){
-  const today = new Date();
   let fromDate = null;
 
   if(type === "all"){
@@ -1275,6 +1726,65 @@ function setPreset(type){
 
     <button class="dangerBtn" onclick="confirmManualCheckout()">Confirm Sign Out</button>
     <button onclick="closeManualCheckoutModal()" style="background:#ccc;color:#333;">Cancel</button>
+  </div>
+</div>
+
+<div id="timesheetsModal" class="modal">
+  <div class="timesheetModalContent" id="timesheetsPdfRoot">
+    <div class="modalHead">
+      <h3>🧾 Timesheets</h3>
+      <button class="ghostBtn" onclick="closeTimesheetsModal()">✕ Close</button>
+    </div>
+
+    <div class="modalNote">
+      Timesheets are grouped by company, then engineer. <strong>Mostlane</strong> is always shown first.
+    </div>
+
+    <div class="tsControls">
+      <div class="field">
+        <label>Company</label>
+        <select id="tsCompanyFilter" onchange="renderTimesheetsModal()">
+          <option value="">All Companies</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Engineer</label>
+        <select id="tsPersonFilter" onchange="renderTimesheetsModal()">
+          <option value="">All Engineers</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Site</label>
+        <select id="tsSiteFilter" onchange="renderTimesheetsModal()">
+          <option value="">All Sites</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>From</label>
+        <input type="date" id="tsFromDate" onchange="renderTimesheetsModal()">
+      </div>
+
+      <div class="field">
+        <label>To</label>
+        <input type="date" id="tsToDate" onchange="renderTimesheetsModal()">
+      </div>
+
+      <div class="field">
+        <label>&nbsp;</label>
+        <button type="button" onclick="clearTimesheetFilters()">Reset Filters</button>
+      </div>
+
+      <div class="field">
+        <label>&nbsp;</label>
+        <button type="button" onclick="exportTimesheetsPdf()">📄 Export Visible PDF</button>
+      </div>
+    </div>
+
+    <div class="modalNote" id="timesheetsMeta"></div>
+    <div id="timesheetsBody"></div>
   </div>
 </div>
 

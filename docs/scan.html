@@ -1,3 +1,10 @@
+Below is the full updated scan.html.
+
+This keeps the new device / first visit registration flow unchanged.
+
+It adds the returning-user check-in confirmation UI only.
+For it to actually work end-to-end, the worker will also need to return confirm_check_in and accept /confirm-checkin. Without that worker change, returning users will still check in immediately as they do now.
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -208,7 +215,8 @@
     .not-you a:active{ opacity: 0.7; }
 
     /* Confirm sign out modal */
-    #confirmSignOutModal {
+    #confirmSignOutModal,
+    #confirmSignInModal {
       position: fixed;
       inset: 0;
       background: rgba(0,0,0,0.55);
@@ -302,6 +310,16 @@
   </div>
 </div>
 
+<div id="confirmSignInModal">
+  <div class="confirmCard">
+    <h3 class="confirmTitle">Confirm Check In</h3>
+    <p id="confirmSignInText" class="confirmText"></p>
+
+    <button onclick="confirmSignInYes()">Yes, Check Me In</button>
+    <button class="secondaryBtn" onclick="confirmSignInNo()">No</button>
+  </div>
+</div>
+
 <script>
 const API = "https://sitelog-api.jamie-def.workers.dev";
 
@@ -316,6 +334,9 @@ let currentSite = null;
 let pendingCheckoutVisitId = null;
 let pendingCheckoutFirstName = "";
 let pendingCheckoutSite = "";
+let pendingCheckinFirstName = "";
+let pendingCheckinCompany = "";
+let pendingCheckinSite = "";
 
 function resetDeviceAndRegister() {
   const confirmReset = confirm(
@@ -455,6 +476,74 @@ function confirmSignOutNo() {
     "Sign out cancelled. You are still signed in on site.";
 }
 
+function openSignInConfirm(siteName, firstName, companyName) {
+  pendingCheckinFirstName = firstName || "";
+  pendingCheckinCompany = companyName || "";
+  pendingCheckinSite = siteName || "";
+
+  document.getElementById("confirmSignInText").innerText =
+    "I am aware of the site rules and will report to the site foreman.";
+
+  document.getElementById("confirmSignInModal").style.display = "flex";
+}
+
+function closeSignInConfirm() {
+  document.getElementById("confirmSignInModal").style.display = "none";
+  pendingCheckinFirstName = "";
+  pendingCheckinCompany = "";
+  pendingCheckinSite = "";
+}
+
+async function confirmSignInYes() {
+  const res = await fetch(API + "/confirm-checkin", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      deviceToken,
+      lat: lastLocation.lat,
+      lng: lastLocation.lng,
+      accuracy: lastLocation.accuracy,
+      site: pendingCheckinSite
+    })
+  });
+
+  const data = await res.json();
+
+  if (!res.ok || !data.ok) {
+    alert(data.error || "Failed to check in.");
+    return;
+  }
+
+  const firstName = data.firstName || pendingCheckinFirstName || "";
+  const companyName = data.company || pendingCheckinCompany || "";
+  const siteName = data.site || pendingCheckinSite || currentSite;
+
+  document.getElementById("notYouRow").style.display = "block";
+  localStorage.setItem("mostlane_last_checkin", Date.now());
+
+  document.getElementById("title").innerText = "✅ Checked In";
+  document.getElementById("status").innerText =
+    (firstName && companyName)
+      ? `Welcome Back ${firstName} from ${companyName}`
+      : "You are now on site: " + siteName;
+
+  document.getElementById("noticeBox").innerHTML =
+    "<strong>⚠️ Site Notice:</strong> Report to site foreman";
+
+  closeSignInConfirm();
+  showSuccessOverlay("in", siteName, firstName);
+}
+
+function confirmSignInNo() {
+  closeSignInConfirm();
+  document.getElementById("title").innerText = "❌ Check In Not Completed";
+  document.getElementById("status").innerText =
+    "You are unable to sign in without acknowledging site rules and reporting to site foreman. Please contact Mostlane office on 02380 262000";
+
+  document.getElementById("noticeBox").innerHTML =
+    "<strong>⚠️ Check In Refused:</strong> Please contact Mostlane office on 02380 262000";
+}
+
 /* 🔒 LOCKED MAP VERSION */
 function showMap(lat, lng) {
   const map = new google.maps.Map(document.getElementById("map"), {
@@ -572,6 +661,21 @@ async function scan() {
       "<strong>⚠️ Confirmation Required:</strong> Please confirm before signing out.";
 
     openSignOutConfirm(data.visitId, currentSite, firstName);
+    return;
+  }
+
+  if (data.status === "confirm_check_in") {
+    document.getElementById("notYouRow").style.display = "block";
+    document.getElementById("title").innerText = "Confirm Check In";
+    document.getElementById("status").innerText =
+      firstName
+        ? `${firstName}, please confirm you are aware of the site rules and will report to the site foreman.`
+        : "Please confirm you are aware of the site rules and will report to the site foreman.";
+
+    noticeBox.innerHTML =
+      "<strong>⚠️ Site Rules:</strong> You must acknowledge site rules and report to site foreman before checking in.";
+
+    openSignInConfirm(currentSite, firstName, companyName);
     return;
   }
 

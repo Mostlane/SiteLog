@@ -308,7 +308,7 @@
       display:flex;
       gap:12px;
       flex-wrap:wrap;
-      align-items:center;
+      align-items:flex-end;
       margin-bottom:16px;
     }
 
@@ -326,13 +326,15 @@
     }
 
     .tsSelect,
-    .tsDate{
+    .tsDate,
+    .tsInput{
       height:40px;
       padding:8px 12px;
       border:1px solid #cbd5e1;
       border-radius:10px;
       font-size:15px;
       background:#fff;
+      box-sizing:border-box;
     }
 
     .tsBtn{
@@ -392,6 +394,28 @@
       margin:0 0 10px 0;
     }
 
+    .tsEngineerAdmin{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+      gap:10px;
+      background:#f8fafc;
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:12px;
+      margin:0 0 14px 0;
+    }
+
+    .tsEngineerAdmin .full{
+      grid-column:1 / -1;
+    }
+
+    .tsEngineerAdminBtns{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
     .tsWeekBlock{
       margin:14px 0 20px 0;
     }
@@ -427,6 +451,7 @@
       border-radius:12px;
       overflow:hidden;
       box-shadow:none;
+      min-width:1200px;
     }
 
     .tsTable th,
@@ -483,6 +508,21 @@
       background:#fff;
     }
 
+    .tsVisitEdit{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+      align-items:center;
+      min-width:250px;
+    }
+
+    .tsVisitEdit input{
+      min-width:155px;
+      width:auto;
+      padding:8px 10px;
+      font-size:13px;
+    }
+
     .tsEmpty{
       padding:18px;
       background:#f8fafc;
@@ -496,6 +536,14 @@
       body{padding:16px;}
       .tsBody{padding:16px;}
       .tsHeader{padding:16px;}
+      .controls-left, .controls-right { width:100%; }
+      #controls { justify-content:flex-start; }
+      input, select, button { width:100%; }
+      .controls-left > *,
+      .controls-right > * { width:100%; }
+      .controls-right > div { width:100%; }
+      .controls-right > div button { width:auto; flex:1 1 30%; }
+      table { display:block; overflow-x:auto; }
     }
   </style>
 </head>
@@ -548,7 +596,7 @@
 </div>
 
 <div class="section-title">🟢 Live On Site (always)</div>
-<table>
+<table id="liveTable">
   <thead>
     <tr>
       <th>Status</th>
@@ -564,28 +612,6 @@
     </tr>
   </thead>
   <tbody id="liveRows"></tbody>
-</table>
-
-<div class="section-title">🕘 Logs</div>
-
-<table id="logsTable">
-  <thead>
-    <tr>
-      <th>Status</th>
-      <th>Name</th>
-      <th>Company</th>
-      <th>Purpose</th>
-      <th>Site</th>
-      <th>Check In</th>
-      <th>Check Out</th>
-      <th>Duration</th>
-      <th>Device</th>
-      <th>GPS</th>
-      <th>Location</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody id="logRows"></tbody>
 </table>
 
 <script>
@@ -675,11 +701,6 @@ function toLocal(ts){
   return new Date(ts.replace(" ","T")+"Z").toLocaleString();
 }
 
-function toLocalDateObj(ts){
-  if(!ts) return null;
-  return new Date(ts.replace(" ","T")+"Z");
-}
-
 function formatTimeOnly(ts){
   if(!ts) return "—";
   return new Date(ts.replace(" ","T")+"Z").toLocaleTimeString("en-GB", {
@@ -711,12 +732,6 @@ function fmtDay(dayStr){
   const m=dayStr.slice(5,7);
   const d=dayStr.slice(8,10);
   return `${d}/${m}/${y}`;
-}
-
-function friendlyDayLong(dayStr){
-  if(!dayStr) return "-";
-  const d = new Date(dayStr + "T00:00:00");
-  return d.toLocaleDateString("en-GB",{weekday:"long", day:"2-digit", month:"short"});
 }
 
 function formatTSDate(dayStr){
@@ -760,35 +775,45 @@ function escapeHtml(str){
     .replaceAll("'","&#039;");
 }
 
-function getSoftAttemptAt(v){
-  return v.last_signout_attempt_at || v.soft_sign_out_at || null;
+function companySortKey(name){
+  const n = (name || "").trim().toLowerCase();
+  if(n === "mostlane") return "0-mostlane";
+  return "1-" + n;
 }
 
-function getSoftAttemptHtml(v){
-  const attemptAt = getSoftAttemptAt(v);
-  if (!attemptAt) return "";
-
-  if (!v.check_out_at) {
-    return `<div class="softAttempt">Soft sign out attempted: ${escapeHtml(toLocal(attemptAt))}</div>`;
-  }
-
-  if (Number(v.auto_checkout || 0) === 1 || v.sign_out_status === "No Sign Out") {
-    return `<div class="softAttempt">Soft sign out attempted: ${escapeHtml(toLocal(attemptAt))}</div>`;
-  }
-
-  return `<div class="softAttempt">Earlier sign out attempt: ${escapeHtml(toLocal(attemptAt))}</div>`;
+function sqlShort(ts){
+  return ts ? String(ts).slice(0,16) : "";
 }
 
-function getLogStatusHtml(v){
-  if (!v.check_out_at) {
-    return `<span class="pill pill-live">LIVE</span>${getSoftAttemptHtml(v)}`;
+function getTimesheetNoteText(v){
+  if (!v.check_out_at) return "No check out";
+  if (Number(v.auto_checkout || 0) === 1 || v.sign_out_status === "No Sign Out") return "Soft / auto sign out";
+  return "—";
+}
+
+function getTimesheetDeviceMark(v){
+  return v.device_token ? "✅" : "❌";
+}
+
+function getTimesheetLocationMark(v){
+  return (v.lat != null && v.lng != null) ? "✅" : "❌";
+}
+
+function mapPinHtml(v){
+  if(v.lat == null || v.lng == null) return "";
+  return `<a class="tsMapLink" href="https://www.google.com/maps?q=${encodeURIComponent(v.lat)},${encodeURIComponent(v.lng)}" target="_blank">📍</a>`;
+}
+
+function findEngineerRecord(personId, engineerName, companyName){
+  if (personId) {
+    const byId = engineersAll.find(e => String(e.id) === String(personId));
+    if (byId) return byId;
   }
 
-  if (Number(v.auto_checkout || 0) === 1 || v.sign_out_status === "No Sign Out") {
-    return `<span class="pill pill-auto">NO SIGN OUT</span>${getSoftAttemptHtml(v)}`;
-  }
-
-  return `<span class="pill pill-out">SIGNED OUT</span>${getSoftAttemptHtml(v)}`;
+  return engineersAll.find(e=>{
+    const fullName = `${(e.first_name||"").trim()} ${(e.last_name||"").trim()}`.trim();
+    return fullName === engineerName && (e.company || "") === (companyName || "");
+  }) || null;
 }
 
 /* -------------------- FILTERS -------------------- */
@@ -967,130 +992,11 @@ function renderLive(){
   }
 }
 
-function renderLogs(){
-  const tbody=document.getElementById("logRows");
-  tbody.innerHTML="";
-
-  const logs=filteredVisits.filter(passFilters);
-
-  if(!logs.length){
-    tbody.innerHTML=`<tr><td colspan="12" class="muted" style="text-align:center;">No logs found.</td></tr>`;
-    return;
-  }
-
-  const grouped={};
-
-  logs.forEach(v=>{
-    const person=nameOf(v) || "Unknown";
-    if(!grouped[person]) grouped[person]={};
-    const day=(v.check_in_at||"").slice(0,10) || "Unknown";
-    if(!grouped[person][day]) grouped[person][day]=[];
-    grouped[person][day].push(v);
-  });
-
-  Object.keys(grouped).sort().forEach(person=>{
-
-    const headerRow=document.createElement("tr");
-    headerRow.innerHTML=`
-      <td colspan="12" style="background:#eef2f7;font-weight:800;text-align:center;">
-        👤 ${escapeHtml(person)}
-      </td>
-    `;
-    tbody.appendChild(headerRow);
-
-    let engineerTotal=0;
-
-    Object.keys(grouped[person]).sort().forEach(day=>{
-      let dayTotal=0;
-
-      const dayRow=document.createElement("tr");
-      dayRow.innerHTML=`
-        <td colspan="12" style="background:#f8fafc;font-weight:700;text-align:center;">
-          📅 ${escapeHtml(fmtDay(day))}
-        </td>
-      `;
-      tbody.appendChild(dayRow);
-
-      grouped[person][day].sort((a,b)=>{
-        return (a.check_in_at||"") > (b.check_in_at||"") ? 1 : -1;
-      });
-
-      grouped[person][day].forEach(v=>{
-        const mins=minutesBetween(v.check_in_at,v.check_out_at);
-        if(v.check_out_at) dayTotal+=mins;
-
-        const hasGPS = (v.lat!=null && v.lng!=null);
-        const hasDevice = !!v.device_token;
-
-        const locationLink = hasGPS
-          ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(v.lat)},${encodeURIComponent(v.lng)}" target="_blank" style="text-decoration:none;font-size:18px;">📍</a>`
-          : `<span class="muted">-</span>`;
-
-        const softAttemptHtml = getSoftAttemptHtml(v);
-
-        const row=document.createElement("tr");
-        row.innerHTML=`
-          <td>${getLogStatusHtml(v)}</td>
-          <td>${escapeHtml(nameOf(v))}</td>
-          <td>${escapeHtml(v.company||"-")}</td>
-          <td>${escapeHtml(v.purpose||"-")}</td>
-          <td>${escapeHtml(v.site_code||"-")}</td>
-          <td>${escapeHtml(toLocal(v.check_in_at))}</td>
-          <td>
-            ${escapeHtml(v.check_out_at ? toLocal(v.check_out_at) : "-")}
-            ${softAttemptHtml}
-          </td>
-          <td>${escapeHtml(v.check_out_at ? fmtDuration(mins) : "On Site")}</td>
-
-          <td style="text-align:center;">
-            ${hasDevice ? `<span class="okTick">✓</span>` : `<span class="muted">-</span>`}
-          </td>
-
-          <td style="text-align:center;">
-            ${hasGPS ? `<span class="okTick">✓</span>` : `<span class="muted">-</span>`}
-          </td>
-
-          <td style="text-align:center;">
-            ${locationLink}
-          </td>
-
-          <td>
-            <button class="dangerBtn"
-              onclick="openDeleteModal('${escapeHtml(v.visit_id)}','${escapeHtml(nameOf(v))}','${escapeHtml(v.site_code)}')">
-              Delete
-            </button>
-          </td>
-        `;
-        tbody.appendChild(row);
-      });
-
-      engineerTotal+=dayTotal;
-
-      const totalRow=document.createElement("tr");
-      totalRow.innerHTML=`
-        <td colspan="12" style="text-align:center;font-weight:700;color:#1b8f2a;">
-          Total for ${escapeHtml(fmtDay(day))}: ${escapeHtml(fmtDuration(dayTotal))}
-        </td>
-      `;
-      tbody.appendChild(totalRow);
-    });
-
-    const grandRow=document.createElement("tr");
-    grandRow.innerHTML=`
-      <td colspan="12" style="text-align:center;font-weight:800;color:#004a99;">
-        Grand Total for ${escapeHtml(person)}: ${escapeHtml(fmtDuration(engineerTotal))}
-      </td>
-    `;
-    tbody.appendChild(grandRow);
-  });
-}
-
 function renderAll(){
   buildCompanyFilter();
   buildPersonFilter();
   buildSiteFilter();
   renderLive();
-  renderLogs();
 }
 
 /* -------------------- LOAD -------------------- */
@@ -1120,7 +1026,7 @@ document.getElementById("siteFilter").addEventListener("change",renderAll);
 
 loadData();
 
-/* -------------------- DELETE -------------------- */
+/* -------------------- DELETE VISIT -------------------- */
 
 function openDeleteModal(id,name,site){
   deleteId=id;
@@ -1141,7 +1047,7 @@ async function confirmDelete(){
     body:JSON.stringify({visitId:deleteId})
   });
   const data=await res.json();
-  if(data.ok){ loadData(); }
+  if(data.ok){ await loadData(); renderTimesheetsModal(); }
   closeDeleteModal();
 }
 
@@ -1156,25 +1062,17 @@ function closeExportModal(){
 }
 
 function generatePDF(){
-  const site=document.getElementById("siteFilter").value||"All Sites";
-  const totalVisits=filteredVisits.filter(passFilters).length;
-  const totalMinutes=filteredVisits
-    .filter(passFilters)
-    .reduce((sum,v)=>v.check_out_at?sum+minutesBetween(v.check_in_at,v.check_out_at):sum,0);
-
   const wrapper=document.createElement("div");
   wrapper.innerHTML=`
-    <h2>SiteLog Report</h2>
-    <div><strong>Site:</strong> ${escapeHtml(site)}</div>
-    <div><strong>Total Visits:</strong> ${escapeHtml(totalVisits)}</div>
-    <div><strong>Total Hours:</strong> ${escapeHtml((totalMinutes/60).toFixed(2))}</div>
+    <h2>SiteLog Live On Site Report</h2>
+    <div><strong>People Live On Site:</strong> ${escapeHtml(String(allVisits.filter(v=>!v.check_out_at).filter(passFilters).length))}</div>
     <br>
   `;
-  wrapper.appendChild(document.getElementById("logsTable").cloneNode(true));
+  wrapper.appendChild(document.getElementById("liveTable").cloneNode(true));
 
   html2pdf().set({
     margin:0.3,
-    filename:"SiteLog_Report.pdf",
+    filename:"SiteLog_Live_Report.pdf",
     jsPDF:{unit:"in",format:"a4",orientation:"landscape"}
   }).from(wrapper).save();
 
@@ -1183,37 +1081,12 @@ function generatePDF(){
 
 /* -------------------- TIMESHEETS MODAL -------------------- */
 
-function companySortKey(name){
-  const n = (name || "").trim().toLowerCase();
-  if(n === "mostlane") return "0-mostlane";
-  return "1-" + n;
-}
-
 function getMainFilteredVisits(){
   return filteredVisits.filter(passFilters);
 }
 
 function getTimesheetBaseVisits(){
   return getMainFilteredVisits();
-}
-
-function mapPinHtml(v){
-  if(v.lat == null || v.lng == null) return "";
-  return `<a class="tsMapLink" href="https://www.google.com/maps?q=${encodeURIComponent(v.lat)},${encodeURIComponent(v.lng)}" target="_blank">📍</a>`;
-}
-
-function getTimesheetNoteText(v){
-  if (!v.check_out_at) return "No check out";
-  if (Number(v.auto_checkout || 0) === 1 || v.sign_out_status === "No Sign Out") return "Soft / auto sign out";
-  return "—";
-}
-
-function getTimesheetDeviceMark(v){
-  return v.device_token ? "✅" : "❌";
-}
-
-function getTimesheetLocationMark(v){
-  return (v.lat != null && v.lng != null) ? "✅" : "❌";
 }
 
 function populateTimesheetFilters(baseVisits){
@@ -1267,7 +1140,39 @@ function getTimesheetFilteredVisits(){
   });
 }
 
-function buildTimesheetTableForWeek(visits, engineerName, companyName, weekKey){
+function buildEngineerAdminPanel(engineer, engineerName, companyName, personId){
+  const record = engineer || {
+    id: personId || "",
+    first_name: engineerName.split(" ")[0] || "",
+    last_name: engineerName.split(" ").slice(1).join(" ") || "",
+    company: companyName || "",
+    purpose: "",
+    hourly_rate: ""
+  };
+
+  const id = record.id || personId || "";
+
+  return `
+    <div class="tsEngineerAdmin">
+      <input class="tsInput" data-ts-eng-first="${escapeHtml(id)}" value="${escapeHtml(record.first_name || "")}" placeholder="First name">
+      <input class="tsInput" data-ts-eng-last="${escapeHtml(id)}" value="${escapeHtml(record.last_name || "")}" placeholder="Last name">
+      <input class="tsInput" data-ts-eng-company="${escapeHtml(id)}" value="${escapeHtml(record.company || "")}" placeholder="Company">
+      <input class="tsInput" data-ts-eng-purpose="${escapeHtml(id)}" value="${escapeHtml(record.purpose || "")}" placeholder="Purpose">
+      <input class="tsInput" data-ts-eng-rate="${escapeHtml(id)}" type="number" step="0.01" min="0" value="${escapeHtml(record.hourly_rate ?? "")}" placeholder="Rate">
+      <div class="tsEngineerAdminBtns full">
+        <button class="tsBtn" type="button" onclick="saveTimesheetEngineer('${escapeHtml(id)}')">💾 Save Engineer</button>
+        <button class="tsBtn" type="button" onclick="toggleTimesheetEngineer('${escapeHtml(id)}')">🗃 Archive / Unarchive</button>
+        <button class="tsBtn" type="button" onclick="resetEngineerDevice('${escapeHtml(id)}','${escapeHtml(engineerName)}')">📱 Reset Device</button>
+        <button class="dangerBtn" type="button" onclick="deleteEngineerFromTimesheets('${escapeHtml(id)}','${escapeHtml(engineerName)}')">🗑 Delete Engineer</button>
+      </div>
+    </div>
+  `;
+}
+
+function buildTimesheetTableForWeek(visits, engineerName, companyName, weekKey, personId){
+  const engineer = findEngineerRecord(personId, engineerName, companyName);
+  const engineerId = engineer?.id || personId || "";
+
   const sorted = visits.slice().sort((a,b)=> (a.check_in_at || "").localeCompare(b.check_in_at || ""));
 
   let totTotal = 0;
@@ -1304,6 +1209,14 @@ function buildTimesheetTableForWeek(visits, engineerName, companyName, weekKey){
         <td class="tsCellCenter">${escapeHtml(getTimesheetDeviceMark(v))}</td>
         <td class="tsCellCenter">${locationCell}</td>
         <td>${noteHtml}</td>
+        <td>
+          <div class="tsVisitEdit">
+            <input class="tsInput" data-visit-in="${escapeHtml(v.visit_id)}" value="${escapeHtml(sqlShort(v.check_in_at))}" placeholder="YYYY-MM-DD HH:MM">
+            <input class="tsInput" data-visit-out="${escapeHtml(v.visit_id)}" value="${escapeHtml(sqlShort(v.check_out_at))}" placeholder="YYYY-MM-DD HH:MM">
+            <button class="tsBtn" type="button" onclick="saveVisitTimes('${escapeHtml(v.visit_id)}')">Save</button>
+            <button class="dangerBtn" type="button" onclick="openDeleteModal('${escapeHtml(v.visit_id)}','${escapeHtml(engineerName)}','${escapeHtml(v.site_code || "-")}')">Delete</button>
+          </div>
+        </td>
       </tr>
     `;
   }).join("");
@@ -1311,6 +1224,8 @@ function buildTimesheetTableForWeek(visits, engineerName, companyName, weekKey){
   return `
     <div class="tsWeekBlock">
       <div class="tsEngineerTitle">${escapeHtml(engineerName)}</div>
+
+      ${buildEngineerAdminPanel(engineer, engineerName, companyName, engineerId)}
 
       <div class="tsWeekHeader">
         <div class="tsWeekText">Week Commencing: ${escapeHtml(formatWeekCommencing(weekKey))}</div>
@@ -1331,6 +1246,7 @@ function buildTimesheetTableForWeek(visits, engineerName, companyName, weekKey){
               <th style="width:110px;">Device Verified</th>
               <th style="width:110px;">Location</th>
               <th style="width:170px;">Notes</th>
+              <th style="width:320px;">Admin</th>
             </tr>
           </thead>
           <tbody>
@@ -1342,7 +1258,7 @@ function buildTimesheetTableForWeek(visits, engineerName, companyName, weekKey){
               <td>${escapeHtml(totTotal.toFixed(2))}</td>
               <td>${escapeHtml(totStd.toFixed(2))}</td>
               <td>${escapeHtml(totOT.toFixed(2))}</td>
-              <td colspan="3" class="muted">Engineer total for this week</td>
+              <td colspan="4" class="muted">Engineer total for this week</td>
             </tr>
           </tfoot>
         </table>
@@ -1378,13 +1294,14 @@ function renderTimesheetsModal(){
   visits.forEach(v=>{
     const company = (v.company || "No Company").trim() || "No Company";
     const person = nameOf(v) || "Unknown";
+    const personId = v.person_id || "";
     const day = (v.check_in_at || "").slice(0,10) || "";
     const weekKey = startOfWeekMondayFromDayStr(day);
 
     if(!grouped[company]) grouped[company] = {};
-    if(!grouped[company][person]) grouped[company][person] = {};
-    if(!grouped[company][person][weekKey]) grouped[company][person][weekKey] = [];
-    grouped[company][person][weekKey].push(v);
+    if(!grouped[company][person]) grouped[company][person] = { personId, weeks:{} };
+    if(!grouped[company][person].weeks[weekKey]) grouped[company][person].weeks[weekKey] = [];
+    grouped[company][person].weeks[weekKey].push(v);
   });
 
   const companies = Object.keys(grouped).sort((a,b)=> companySortKey(a).localeCompare(companySortKey(b)));
@@ -1399,9 +1316,10 @@ function renderTimesheetsModal(){
     people.forEach(person=>{
       html += `<div class="tsEngineerBlock">`;
 
-      const weeks = Object.keys(grouped[company][person]).sort((a,b)=>a.localeCompare(b));
+      const personId = grouped[company][person].personId || "";
+      const weeks = Object.keys(grouped[company][person].weeks).sort((a,b)=>a.localeCompare(b));
       weeks.forEach(weekKey=>{
-        html += buildTimesheetTableForWeek(grouped[company][person][weekKey], person, company, weekKey);
+        html += buildTimesheetTableForWeek(grouped[company][person].weeks[weekKey], person, company, weekKey, personId);
       });
 
       html += `</div>`;
@@ -1447,6 +1365,148 @@ function exportTimesheetsPdf(){
     jsPDF:{unit:"in",format:"a4",orientation:"landscape"},
     html2canvas:{scale:2,useCORS:true}
   }).from(el).save();
+}
+
+async function saveTimesheetEngineer(id){
+  if(!id){
+    alert("Engineer id not found.");
+    return;
+  }
+
+  const firstName = (document.querySelector(`input[data-ts-eng-first="${CSS.escape(id)}"]`)?.value || "").trim();
+  const lastName  = (document.querySelector(`input[data-ts-eng-last="${CSS.escape(id)}"]`)?.value || "").trim();
+  const company   = (document.querySelector(`input[data-ts-eng-company="${CSS.escape(id)}"]`)?.value || "").trim();
+  const purpose   = (document.querySelector(`input[data-ts-eng-purpose="${CSS.escape(id)}"]`)?.value || "").trim();
+  const rateRaw   = (document.querySelector(`input[data-ts-eng-rate="${CSS.escape(id)}"]`)?.value || "").trim();
+  const hourlyRate = rateRaw === "" ? null : Number(rateRaw);
+
+  if(!firstName && !lastName){
+    alert("Engineer must have at least a first or last name.");
+    return;
+  }
+
+  const res = await fetch(`${API_BASE}/update-engineer`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate })
+  });
+
+  const data = await res.json();
+  if(!res.ok || !data.ok){
+    alert(data.error || "Failed to save engineer.");
+    return;
+  }
+
+  await loadData();
+  renderTimesheetsModal();
+}
+
+async function toggleTimesheetEngineer(id){
+  if(!id){
+    alert("Engineer id not found.");
+    return;
+  }
+
+  const res = await fetch(`${API_BASE}/toggle-engineer`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ id })
+  });
+
+  const data = await res.json();
+  if(!res.ok || !data.ok){
+    alert(data.error || "Failed to archive / unarchive engineer.");
+    return;
+  }
+
+  await loadData();
+  renderTimesheetsModal();
+}
+
+async function deleteEngineerFromTimesheets(id, name){
+  if(!id){
+    alert("Engineer id not found.");
+    return;
+  }
+
+  if(!confirm(`Delete engineer ${name}? If visit history exists they will be archived and device links removed instead.`)){
+    return;
+  }
+
+  const res = await fetch(`${API_BASE}/delete-engineer`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ id })
+  });
+
+  const data = await res.json();
+  if(!res.ok || !data.ok){
+    alert(data.error || "Failed to delete engineer.");
+    return;
+  }
+
+  alert(data.message || "Engineer updated.");
+  await loadData();
+  renderTimesheetsModal();
+}
+
+async function resetEngineerDevice(id, name){
+  if(!id){
+    alert("Engineer id not found.");
+    return;
+  }
+
+  if(!confirm(`Reset device for ${name}? They will need to register this device again on next scan.`)){
+    return;
+  }
+
+  const res = await fetch(`${API_BASE}/reset-device`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ personId:id })
+  });
+
+  const data = await res.json();
+  if(!res.ok || !data.ok){
+    alert(data.error || "Failed to reset device.");
+    return;
+  }
+
+  alert(`Removed ${data.removedDevices || 0} device link(s).`);
+  await loadData();
+  renderTimesheetsModal();
+}
+
+async function saveVisitTimes(visitId){
+  const inEl = document.querySelector(`input[data-visit-in="${CSS.escape(visitId)}"]`);
+  const outEl = document.querySelector(`input[data-visit-out="${CSS.escape(visitId)}"]`);
+
+  const checkInAt = (inEl?.value || "").trim();
+  const checkOutAt = (outEl?.value || "").trim();
+
+  if(!checkInAt){
+    alert("Check-in time is required.");
+    return;
+  }
+
+  const res = await fetch(`${API_BASE}/update-visit-times`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      visitId,
+      checkInAt,
+      checkOutAt: checkOutAt || null
+    })
+  });
+
+  const data = await res.json();
+  if(!res.ok || !data.ok){
+    alert(data.error || "Failed to update visit times.");
+    return;
+  }
+
+  await loadData();
+  renderTimesheetsModal();
 }
 
 /* -------------------- SITES MODAL -------------------- */
@@ -1798,7 +1858,7 @@ function setPreset(type){
 <div id="exportModal" class="modal">
   <div class="modalContent">
     <h3>Export Report</h3>
-    <p>This will export current filtered results.</p>
+    <p>This will export the current filtered live list.</p>
     <button onclick="generatePDF()">Generate PDF</button>
     <button onclick="closeExportModal()" style="background:#ccc;color:#333;">Cancel</button>
   </div>

@@ -62,22 +62,38 @@
       position: sticky;
       top: 0;
       z-index: 100;
-      padding: 0 20px;
-      height: 52px;
+      padding: env(safe-area-inset-top, 0) 20px 0 20px;
+      min-height: 52px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
     }
 
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      height: 52px;
+      gap: 12px;
+    }
+
     .topbar-brand {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       flex-shrink: 0;
     }
 
-    .topbar-logo {
+    .topbar-logo img {
+      height: 28px;
+      width: auto;
+      display: block;
+      border-radius: 5px;
+    }
+
+    .topbar-logo-fallback {
       width: 28px;
       height: 28px;
       background: var(--label);
@@ -97,7 +113,7 @@
     }
 
     .topbar-subtitle {
-      font-size: 13px;
+      font-size: 12px;
       color: var(--label3);
       font-weight: 400;
     }
@@ -127,7 +143,7 @@
     .nav-drawer {
       display: none;
       position: fixed;
-      top: 52px;
+      top: calc(52px + env(safe-area-inset-top, 0px));
       left: 0; right: 0;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
@@ -183,26 +199,120 @@
       overflow: hidden;
     }
 
-    /* ── FILTER BAR CARD ── */
+    /* ── FILTER CARD — collapsible ── */
     .filter-card {
       background: var(--surface);
       border-radius: var(--radius-xl);
       box-shadow: var(--shadow-md);
       border: 1px solid var(--border);
-      padding: 16px 20px;
       margin-bottom: 24px;
+      overflow: hidden;
+    }
+
+    .filter-toggle {
       display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 20px;
+      cursor: pointer;
+      user-select: none;
+      gap: 10px;
+    }
+
+    .filter-toggle-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--label2);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filter-toggle-summary {
+      font-size: 12px;
+      color: var(--label3);
+      font-weight: 400;
+    }
+
+    .filter-toggle-arrow {
+      font-size: 12px;
+      color: var(--label3);
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+
+    .filter-toggle-arrow.open { transform: rotate(180deg); }
+
+    .filter-body {
+      display: none;
+      padding: 0 20px 16px;
       gap: 14px;
       flex-wrap: wrap;
       align-items: flex-end;
       justify-content: space-between;
+      border-top: 1px solid var(--border);
     }
+
+    .filter-body.open { display: flex; }
 
     .filter-group {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
       align-items: flex-end;
+      padding-top: 14px;
+    }
+
+    /* ── CLICKABLE NAME LINK ── */
+    .name-link {
+      color: var(--blue);
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.12s;
+    }
+    .name-link:hover { border-bottom-color: var(--blue); }
+
+    /* ── ENGINEER STATS STRIP ── */
+    .eng-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 16px 12px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .eng-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 8px 14px;
+      min-width: 90px;
+    }
+
+    .eng-stat-val {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--label);
+      letter-spacing: -0.3px;
+      line-height: 1;
+    }
+
+    .eng-stat-val.warn { color: var(--red); }
+    .eng-stat-val.good { color: var(--green); }
+
+    .eng-stat-label {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--label3);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-top: 4px;
     }
 
     .field-stack {
@@ -789,13 +899,9 @@
       .topbar-subtitle { display: none; }
       .nav-menu-btn { display: flex; }
 
-      /* Filter card stacks vertically */
-      .filter-card {
-        flex-direction: column;
-        padding: 12px 14px;
-        gap: 12px;
-      }
-      .filter-group { width: 100%; }
+      /* Filter card */
+      .filter-body { padding: 0 14px 14px; }
+      .filter-group { width: 100%; padding-top: 12px; }
       .field-stack { width: 100%; }
       .field-stack input,
       .field-stack select { width: 100% !important; }
@@ -820,19 +926,12 @@
         border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
       }
 
-      /* Modal header wraps on small screens */
       .modal-header { flex-wrap: wrap; gap: 8px; }
       .modal-actions { flex-wrap: wrap; }
       .modal-actions button { flex: 1 1 auto; }
 
-      /* Admin tables scroll horizontally */
       .admin-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-      /* Sites/engineers: card-style rows instead of table on mobile */
-      .mobile-card-list .admin-table { display: none; }
-      .mobile-card-list .mobile-cards { display: flex; flex-direction: column; gap: 10px; }
-
-      /* Timesheet filter stacks */
       .ts-filter-bar {
         flex-direction: column;
         padding: 12px 14px;
@@ -843,17 +942,20 @@
       .ts-filter-bar input { width: 100% !important; }
       .ts-body { padding: 12px 10px; }
 
-      /* Row buttons wrap */
       .row-btns { flex-wrap: wrap; }
       .row-btns button { flex: 1 1 auto; }
 
-      /* Add-site form */
       .add-form-grid { grid-template-columns: 1fr 1fr !important; }
+
+      .eng-stats { padding: 8px 10px 10px; }
+      .eng-stat { min-width: 80px; padding: 7px 10px; }
+      .eng-stat-val { font-size: 15px; }
     }
 
     @media (max-width: 480px) {
       .add-form-grid { grid-template-columns: 1fr !important; }
       .topbar-title { font-size: 14px; }
+      .eng-stat { flex: 1 1 calc(50% - 4px); }
     }
 
     /* ── ADD FORM ── */
@@ -956,22 +1058,26 @@
 <!-- TOP BAR -->
 
 <div class="topbar">
-  <div class="topbar-brand">
-    <div class="topbar-logo">📋</div>
-    <div>
-      <div class="topbar-title">SiteLog</div>
+  <div class="topbar-inner">
+    <div class="topbar-brand">
+      <div class="topbar-logo">
+        <img src="Mostlane Logo.jpg" alt="Mostlane" onerror="this.parentElement.innerHTML='<div class=\'topbar-logo-fallback\'>📋</div>'" />
+      </div>
+      <div>
+        <div class="topbar-title">SiteLog</div>
+        <div class="topbar-subtitle">Admin Dashboard</div>
+      </div>
     </div>
-    <div class="topbar-subtitle" style="margin-left:8px;">Admin Dashboard</div>
+    <div class="topbar-actions">
+      <button class="btn-ghost btn-sm" onclick="openTimesheetsModal()">🧾 Timesheets</button>
+      <button class="btn-ghost btn-sm" onclick="openSitesModal()">🗂 Sites</button>
+      <button class="btn-ghost btn-sm" onclick="openEngineersModal()">👷 Engineers</button>
+      <button class="btn-ghost btn-sm" onclick="openCompaniesModal()">🏢 Companies</button>
+      <button class="btn-primary btn-sm" onclick="openExportModal()">↑ Export PDF</button>
+      <button class="btn-icon btn-ghost btn-sm" onclick="loadData()" title="Refresh">↺</button>
+    </div>
+    <button class="nav-menu-btn" onclick="toggleNavDrawer()" id="navMenuBtn">☰</button>
   </div>
-  <div class="topbar-actions">
-    <button class="btn-ghost btn-sm" onclick="openTimesheetsModal()">🧾 Timesheets</button>
-    <button class="btn-ghost btn-sm" onclick="openSitesModal()">🗂 Sites</button>
-    <button class="btn-ghost btn-sm" onclick="openEngineersModal()">👷 Engineers</button>
-    <button class="btn-ghost btn-sm" onclick="openCompaniesModal()">🏢 Companies</button>
-    <button class="btn-primary btn-sm" onclick="openExportModal()">↑ Export PDF</button>
-    <button class="btn-icon btn-ghost btn-sm" onclick="loadData()" title="Refresh">↺</button>
-  </div>
-  <button class="nav-menu-btn" onclick="toggleNavDrawer()" id="navMenuBtn">☰</button>
 </div>
 
 <!-- MOBILE NAV DRAWER -->
@@ -989,56 +1095,65 @@
 
 <div class="page">
 
-  <!-- FILTER CARD -->
+  <!-- FILTER CARD — collapsed by default -->
 
-  <div class="filter-card">
-    <div class="filter-group">
-      <div class="field-stack">
-        <span class="field-label">Search</span>
-        <input type="search" id="search" placeholder="Name…" style="width:160px;" />
+  <div class="filter-card" id="filterCard">
+    <div class="filter-toggle" onclick="toggleFilters()">
+      <div class="filter-toggle-label">
+        🔍 Filters &amp; Date Range
+        <span class="filter-toggle-summary" id="filterSummary">All time · All people · All sites</span>
       </div>
-      <div class="field-stack">
-        <span class="field-label">People</span>
-        <select id="personFilter" multiple size="4" style="min-width:140px;"></select>
-      </div>
-      <div class="field-stack">
-        <span class="field-label">Company</span>
-        <select id="companyFilter" multiple size="4" style="min-width:140px;"></select>
-      </div>
-      <div class="field-stack">
-        <span class="field-label">Purpose</span>
-        <select id="purposeFilter" style="width:140px;">
-          <option value="">All Purposes</option>
-          <option value="Visiting">Visiting</option>
-          <option value="Contractor">Contractor</option>
-        </select>
-      </div>
-      <div class="field-stack">
-        <span class="field-label">Site</span>
-        <select id="siteFilter" style="width:140px;">
-          <option value="">All Sites</option>
-        </select>
-      </div>
+      <span class="filter-toggle-arrow" id="filterArrow">▼</span>
     </div>
+    <div class="filter-body" id="filterBody">
+      <div class="filter-group">
+        <div class="field-stack">
+          <span class="field-label">Search</span>
+          <input type="search" id="search" placeholder="Name…" style="width:160px;" />
+        </div>
+        <div class="field-stack">
+          <span class="field-label">People</span>
+          <select id="personFilter" multiple size="4" style="min-width:140px;"></select>
+        </div>
+        <div class="field-stack">
+          <span class="field-label">Company</span>
+          <select id="companyFilter" multiple size="4" style="min-width:140px;"></select>
+        </div>
+        <div class="field-stack">
+          <span class="field-label">Purpose</span>
+          <select id="purposeFilter" style="width:140px;">
+            <option value="">All Purposes</option>
+            <option value="Visiting">Visiting</option>
+            <option value="Contractor">Contractor</option>
+          </select>
+        </div>
+        <div class="field-stack">
+          <span class="field-label">Site</span>
+          <select id="siteFilter" style="width:140px;">
+            <option value="">All Sites</option>
+          </select>
+        </div>
+      </div>
 
 ```
-<div class="filter-group" style="flex-direction:column;align-items:flex-start;gap:10px;">
-  <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
-    <div class="field-stack">
-      <span class="field-label">From</span>
-      <input type="date" id="fromDate" style="width:148px;" />
+  <div class="filter-group" style="flex-direction:column;align-items:flex-start;gap:10px;">
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="field-stack">
+        <span class="field-label">From</span>
+        <input type="date" id="fromDate" style="width:148px;" />
+      </div>
+      <div class="field-stack">
+        <span class="field-label">To</span>
+        <input type="date" id="toDate" style="width:148px;" />
+      </div>
     </div>
-    <div class="field-stack">
-      <span class="field-label">To</span>
-      <input type="date" id="toDate" style="width:148px;" />
+    <div class="chip-group">
+      <button class="chip" onclick="setPreset('week')">This week</button>
+      <button class="chip" onclick="setPreset(7)">7 days</button>
+      <button class="chip" onclick="setPreset(14)">14 days</button>
+      <button class="chip" onclick="setPreset(28)">28 days</button>
+      <button class="chip" onclick="setPreset('all')">All time</button>
     </div>
-  </div>
-  <div class="chip-group">
-    <button class="chip" onclick="setPreset('week')">This week</button>
-    <button class="chip" onclick="setPreset(7)">7 days</button>
-    <button class="chip" onclick="setPreset(14)">14 days</button>
-    <button class="chip" onclick="setPreset(28)">28 days</button>
-    <button class="chip" onclick="setPreset('all')">All time</button>
   </div>
 </div>
 ```
@@ -1339,26 +1454,50 @@ async function loadSiteCompanyMap(){
   }
 }
 
+function toggleFilters(){
+  const body  = document.getElementById("filterBody");
+  const arrow = document.getElementById("filterArrow");
+  body.classList.toggle("open");
+  arrow.classList.toggle("open");
+}
+
+function updateFilterSummary(){
+  const from = document.getElementById("fromDate").value;
+  const to   = document.getElementById("toDate").value;
+  const search = document.getElementById("search").value.trim();
+  const site = document.getElementById("siteFilter").value;
+  const parts = [];
+  if(from && to) parts.push(`${fmtDay(from)} – ${fmtDay(to)}`);
+  else parts.push("All time");
+  if(search) parts.push(`"${search}"`);
+  if(site) parts.push(site);
+  document.getElementById("filterSummary").textContent = parts.join(" · ");
+}
+
 /* -------------------- RENDER -------------------- */
 
 function renderLive(){
-  const tbody=document.getElementById("liveRows");
-  const live=allVisits.filter(v=>!v.check_out_at).filter(passFilters);
+  const tbody = document.getElementById("liveRows");
+  const live  = allVisits.filter(v => !v.check_out_at).filter(passFilters);
   if(!live.length){
-    tbody.innerHTML=`<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📍</div><p>No one currently on site.</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📍</div><p>No one currently on site.</p></div></td></tr>`;
     return;
   }
-  tbody.innerHTML=live.map(v=>`
+  tbody.innerHTML = live.map(v => `
     <tr>
       <td><span class="pill pill-live">Live</span></td>
-      <td style="font-weight:500;color:var(--label);">${escapeHtml(nameOf(v))}</td>
+      <td style="font-weight:500;color:var(--label);">
+        <span class="name-link" onclick="openTimesheetForPerson('${escapeHtml(nameOf(v))}','${escapeHtml(v.company||"")}')">
+          ${escapeHtml(nameOf(v))}
+        </span>
+      </td>
       <td>${escapeHtml(v.company||"—")}</td>
       <td>${escapeHtml(v.purpose||"—")}</td>
       <td><span style="font-size:12px;background:var(--surface3);padding:2px 8px;border-radius:4px;">${escapeHtml(v.site_code||"—")}</span></td>
       <td style="color:var(--label3);font-size:12.5px;">${escapeHtml(toLocal(v.check_in_at))}</td>
       <td style="font-weight:500;">${escapeHtml(fmtDuration(minutesBetween(v.check_in_at,v.check_out_at)))}</td>
-      <td style="text-align:center;">${v.device_token?`<span class="check-icon">✓</span>`:`<span class="cross-icon">—</span>`}</td>
-      <td style="text-align:center;">${(v.lat!=null&&v.lng!=null)?`<span class="check-icon">✓</span>`:`<span class="cross-icon">—</span>`}</td>
+      <td style="text-align:center;">${v.device_token ? `<span class="check-icon">✓</span>` : `<span class="cross-icon">—</span>`}</td>
+      <td style="text-align:center;">${(v.lat!=null&&v.lng!=null) ? `<span class="check-icon">✓</span>` : `<span class="cross-icon">—</span>`}</td>
       <td style="text-align:right;">
         <button class="btn-danger btn-sm" onclick="openManualCheckoutModal('${escapeHtml(v.visit_id)}','${escapeHtml(nameOf(v))}','${escapeHtml(v.check_in_at)}')">Sign out</button>
       </td>
@@ -1366,11 +1505,23 @@ function renderLive(){
   `).join("");
 }
 
+function openTimesheetForPerson(personName, company){
+  // Open timesheets modal filtered to this person
+  openTimesheetsModal();
+  // After render, set the person filter
+  setTimeout(()=>{
+    const sel = document.getElementById("tsPersonFilter");
+    const opt = [...sel.options].find(o => o.value === personName);
+    if(opt){ opt.selected = true; renderTimesheetsModal(); }
+  }, 100);
+}
+
 function renderAll(){
   buildCompanyFilter();
   buildPersonFilter();
   buildSiteFilter();
   renderLive();
+  updateFilterSummary();
 }
 
 /* -------------------- LOAD -------------------- */
@@ -1510,9 +1661,12 @@ function generatePDF(){
   doc.innerHTML = `
     <!-- HEADER -->
     <div style="background:#1d1d1f;border-radius:14px;padding:24px 28px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;">
-      <div>
-        <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.5px;">SiteLog</div>
-        <div style="font-size:13px;color:#aeaeb2;margin-top:4px;">Site Attendance Report</div>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <img src="Mostlane Logo.jpg" alt="Mostlane" style="height:36px;width:auto;border-radius:6px;background:#fff;padding:3px;" onerror="this.style.display='none'" />
+        <div>
+          <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.5px;">SiteLog</div>
+          <div style="font-size:13px;color:#aeaeb2;margin-top:4px;">Site Attendance Report</div>
+        </div>
       </div>
       <div style="text-align:right;">
         <div style="font-size:13px;font-weight:600;color:#fff;">${escapeHtml(dateRange)}</div>
@@ -1775,12 +1929,47 @@ function renderTimesheetsModal(){
       const engineer  = findEngineerRecord(personId, person, company);
       const engineerId = engineer?.id || personId || "";
 
-      // Engineer block: header (name + admin panel) then week tables below
+      // Compute stats for this engineer across all their visits
+      const allEngVisits = Object.values(grouped[company][person].weeks).flat();
+      const closedVis = allEngVisits.filter(v => v.check_out_at);
+      const durations = closedVis.map(v => minutesBetween(v.check_in_at, v.check_out_at)).filter(m => m > 0);
+      const totalHrs  = durations.reduce((a,b)=>a+b,0) / 60;
+      const avgMins   = durations.length ? Math.round(durations.reduce((a,b)=>a+b,0) / durations.length) : 0;
+      const missed    = allEngVisits.filter(v => Number(v.auto_checkout||0)===1).length;
+      const longestM  = durations.length ? Math.max(...durations) : 0;
+      const daysWorked= new Set(allEngVisits.map(v=>(v.check_in_at||"").slice(0,10))).size;
+
+      const statsHtml = `
+        <div class="eng-stats">
+          <div class="eng-stat">
+            <span class="eng-stat-val">${daysWorked}</span>
+            <span class="eng-stat-label">Days on site</span>
+          </div>
+          <div class="eng-stat">
+            <span class="eng-stat-val">${totalHrs.toFixed(1)}h</span>
+            <span class="eng-stat-label">Total hours</span>
+          </div>
+          <div class="eng-stat">
+            <span class="eng-stat-val">${avgMins ? fmtDuration(avgMins) : "—"}</span>
+            <span class="eng-stat-label">Avg session</span>
+          </div>
+          <div class="eng-stat">
+            <span class="eng-stat-val">${longestM ? fmtDuration(longestM) : "—"}</span>
+            <span class="eng-stat-label">Longest day</span>
+          </div>
+          <div class="eng-stat">
+            <span class="eng-stat-val ${missed > 0 ? 'warn' : 'good'}">${missed}</span>
+            <span class="eng-stat-label">Missed sign-outs</span>
+          </div>
+        </div>`;
+
+      // Engineer block: header (name + admin panel) then stats then week tables
       html += `<div class="ts-engineer-block">`;
       html += `<div class="ts-engineer-header">`;
       html += `<div class="ts-engineer-title">${escapeHtml(person)}</div>`;
       html += buildEngineerAdminPanel(engineer, person, company, engineerId);
       html += `</div>`; // close ts-engineer-header
+      html += statsHtml;
 
       // Week tables sit outside the header, inside the block
       const weeks = Object.keys(grouped[company][person].weeks).sort((a,b)=>a.localeCompare(b));
@@ -1818,8 +2007,25 @@ function clearTimesheetFilters(){
 }
 
 function exportTimesheetsPdf(){
-  const el=document.getElementById("timesheetsPdfRoot");
-  html2pdf().set({margin:0.25,filename:"SiteLog_Timesheets.pdf",jsPDF:{unit:"in",format:"a4",orientation:"landscape"},html2canvas:{scale:2,useCORS:true}}).from(el).save();
+  const el = document.getElementById("timesheetsPdfRoot");
+
+  // Temporarily expand the modal to show all content for capture
+  const origMaxH = el.style.maxHeight;
+  const origOverflow = el.style.overflow;
+  el.style.maxHeight = "none";
+  el.style.overflow = "visible";
+
+  const origBodyScroll = el.style.overflowY;
+
+  html2pdf().set({
+    margin: 0.2,
+    filename: "SiteLog_Timesheets.pdf",
+    jsPDF: { unit:"in", format:"a4", orientation:"landscape" },
+    html2canvas: { scale:2, useCORS:true, scrollY:0, windowWidth: el.scrollWidth }
+  }).from(el).save().then(()=>{
+    el.style.maxHeight = origMaxH;
+    el.style.overflow  = origOverflow;
+  });
 }
 
 async function saveTimesheetEngineer(id){
@@ -2355,7 +2561,8 @@ function setPreset(type){
 <div id="timesheetsModal" class="modal">
   <div class="ts-modal-content" id="timesheetsPdfRoot">
     <div class="modal-header" style="border-radius:20px 20px 0 0;">
-      <div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <img src="Mostlane Logo.jpg" alt="Mostlane" style="height:24px;width:auto;border-radius:4px;" onerror="this.style.display='none'" />
         <div class="modal-title">Weekly Timesheets</div>
       </div>
       <div style="display:flex;gap:8px;">

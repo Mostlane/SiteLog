@@ -2126,7 +2126,7 @@ function renderSitesAdminTable(){
       <tr class="site-row-detail">
         <td colspan="5">
           <div class="site-companies-section">
-            <div class="site-companies-label">Companies at this site</div>
+            <div class="site-companies-label">${escapeHtml(s.site_name||"Site")} — Companies</div>
             <div class="company-chip-row" id="chips-${escapeHtml(s.id)}">
               ${companyChips.length?companyChips:`<span style="color:var(--label4);font-size:12px;">No companies configured</span>`}
             </div>

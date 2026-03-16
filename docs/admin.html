@@ -1,618 +1,878 @@
 <!DOCTYPE html>
-<html>
-<head>
-  <title>SiteLog Admin Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SiteLog — Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
-    :root{
-      --ml-blue:#003366;
-      --ml-accent:#1a73e8;
-      --ml-ink:#27313a;
-      --ml-bg:#e6e8eb;
-      --muted:#6b7280;
-      --border:#e5e7eb;
-      --ok:#15803d;
-      --warn:#b91c1c;
+    :root {
+      --bg:           #f2f2f7;
+      --surface:      #ffffff;
+      --surface2:     #f9f9fb;
+      --surface3:     #f2f2f7;
+      --border:       rgba(0,0,0,0.08);
+      --border-heavy: rgba(0,0,0,0.13);
+      --blue:         #0071e3;
+      --blue-dark:    #0058b0;
+      --blue-soft:    rgba(0,113,227,0.10);
+      --red:          #ff3b30;
+      --red-soft:     rgba(255,59,48,0.10);
+      --green:        #34c759;
+      --green-soft:   rgba(52,199,89,0.10);
+      --amber:        #ff9f0a;
+      --amber-soft:   rgba(255,159,10,0.10);
+      --label:        #1d1d1f;
+      --label2:       #48484a;
+      --label3:       #6e6e73;
+      --label4:       #aeaeb2;
+      --radius-sm:    8px;
+      --radius-md:    12px;
+      --radius-lg:    16px;
+      --radius-xl:    20px;
+      --shadow-sm:    0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md:    0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+      --shadow-lg:    0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+      --shadow-xl:    0 20px 60px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08);
     }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { -webkit-font-smoothing: antialiased; }
 
     body {
-      font-family: "Segoe UI", sans-serif;
-      background: #e6e8eb url('Mostlane_Embossed.png') no-repeat center center fixed;
-      background-size: 180%;
-      margin: 0;
-      padding: 30px;
-      text-align: center;
+      font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--label);
+      min-height: 100vh;
+      padding: 0 0 60px 0;
     }
 
-    h1 {
-      background: rgba(0, 74, 153, 0.7);
-      color: white;
-      padding: 14px;
-      border-radius: 10px;
-      width: min(1050px, 100%);
-      margin: 0 auto 16px auto;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
-    }
-
-    #controls {
-      margin: 14px auto 18px auto;
-      width: min(1050px, 100%);
-      background: rgba(255,255,255,0.95);
-      padding: 12px;
-      border-radius: 12px;
+    /* ── TOP NAV ── */
+    .topbar {
+      background: rgba(255,255,255,0.82);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 0 28px;
+      height: 52px;
       display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
+      align-items: center;
       justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+      gap: 16px;
     }
 
-    .controls-left, .controls-right {
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .topbar-logo {
+      width: 28px;
+      height: 28px;
+      background: var(--label);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .topbar-title {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
+      color: var(--label);
+    }
+
+    .topbar-subtitle {
+      font-size: 13px;
+      color: var(--label3);
+      font-weight: 400;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ── PAGE LAYOUT ── */
+    .page {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 28px 24px 0;
+    }
+
+    /* ── SECTION HEADER ── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--label3);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    /* ── FILTER BAR CARD ── */
+    .filter-card {
+      background: var(--surface);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--border);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+
+    .filter-group {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
-      align-items: center;
+      align-items: flex-end;
     }
 
-    input, select, button {
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      font-size: 14px;
-      background: white;
+    .field-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
 
-    button {
-      cursor: pointer;
-      border: none;
-      background: #004a99;
-      color: white;
+    .field-label {
+      font-size: 11px;
       font-weight: 600;
+      color: var(--label3);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding-left: 2px;
     }
 
-    button:hover { background: #003366; }
-
-    .dangerBtn {
-      background: #dc2626;
+    /* ── INPUTS ── */
+    input[type="text"],
+    input[type="date"],
+    input[type="time"],
+    input[type="number"],
+    input[type="search"],
+    select {
+      height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--border-heavy);
+      border-radius: var(--radius-sm);
+      font-size: 13.5px;
+      font-family: inherit;
+      color: var(--label);
+      background: var(--surface);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      -webkit-appearance: none;
     }
 
-    .dangerBtn:hover {
-      background: #b91c1c;
+    input:focus, select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-soft);
     }
 
-    .ghostBtn{
-      background:#eef2f7;
-      color:#0f172a;
-      border:1px solid #cbd5e1;
-      font-weight:700;
+    select[multiple] {
+      height: auto;
+      min-height: 80px;
+      padding: 6px;
+      border-radius: var(--radius-sm);
     }
-    .ghostBtn:hover{ background:#e2e8f0; }
 
-    .section-title {
-      width: min(1050px, 100%);
-      margin: 18px auto 8px auto;
-      text-align: left;
-      font-weight: 700;
-      color: #0b2f55;
+    select[multiple] option {
+      padding: 4px 6px;
+      border-radius: 4px;
+    }
+
+    /* ── BUTTONS ── */
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 36px;
+      padding: 0 14px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 13.5px;
+      font-family: inherit;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.12s, transform 0.1s, box-shadow 0.12s;
+      white-space: nowrap;
+      outline: none;
+    }
+
+    button:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--blue-dark); }
+
+    .btn-ghost {
+      background: var(--surface3);
+      color: var(--label2);
+      border: 1px solid var(--border-heavy);
+    }
+    .btn-ghost:hover { background: #e8e8ed; }
+
+    .btn-danger {
+      background: var(--red-soft);
+      color: var(--red);
+      border: 1px solid rgba(255,59,48,0.20);
+    }
+    .btn-danger:hover { background: rgba(255,59,48,0.18); }
+
+    .btn-sm {
+      height: 30px;
+      padding: 0 10px;
+      font-size: 12.5px;
+      border-radius: 6px;
+    }
+
+    .btn-icon {
+      width: 36px;
+      padding: 0;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .btn-icon.btn-sm {
+      width: 30px;
+    }
+
+    /* ── PRESET CHIPS ── */
+    .chip-group {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      height: 30px;
+      padding: 0 12px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 500;
+      background: var(--surface3);
+      color: var(--label2);
+      border: 1px solid var(--border-heavy);
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+    }
+    .chip:hover { background: var(--blue-soft); color: var(--blue); border-color: var(--blue); }
+    .chip:active { transform: scale(0.96); }
+
+    /* ── TABLE ── */
+    .table-wrap {
+      overflow-x: auto;
     }
 
     table {
-      margin: 10px auto 18px auto;
-      width: min(1050px, 100%);
+      width: 100%;
       border-collapse: collapse;
-      background: rgba(255,255,255,0.95);
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+      font-size: 13.5px;
     }
 
-    th {
-      background: #004a99;
-      color: white;
-      padding: 12px;
-      font-size: 13px;
+    thead th {
+      background: var(--surface2);
+      color: var(--label3);
+      font-size: 11.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 10px 14px;
       text-align: left;
+      border-bottom: 1px solid var(--border);
       white-space: nowrap;
     }
 
-    td {
-      padding: 10px;
-      border-bottom: 1px solid #ddd;
-      font-size: 13px;
-      text-align: left;
-      vertical-align: top;
+    tbody td {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--label2);
+      vertical-align: middle;
     }
 
-    tr:hover { background: rgba(0,74,153,0.08); }
+    tbody tr:last-child td { border-bottom: none; }
 
+    tbody tr {
+      transition: background 0.1s;
+    }
+    tbody tr:hover { background: var(--surface2); }
+
+    /* ── PILL BADGES ── */
     .pill {
-      display: inline-block;
-      font-size: 12px;
-      padding: 3px 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 3px 9px;
       border-radius: 999px;
-      font-weight: 700;
+      white-space: nowrap;
+      letter-spacing: 0.1px;
+    }
+
+    .pill::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .pill-live    { background: var(--green-soft); color: #1a7f3c; }
+    .pill-live::before { background: var(--green); }
+    .pill-out     { background: var(--surface3); color: var(--label3); }
+    .pill-out::before { background: var(--label4); }
+    .pill-auto    { background: var(--red-soft); color: #c0392b; }
+    .pill-auto::before { background: var(--red); }
+    .pill-active  { background: var(--blue-soft); color: var(--blue); }
+    .pill-active::before { background: var(--blue); }
+    .pill-arch    { background: var(--surface3); color: var(--label3); }
+    .pill-arch::before { background: var(--label4); }
+
+    .check-icon { color: var(--green); font-size: 15px; }
+    .cross-icon { color: var(--label4); font-size: 13px; }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      padding: 48px 24px;
+      text-align: center;
+      color: var(--label3);
+    }
+
+    .empty-state .empty-icon {
+      font-size: 36px;
+      margin-bottom: 10px;
+      opacity: 0.5;
+    }
+
+    .empty-state p {
+      font-size: 14px;
+    }
+
+    /* ── MODAL ── */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(4px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9000;
+      padding: 20px;
+    }
+
+    .modal-content {
+      width: min(960px, 100%);
+      max-height: 88vh;
+      overflow: auto;
+      background: var(--surface);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-xl);
+      border: 1px solid var(--border);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--surface);
+      z-index: 2;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--label);
+    }
+
+    .modal-subtitle {
+      font-size: 13px;
+      color: var(--label3);
+      margin-top: 2px;
+    }
+
+    .modal-body {
+      padding: 20px 24px 28px;
+    }
+
+    .modal-note {
+      font-size: 13px;
+      color: var(--label3);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      padding: 16px 24px 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── ADMIN TABLE (inside modals) ── */
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .admin-table th {
+      background: var(--surface2);
+      color: var(--label3);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 9px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
       white-space: nowrap;
     }
 
-    .pill-live { background: #dff5df; color: #1b8f2a; }
-    .pill-out { background: #eef2f7; color: #6b7280; }
-    .pill-auto { background: #fee2e2; color: #b91c1c; }
-    .pill-active{ background:#dbeafe; color:#1d4ed8; }
-    .pill-arch{ background:#f1f5f9; color:#64748b; }
+    .admin-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
 
-    .muted { color: #6b7280; }
+    .admin-table tr:last-child td { border-bottom: none; }
+    .admin-table tr:hover td { background: var(--surface2); }
 
-    .softAttempt {
-      margin-top: 4px;
+    .admin-table td input {
+      width: 100%;
+      height: 32px;
+      padding: 0 8px;
+      border: 1px solid var(--border-heavy);
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--surface);
+    }
+
+    .admin-table td input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 2px var(--blue-soft);
+      outline: none;
+    }
+
+    .row-btns {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    /* ── TIMESHEET MODAL ── */
+    .ts-modal-content {
+      width: min(1300px, 96vw);
+      max-height: 90vh;
+      overflow: auto;
+      background: var(--surface);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-xl);
+      border: 1px solid var(--border);
+    }
+
+    .ts-filter-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      padding: 16px 24px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ts-body { padding: 20px 24px 28px; }
+
+    .ts-meta {
+      font-size: 12.5px;
+      color: var(--label3);
+      margin-bottom: 14px;
+    }
+
+    .ts-company-section { margin-top: 20px; }
+
+    .ts-company-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--label3);
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      padding: 10px 0 8px;
+      border-bottom: 2px solid var(--label);
+      margin-bottom: 16px;
+    }
+
+    .ts-engineer-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .ts-engineer-header {
+      padding: 14px 16px 12px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ts-engineer-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--label);
+      margin-bottom: 10px;
+    }
+
+    .ts-engineer-admin {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+    }
+
+    .ts-engineer-admin .full { grid-column: 1 / -1; }
+
+    .ts-engineer-admin-btns {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .ts-week-block { padding: 16px; }
+
+    .ts-week-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .ts-week-text {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--label2);
+    }
+
+    .ts-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border-heavy);
+      background: var(--surface);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--label2);
+    }
+
+    .ts-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .ts-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+      min-width: 1180px;
+    }
+
+    .ts-table th {
+      background: var(--surface2);
+      color: var(--label3);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .ts-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--label2);
+      vertical-align: middle;
+    }
+
+    .ts-table tfoot td {
+      background: var(--surface2);
+      font-weight: 600;
+      color: var(--label);
+      border-top: 1px solid var(--border-heavy);
+      border-bottom: none;
+    }
+
+    .ts-table tbody tr:last-child td { border-bottom: none; }
+    .ts-table tbody tr:hover td { background: var(--surface2); }
+
+    .ts-cell-center { text-align: center; white-space: nowrap; }
+    .ts-map-link { color: var(--blue); text-decoration: none; font-size: 14px; margin-left: 4px; }
+    .ts-ok { color: var(--green); font-weight: 600; }
+    .ts-bad { color: var(--red); font-weight: 600; }
+    .ts-note-bad { color: var(--red); font-weight: 600; font-size: 12px; line-height: 1.35; }
+
+    .ts-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+    }
+
+    .ts-visit-edit {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      align-items: center;
+      min-width: 240px;
+    }
+
+    .ts-visit-edit input {
+      min-width: 148px;
+      height: 28px;
+      padding: 0 8px;
+      font-size: 12px;
+      border: 1px solid var(--border-heavy);
+      border-radius: 6px;
+      font-family: 'SF Mono', monospace;
+    }
+
+    .ts-empty {
+      padding: 32px 20px;
+      text-align: center;
+      background: var(--surface2);
+      border: 1px dashed var(--border-heavy);
+      border-radius: var(--radius-md);
+      color: var(--label3);
+      font-size: 13.5px;
+    }
+
+    .soft-attempt {
+      display: inline-block;
+      margin-top: 3px;
       font-size: 11px;
       line-height: 1.3;
       color: #92400e;
       background: #fffbeb;
       border: 1px solid #fde68a;
-      border-radius: 8px;
-      padding: 4px 6px;
-      display: inline-block;
+      border-radius: 6px;
+      padding: 3px 6px;
     }
 
-    .modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.55);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 9999;
+    /* ── MANUAL CHECKOUT MODAL ── */
+    .checkout-modal .modal-content {
+      width: min(420px, 100%);
     }
 
-    .modalContent {
-      width: 900px;
-      max-width: 96%;
-      max-height: 86vh;
-      overflow: auto;
-      background: white;
-      border-radius: 16px;
-      padding: 18px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
-      text-align: center;
+    .checkout-field {
+      margin: 12px 0 20px;
     }
 
-    .modalHead{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:10px;
-      margin-bottom:10px;
+    .checkout-field label {
+      display: block;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--label3);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
     }
 
-    .modalHead h3{
-      margin:0;
-      color:#0b2f55;
-      font-size:18px;
-      text-align:left;
+    .checkout-field input {
+      width: 100%;
     }
 
-    .modalNote{
-      text-align:left;
-      margin:6px 0 14px 0;
-      color:#475569;
-      font-size:13px;
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .topbar { padding: 0 16px; }
+      .page { padding: 16px 12px 0; }
+      .filter-card { padding: 12px 14px; }
+      .filter-group { width: 100%; }
+      .topbar-subtitle { display: none; }
+      .ts-filter-bar { padding: 12px 14px; }
+      .ts-body { padding: 12px 14px; }
     }
 
-    .adminTable{
-      width:100%;
-      border-collapse:collapse;
-      margin:10px 0 0 0;
-      box-shadow:none;
-      border-radius:12px;
-      overflow:hidden;
+    /* ── FADE IN ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
-    .adminTable th{
-      position:sticky;
-      top:0;
-      z-index:2;
+    .card, .filter-card {
+      animation: fadeUp 0.3s ease both;
     }
 
-    .adminTable td input{
-      width:100%;
-      box-sizing:border-box;
-      padding:8px;
-      border-radius:8px;
-      border:1px solid #cbd5e1;
-      font-size:13px;
-    }
-
-    .rowBtns{
-      display:flex;
-      gap:8px;
-      justify-content:flex-end;
-      flex-wrap:wrap;
-    }
-
-    .tinyBtn{
-      padding:8px 10px;
-      font-size:12px;
-      border-radius:8px;
-    }
-
-    .okTick{
-      color:#16a34a;
-      font-weight:900;
-      font-size:16px;
-    }
-
-    /* =========================
-       TIMESHEET MODAL STYLES
-    ========================= */
-    .timesheetModalContent{
-      width:min(1280px,96%);
-      max-width:96%;
-      max-height:90vh;
-      overflow:auto;
-      background:transparent;
-      border-radius:16px;
-      padding:0;
-      box-shadow:none;
-      text-align:left;
-    }
-
-    .tsShell{
-      max-width:1220px;
-      margin:0 auto;
-      background:rgba(255,255,255,0.94);
-      border-radius:14px;
-      box-shadow:0 12px 28px rgba(0,0,0,0.12);
-      overflow:hidden;
-    }
-
-    .tsHeader{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      flex-wrap:wrap;
-      background:linear-gradient(90deg,#fff,#f7f9fc);
-      border-bottom:1px solid var(--border);
-      padding:18px 24px;
-      gap:10px;
-    }
-
-    .tsHeader h3{
-      font-size:22px;
-      margin:0;
-      color:var(--ml-blue);
-    }
-
-    .tsHeader .headerBtns{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-    }
-
-    .tsHeader .headerBtns button{
-      padding:8px 16px;
-      border-radius:8px;
-      font-weight:600;
-      font-size:14px;
-    }
-
-    .tsBody{
-      padding:22px 24px 28px;
-      background:transparent;
-    }
-
-    .tsControls{
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
-      align-items:flex-end;
-      margin-bottom:16px;
-    }
-
-    .tsControls .field{
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-      min-width:140px;
-    }
-
-    .tsControls label{
-      font-size:12px;
-      color:#475569;
-      font-weight:700;
-    }
-
-    .tsSelect,
-    .tsDate,
-    .tsInput{
-      height:40px;
-      padding:8px 12px;
-      border:1px solid #cbd5e1;
-      border-radius:10px;
-      font-size:15px;
-      background:#fff;
-      box-sizing:border-box;
-    }
-
-    .tsBtn{
-      border:1px solid var(--border);
-      background:#eef2f9;
-      color:#27313a;
-      padding:10px 12px;
-      border-radius:8px;
-      cursor:pointer;
-      font-weight:600;
-    }
-
-    .tsBtn:hover{filter:brightness(.98);}
-
-    .tsPill{
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      border:1px solid var(--border);
-      background:#f8fbff;
-      padding:8px 12px;
-      border-radius:999px;
-      font-weight:600;
-      color:#27313a;
-    }
-
-    .tsMeta{
-      margin:6px 0 12px 0;
-      color:#64748b;
-      font-size:13px;
-    }
-
-    .tsCompanySection{
-      margin-top:18px;
-    }
-
-    .tsCompanyTitle{
-      background:#003366;
-      color:#fff;
-      border-radius:10px 10px 0 0;
-      padding:12px 16px;
-      font-size:18px;
-      font-weight:800;
-    }
-
-    .tsEngineerBlock{
-      background:#fff;
-      border:1px solid var(--border);
-      border-top:none;
-      padding:16px;
-    }
-
-    .tsEngineerTitle{
-      font-size:20px;
-      font-weight:800;
-      color:#003366;
-      margin:0 0 10px 0;
-    }
-
-    .tsEngineerAdmin{
-      display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
-      gap:10px;
-      background:#f8fafc;
-      border:1px solid var(--border);
-      border-radius:12px;
-      padding:12px;
-      margin:0 0 14px 0;
-    }
-
-    .tsEngineerAdmin .full{
-      grid-column:1 / -1;
-    }
-
-    .tsEngineerAdminBtns{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-      align-items:center;
-    }
-
-    .tsWeekBlock{
-      margin:14px 0 20px 0;
-    }
-
-    .tsWeekHeader{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:10px;
-      flex-wrap:wrap;
-      margin-bottom:10px;
-    }
-
-    .tsWeekText{
-      font-weight:700;
-      color:#0f172a;
-    }
-
-    .tsTableWrap{
-      overflow-x:auto;
-      background:#fff;
-      border:1px solid var(--border);
-      border-radius:12px;
-    }
-
-    .tsTable{
-      width:100%;
-      border-collapse:separate;
-      border-spacing:0;
-      margin:0;
-      background:#ffffffee;
-      border:none;
-      border-radius:12px;
-      overflow:hidden;
-      box-shadow:none;
-      min-width:1200px;
-    }
-
-    .tsTable th,
-    .tsTable td{
-      padding:10px 12px;
-      border-bottom:1px solid #eef2f7;
-      text-align:left;
-      font-size:14px;
-      vertical-align:top;
-    }
-
-    .tsTable thead th{
-      background:#f7f9fc;
-      color:#0f172a;
-      white-space:nowrap;
-      position:static;
-    }
-
-    .tsTable tfoot td{
-      background:#fafcff;
-      font-weight:700;
-    }
-
-    .tsCellCenter{
-      text-align:center;
-      white-space:nowrap;
-    }
-
-    .tsMapLink{
-      color:var(--ml-accent);
-      text-decoration:none;
-      font-weight:700;
-      font-size:18px;
-      margin-left:6px;
-    }
-
-    .tsOk{color:var(--ok);font-weight:700;}
-    .tsBad{color:var(--warn);font-weight:700;}
-
-    .tsNoteBad{
-      color:#b00020;
-      font-weight:700;
-      line-height:1.35;
-    }
-
-    .tsSummary{
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
-      margin-top:14px;
-    }
-
-    .tsSummary .tsPill{
-      background:#fff;
-    }
-
-    .tsVisitEdit{
-      display:flex;
-      gap:6px;
-      flex-wrap:wrap;
-      align-items:center;
-      min-width:250px;
-    }
-
-    .tsVisitEdit input{
-      min-width:155px;
-      width:auto;
-      padding:8px 10px;
-      font-size:13px;
-    }
-
-    .tsEmpty{
-      padding:18px;
-      background:#f8fafc;
-      border:1px dashed #cbd5e1;
-      border-radius:14px;
-      color:#64748b;
-      text-align:center;
-    }
-
-    @media(max-width:900px){
-      body{padding:16px;}
-      .tsBody{padding:16px;}
-      .tsHeader{padding:16px;}
-      .controls-left, .controls-right { width:100%; }
-      #controls { justify-content:flex-start; }
-      input, select, button { width:100%; }
-      .controls-left > *,
-      .controls-right > * { width:100%; }
-      .controls-right > div { width:100%; }
-      .controls-right > div button { width:auto; flex:1 1 30%; }
-      table { display:block; overflow-x:auto; }
-    }
+    .card:nth-child(2) { animation-delay: 0.06s; }
   </style>
-</head>
 
+</head>
 <body>
 
-<h1>📋 SiteLog Admin Dashboard</h1>
+<!-- TOP BAR -->
 
-<div id="controls">
-  <div class="controls-left">
-    <input id="search" placeholder="Search name..." />
-
-    <select id="personFilter" multiple size="5" style="min-width:160px;"></select>
-    <select id="companyFilter" multiple size="5" style="min-width:160px;"></select>
-
-    <select id="purposeFilter">
-      <option value="">All Purposes</option>
-      <option value="Visiting">Visiting</option>
-      <option value="Contractor">Contractor</option>
-    </select>
-
-    <select id="siteFilter">
-      <option value="">All Sites</option>
-    </select>
-  </div>
-
-  <div class="controls-right">
-    <label class="muted">From</label>
-    <input type="date" id="fromDate" />
-
-    <label class="muted">To</label>
-    <input type="date" id="toDate" />
-    
-    <div style="display:flex; gap:6px; flex-wrap:wrap;">
-      <button type="button" onclick="setPreset('week')">This Week</button>
-      <button type="button" onclick="setPreset(7)">Last 7</button>
-      <button type="button" onclick="setPreset(14)">Last 14</button>
-      <button type="button" onclick="setPreset(28)">Last 28</button>
-      <button type="button" onclick="setPreset('all')">All Time</button>
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-logo">📋</div>
+    <div>
+      <div class="topbar-title">SiteLog</div>
     </div>
-
-    <button onclick="openExportModal()">📄 Export PDF</button>
-    <button class="ghostBtn" onclick="openTimesheetsModal()">🧾 Timesheets</button>
-    <button onclick="window.location.href='sites.html'">➕ Manage Sites</button>
-    <button class="ghostBtn" onclick="openSitesModal()">🗂 View/Edit Sites</button>
-    <button class="ghostBtn" onclick="openEngineersModal()">👷 Engineers</button>
-    <button class="ghostBtn" onclick="openCompaniesModal()">🏢 Companies</button>
-    <button onclick="loadData()">🔄 Refresh</button>
+    <div class="topbar-subtitle" style="margin-left:8px;">Admin Dashboard</div>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn-ghost btn-sm" onclick="openTimesheetsModal()">🧾 Timesheets</button>
+    <button class="btn-ghost btn-sm" onclick="openSitesModal()">🗂 Sites</button>
+    <button class="btn-ghost btn-sm" onclick="openEngineersModal()">👷 Engineers</button>
+    <button class="btn-ghost btn-sm" onclick="openCompaniesModal()">🏢 Companies</button>
+    <button class="btn-primary btn-sm" onclick="openExportModal()">↑ Export PDF</button>
+    <button class="btn-icon btn-ghost btn-sm" onclick="loadData()" title="Refresh">↺</button>
   </div>
 </div>
 
-<div class="section-title">🟢 Live On Site (always)</div>
-<table id="liveTable">
-  <thead>
-    <tr>
-      <th>Status</th>
-      <th>Name</th>
-      <th>Company</th>
-      <th>Purpose</th>
-      <th>Site</th>
-      <th>Check In</th>
-      <th>Duration</th>
-      <th>Device</th>
-      <th>GPS</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody id="liveRows"></tbody>
-</table>
+<!-- PAGE -->
+
+<div class="page">
+
+  <!-- FILTER CARD -->
+
+  <div class="filter-card">
+    <div class="filter-group">
+      <div class="field-stack">
+        <span class="field-label">Search</span>
+        <input type="search" id="search" placeholder="Name…" style="width:160px;" />
+      </div>
+      <div class="field-stack">
+        <span class="field-label">People</span>
+        <select id="personFilter" multiple size="4" style="min-width:140px;"></select>
+      </div>
+      <div class="field-stack">
+        <span class="field-label">Company</span>
+        <select id="companyFilter" multiple size="4" style="min-width:140px;"></select>
+      </div>
+      <div class="field-stack">
+        <span class="field-label">Purpose</span>
+        <select id="purposeFilter" style="width:140px;">
+          <option value="">All Purposes</option>
+          <option value="Visiting">Visiting</option>
+          <option value="Contractor">Contractor</option>
+        </select>
+      </div>
+      <div class="field-stack">
+        <span class="field-label">Site</span>
+        <select id="siteFilter" style="width:140px;">
+          <option value="">All Sites</option>
+        </select>
+      </div>
+    </div>
+
+```
+<div class="filter-group" style="flex-direction:column;align-items:flex-start;gap:10px;">
+  <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+    <div class="field-stack">
+      <span class="field-label">From</span>
+      <input type="date" id="fromDate" style="width:148px;" />
+    </div>
+    <div class="field-stack">
+      <span class="field-label">To</span>
+      <input type="date" id="toDate" style="width:148px;" />
+    </div>
+  </div>
+  <div class="chip-group">
+    <button class="chip" onclick="setPreset('week')">This week</button>
+    <button class="chip" onclick="setPreset(7)">7 days</button>
+    <button class="chip" onclick="setPreset(14)">14 days</button>
+    <button class="chip" onclick="setPreset(28)">28 days</button>
+    <button class="chip" onclick="setPreset('all')">All time</button>
+  </div>
+</div>
+```
+
+  </div>
+
+  <!-- LIVE TABLE -->
+
+  <div class="section-header">
+    <span class="section-label">🟢 Live on site</span>
+  </div>
+  <div class="card" style="margin-bottom:32px;">
+    <div class="table-wrap">
+      <table id="liveTable">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Name</th>
+            <th>Company</th>
+            <th>Purpose</th>
+            <th>Site</th>
+            <th>Checked in</th>
+            <th>Duration</th>
+            <th style="text-align:center;">Device</th>
+            <th style="text-align:center;">GPS</th>
+            <th style="text-align:right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="liveRows"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<!-- ===================== SCRIPTS ===================== -->
 
 <script>
 const API_BASE = "https://sitelog-api.jamie-def.workers.dev";
@@ -634,10 +894,8 @@ let companiesAll = [];
 function openManualCheckoutModal(id, name, checkIn){
   manualCheckoutId = id;
   manualCheckoutCheckIn = checkIn;
-
   document.getElementById("manualCheckoutText").innerText =
     `Sign out ${name} (checked in ${toLocal(checkIn)})`;
-
   document.getElementById("manualCheckoutTime").value = "";
   document.getElementById("manualCheckoutModal").style.display="flex";
 }
@@ -650,48 +908,25 @@ function closeManualCheckoutModal(){
 
 async function confirmManualCheckout(){
   const timeValue = document.getElementById("manualCheckoutTime").value;
-
-  if(!timeValue){
-    alert("Please select a time.");
-    return;
-  }
+  if(!timeValue){ alert("Please select a time."); return; }
 
   const checkInDate = new Date(manualCheckoutCheckIn.replace(" ","T")+"Z");
-
   const yyyy = checkInDate.getUTCFullYear();
   const mm   = String(checkInDate.getUTCMonth()+1).padStart(2,"0");
   const dd   = String(checkInDate.getUTCDate()).padStart(2,"0");
-
   const manualTime = `${yyyy}-${mm}-${dd} ${timeValue}:00`;
   const manualDateObj = new Date(manualTime.replace(" ","T")+"Z");
 
-  if (manualDateObj <= checkInDate) {
-    alert("Sign out time must be after check-in time.");
-    return;
-  }
-
-  const now = new Date();
-  if (manualDateObj > now) {
-    alert("Sign out time cannot be in the future.");
-    return;
-  }
+  if(manualDateObj <= checkInDate){ alert("Sign out time must be after check-in time."); return; }
+  if(manualDateObj > new Date()){ alert("Sign out time cannot be in the future."); return; }
 
   const res = await fetch(`${API_BASE}/manual-checkout`,{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      visitId: manualCheckoutId,
-      manualTime: manualTime
-    })
+    body:JSON.stringify({ visitId: manualCheckoutId, manualTime })
   });
-
   const data = await res.json();
-
-  if(!res.ok || !data.ok){
-    alert(data.error || "Failed to sign out.");
-    return;
-  }
-
+  if(!res.ok || !data.ok){ alert(data.error || "Failed to sign out."); return; }
   closeManualCheckoutModal();
   loadData();
 }
@@ -703,10 +938,7 @@ function toLocal(ts){
 
 function formatTimeOnly(ts){
   if(!ts) return "—";
-  return new Date(ts.replace(" ","T")+"Z").toLocaleTimeString("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  return new Date(ts.replace(" ","T")+"Z").toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
 }
 
 function minutesBetween(a,b){
@@ -727,7 +959,7 @@ function nameOf(v){
 }
 
 function fmtDay(dayStr){
-  if(!dayStr || dayStr.length < 10) return dayStr || "-";
+  if(!dayStr||dayStr.length<10) return dayStr||"-";
   const y=dayStr.slice(2,4);
   const m=dayStr.slice(5,7);
   const d=dayStr.slice(8,10);
@@ -736,34 +968,25 @@ function fmtDay(dayStr){
 
 function formatTSDate(dayStr){
   if(!dayStr) return "-";
-  const d = new Date(dayStr + "T00:00:00");
+  const d = new Date(dayStr+"T00:00:00");
   const weekday = d.toLocaleDateString("en-GB",{weekday:"short"});
   const month = d.toLocaleDateString("en-GB",{month:"short"});
-  const year = d.toLocaleDateString("en-GB",{year:"2-digit"});
   const n = d.getDate();
-  const suffix = (n % 10 === 1 && n % 100 !== 11) ? "st"
-    : (n % 10 === 2 && n % 100 !== 12) ? "nd"
-    : (n % 10 === 3 && n % 100 !== 13) ? "rd"
-    : "th";
-  return `${weekday} ${n}${suffix} ${month} ${year}`;
+  const suffix = (n%10===1&&n%100!==11)?"st":(n%10===2&&n%100!==12)?"nd":(n%10===3&&n%100!==13)?"rd":"th";
+  return `${weekday} ${n}${suffix} ${month} ${d.getFullYear().toString().slice(2)}`;
 }
 
 function startOfWeekMondayFromDayStr(dayStr){
-  const d = new Date(dayStr + "T00:00:00");
-  const day = d.getDay();
-  const diff = (day === 0 ? -6 : 1 - day);
-  d.setDate(d.getDate() + diff);
+  const d = new Date(dayStr+"T00:00:00");
+  const day=d.getDay();
+  const diff=(day===0?-6:1-day);
+  d.setDate(d.getDate()+diff);
   return d.toISOString().slice(0,10);
 }
 
 function formatWeekCommencing(dayStr){
-  const monday = new Date(dayStr + "T00:00:00");
-  return monday.toLocaleDateString("en-GB", {
-    weekday:"short",
-    day:"2-digit",
-    month:"short",
-    year:"numeric"
-  });
+  const monday=new Date(dayStr+"T00:00:00");
+  return monday.toLocaleDateString("en-GB",{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
 }
 
 function escapeHtml(str){
@@ -776,131 +999,87 @@ function escapeHtml(str){
 }
 
 function companySortKey(name){
-  const n = (name || "").trim().toLowerCase();
-  if(n === "mostlane") return "0-mostlane";
-  return "1-" + n;
+  const n=(name||"").trim().toLowerCase();
+  if(n==="mostlane") return "0-mostlane";
+  return "1-"+n;
 }
 
 function sqlShort(ts){
-  return ts ? String(ts).slice(0,16) : "";
+  return ts?String(ts).slice(0,16):"";
 }
 
 function getTimesheetNoteText(v){
-  if (!v.check_out_at) return "No check out";
-  if (Number(v.auto_checkout || 0) === 1 || v.sign_out_status === "No Sign Out") return "Soft / auto sign out";
+  if(!v.check_out_at) return "No check out";
+  if(Number(v.auto_checkout||0)===1||v.sign_out_status==="No Sign Out") return "Soft / auto sign out";
   return "—";
 }
 
 function getTimesheetDeviceMark(v){
-  return v.device_token ? "✅" : "❌";
+  return v.device_token?"✅":"❌";
 }
 
 function getTimesheetLocationMark(v){
-  return (v.lat != null && v.lng != null) ? "✅" : "❌";
+  return (v.lat!=null&&v.lng!=null)?"✅":"❌";
 }
 
 function mapPinHtml(v){
-  if(v.lat == null || v.lng == null) return "";
-  return `<a class="tsMapLink" href="https://www.google.com/maps?q=${encodeURIComponent(v.lat)},${encodeURIComponent(v.lng)}" target="_blank">📍</a>`;
+  if(v.lat==null||v.lng==null) return "";
+  return `<a class="ts-map-link" href="https://www.google.com/maps?q=${encodeURIComponent(v.lat)},${encodeURIComponent(v.lng)}" target="_blank">📍</a>`;
 }
 
-function findEngineerRecord(personId, engineerName, companyName){
-  if (personId) {
-    const byId = engineersAll.find(e => String(e.id) === String(personId));
-    if (byId) return byId;
+function findEngineerRecord(personId,engineerName,companyName){
+  if(personId){
+    const byId=engineersAll.find(e=>String(e.id)===String(personId));
+    if(byId) return byId;
   }
-
   return engineersAll.find(e=>{
-    const fullName = `${(e.first_name||"").trim()} ${(e.last_name||"").trim()}`.trim();
-    return fullName === engineerName && (e.company || "") === (companyName || "");
-  }) || null;
+    const fullName=`${(e.first_name||"").trim()} ${(e.last_name||"").trim()}`.trim();
+    return fullName===engineerName&&(e.company||"")===(companyName||"");
+  })||null;
 }
 
 /* -------------------- FILTERS -------------------- */
 
 function passFilters(v){
-  const search = document.getElementById("search").value.toLowerCase().trim();
-
-  const selectedPeople = Array.from(
-    document.getElementById("personFilter").selectedOptions
-  ).map(o => o.value);
-
-  const selectedCompanies = Array.from(
-    document.getElementById("companyFilter").selectedOptions
-  ).map(o => o.value);
-
-  const selectedPurpose = document.getElementById("purposeFilter").value;
-  const selectedSite = document.getElementById("siteFilter").value;
-
-  const name = nameOf(v);
-  const nameLower = name.toLowerCase();
-
-  return (
-    (!search || nameLower.includes(search)) &&
-    (!selectedPeople.length || selectedPeople.includes(name)) &&
-    (!selectedCompanies.length || selectedCompanies.includes(v.company)) &&
-    (!selectedPurpose || v.purpose === selectedPurpose) &&
-    (!selectedSite || v.site_code === selectedSite)
+  const search=document.getElementById("search").value.toLowerCase().trim();
+  const selectedPeople=Array.from(document.getElementById("personFilter").selectedOptions).map(o=>o.value);
+  const selectedCompanies=Array.from(document.getElementById("companyFilter").selectedOptions).map(o=>o.value);
+  const selectedPurpose=document.getElementById("purposeFilter").value;
+  const selectedSite=document.getElementById("siteFilter").value;
+  const name=nameOf(v);
+  return(
+    (!search||name.toLowerCase().includes(search))&&
+    (!selectedPeople.length||selectedPeople.includes(name))&&
+    (!selectedCompanies.length||selectedCompanies.includes(v.company))&&
+    (!selectedPurpose||v.purpose===selectedPurpose)&&
+    (!selectedSite||v.site_code===selectedSite)
   );
 }
 
 function buildSiteFilter(){
   const select=document.getElementById("siteFilter");
   const current=select.value;
-
-  const names = sitesActive.length
-    ? sitesActive.map(s => s.site_name).filter(Boolean)
-    : [...new Set(filteredVisits.map(v=>v.site_code).filter(Boolean))];
-
+  const names=sitesActive.length?sitesActive.map(s=>s.site_name).filter(Boolean):[...new Set(filteredVisits.map(v=>v.site_code).filter(Boolean))];
   const sites=[...new Set(names)].sort((a,b)=>a.localeCompare(b));
-
-  select.innerHTML =
-    '<option value="">All Sites</option>' +
-    sites.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
-
-  if([...select.options].some(o=>o.value===current)){
-    select.value=current;
-  }
+  select.innerHTML='<option value="">All Sites</option>'+sites.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
+  if([...select.options].some(o=>o.value===current)) select.value=current;
 }
 
 function buildPersonFilter(){
-  const select = document.getElementById("personFilter");
-  const current = Array.from(select.selectedOptions).map(o => o.value);
-
-  let names = [];
-
-  if(engineersActive.length){
-    names = engineersActive
-      .map(p => `${(p.first_name||"").trim()} ${(p.last_name||"").trim()}`.trim())
-      .filter(Boolean);
-  } else {
-    names = [...new Set(filteredVisits.map(v=>nameOf(v)).filter(Boolean))];
-  }
-
-  names = [...new Set(names)].sort((a,b)=>a.localeCompare(b));
-
-  select.innerHTML =
-    names.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
-
-  Array.from(select.options).forEach(o=>{
-    if(current.includes(o.value)) o.selected = true;
-  });
+  const select=document.getElementById("personFilter");
+  const current=Array.from(select.selectedOptions).map(o=>o.value);
+  let names=engineersActive.length?engineersActive.map(p=>`${(p.first_name||"").trim()} ${(p.last_name||"").trim()}`.trim()).filter(Boolean):[...new Set(filteredVisits.map(v=>nameOf(v)).filter(Boolean))];
+  names=[...new Set(names)].sort((a,b)=>a.localeCompare(b));
+  select.innerHTML=names.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+  Array.from(select.options).forEach(o=>{ if(current.includes(o.value)) o.selected=true; });
 }
 
 function buildCompanyFilter(){
-  const select = document.getElementById("companyFilter");
-  const current = Array.from(select.selectedOptions).map(o => o.value);
-
-  const companies = [...new Set(
-    filteredVisits.map(v=>v.company).filter(Boolean)
-  )].sort((a,b)=>a.localeCompare(b));
-
-  select.innerHTML =
-    companies.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
-
-  Array.from(select.options).forEach(o=>{
-    if(current.includes(o.value)) o.selected = true;
-  });
+  const select=document.getElementById("companyFilter");
+  const current=Array.from(select.selectedOptions).map(o=>o.value);
+  const companies=[...new Set(filteredVisits.map(v=>v.company).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  select.innerHTML=companies.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  Array.from(select.options).forEach(o=>{ if(current.includes(o.value)) o.selected=true; });
 }
 
 /* -------------------- FETCH -------------------- */
@@ -921,36 +1100,28 @@ async function fetchRange(from,to){
 
 async function fetchSites(){
   try{
-    const res = await fetch(`${API_BASE}/sites`);
-    const data = await res.json();
-    sitesAll = data.sites || [];
-    sitesActive = sitesAll.filter(s => Number(s.archived||0) === 0);
-  }catch(e){
-    sitesAll = [];
-    sitesActive = [];
-  }
+    const res=await fetch(`${API_BASE}/sites`);
+    const data=await res.json();
+    sitesAll=data.sites||[];
+    sitesActive=sitesAll.filter(s=>Number(s.archived||0)===0);
+  }catch(e){ sitesAll=[];sitesActive=[]; }
 }
 
 async function fetchEngineers(){
   try{
-    const res = await fetch(`${API_BASE}/engineers`);
-    const data = await res.json();
-    engineersAll = data.engineers || data.people || [];
-    engineersActive = engineersAll.filter(p => Number(p.archived||0) === 0);
-  }catch(e){
-    engineersAll = [];
-    engineersActive = [];
-  }
+    const res=await fetch(`${API_BASE}/engineers`);
+    const data=await res.json();
+    engineersAll=data.engineers||data.people||[];
+    engineersActive=engineersAll.filter(p=>Number(p.archived||0)===0);
+  }catch(e){ engineersAll=[];engineersActive=[]; }
 }
 
 async function fetchCompaniesMaster(){
   try{
-    const res = await fetch(`${API_BASE}/companies`);
-    const data = await res.json();
-    companiesAll = data.companies || [];
-  }catch(e){
-    companiesAll = [];
-  }
+    const res=await fetch(`${API_BASE}/companies`);
+    const data=await res.json();
+    companiesAll=data.companies||[];
+  }catch(e){ companiesAll=[]; }
 }
 
 /* -------------------- RENDER -------------------- */
@@ -958,38 +1129,26 @@ async function fetchCompaniesMaster(){
 function renderLive(){
   const tbody=document.getElementById("liveRows");
   const live=allVisits.filter(v=>!v.check_out_at).filter(passFilters);
-
+  if(!live.length){
+    tbody.innerHTML=`<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📍</div><p>No one currently on site.</p></div></td></tr>`;
+    return;
+  }
   tbody.innerHTML=live.map(v=>`
     <tr>
-      <td><span class="pill pill-live">LIVE</span></td>
-      <td>${escapeHtml(nameOf(v))}</td>
-      <td>${escapeHtml(v.company||"-")}</td>
-      <td>${escapeHtml(v.purpose||"-")}</td>
-      <td>${escapeHtml(v.site_code||"-")}</td>
-      <td>${escapeHtml(toLocal(v.check_in_at))}</td>
-      <td>${escapeHtml(fmtDuration(minutesBetween(v.check_in_at,v.check_out_at)))}</td>
-      <td style="text-align:center;">
-        ${v.device_token ? `<span class="okTick">✓</span>` : `<span class="muted">-</span>`}
-      </td>
-      <td style="text-align:center;">
-        ${(v.lat!=null && v.lng!=null) ? `<span class="okTick">✓</span>` : `<span class="muted">-</span>`}
-      </td>
-      <td>
-        <button class="dangerBtn tinyBtn"
-          onclick="openManualCheckoutModal(
-            '${escapeHtml(v.visit_id)}',
-            '${escapeHtml(nameOf(v))}',
-            '${escapeHtml(v.check_in_at)}'
-          )">
-          Sign Out
-        </button>
+      <td><span class="pill pill-live">Live</span></td>
+      <td style="font-weight:500;color:var(--label);">${escapeHtml(nameOf(v))}</td>
+      <td>${escapeHtml(v.company||"—")}</td>
+      <td>${escapeHtml(v.purpose||"—")}</td>
+      <td><span style="font-size:12px;background:var(--surface3);padding:2px 8px;border-radius:4px;">${escapeHtml(v.site_code||"—")}</span></td>
+      <td style="color:var(--label3);font-size:12.5px;">${escapeHtml(toLocal(v.check_in_at))}</td>
+      <td style="font-weight:500;">${escapeHtml(fmtDuration(minutesBetween(v.check_in_at,v.check_out_at)))}</td>
+      <td style="text-align:center;">${v.device_token?`<span class="check-icon">✓</span>`:`<span class="cross-icon">—</span>`}</td>
+      <td style="text-align:center;">${(v.lat!=null&&v.lng!=null)?`<span class="check-icon">✓</span>`:`<span class="cross-icon">—</span>`}</td>
+      <td style="text-align:right;">
+        <button class="btn-danger btn-sm" onclick="openManualCheckoutModal('${escapeHtml(v.visit_id)}','${escapeHtml(nameOf(v))}','${escapeHtml(v.check_in_at)}')">Sign out</button>
       </td>
     </tr>
   `).join("");
-
-  if(!live.length){
-    tbody.innerHTML=`<tr><td colspan="10" class="muted" style="text-align:center;">No one currently onsite.</td></tr>`;
-  }
 }
 
 function renderAll(){
@@ -1002,19 +1161,11 @@ function renderAll(){
 /* -------------------- LOAD -------------------- */
 
 async function loadData(){
-  await Promise.all([fetchSites(), fetchEngineers()]);
-
-  allVisits = await fetchAll();
-
-  const from = document.getElementById("fromDate").value;
-  const to   = document.getElementById("toDate").value;
-
-  if (!from || !to) {
-    filteredVisits = allVisits.slice();
-  } else {
-    filteredVisits = await fetchRange(from, to);
-  }
-
+  await Promise.all([fetchSites(),fetchEngineers()]);
+  allVisits=await fetchAll();
+  const from=document.getElementById("fromDate").value;
+  const to=document.getElementById("toDate").value;
+  filteredVisits=(!from||!to)?allVisits.slice():await fetchRange(from,to);
   renderAll();
 }
 
@@ -1026,7 +1177,7 @@ document.getElementById("siteFilter").addEventListener("change",renderAll);
 
 loadData();
 
-/* -------------------- DELETE VISIT -------------------- */
+/* -------------------- DELETE -------------------- */
 
 function openDeleteModal(id,name,site){
   deleteId=id;
@@ -1041,17 +1192,13 @@ function closeDeleteModal(){
 
 async function confirmDelete(){
   if(!deleteId) return;
-  const res=await fetch(API_BASE+"/delete-visit",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({visitId:deleteId})
-  });
+  const res=await fetch(API_BASE+"/delete-visit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({visitId:deleteId})});
   const data=await res.json();
   if(data.ok){ await loadData(); renderTimesheetsModal(); }
   closeDeleteModal();
 }
 
-/* -------------------- PDF MODAL -------------------- */
+/* -------------------- PDF -------------------- */
 
 function openExportModal(){
   document.getElementById("exportModal").style.display="flex";
@@ -1063,450 +1210,260 @@ function closeExportModal(){
 
 function generatePDF(){
   const wrapper=document.createElement("div");
-  wrapper.innerHTML=`
-    <h2>SiteLog Live On Site Report</h2>
-    <div><strong>People Live On Site:</strong> ${escapeHtml(String(allVisits.filter(v=>!v.check_out_at).filter(passFilters).length))}</div>
-    <br>
-  `;
+  wrapper.innerHTML=`<h2>SiteLog Live On Site Report</h2><div><strong>People Live On Site:</strong> ${escapeHtml(String(allVisits.filter(v=>!v.check_out_at).filter(passFilters).length))}</div><br>`;
   wrapper.appendChild(document.getElementById("liveTable").cloneNode(true));
-
-  html2pdf().set({
-    margin:0.3,
-    filename:"SiteLog_Live_Report.pdf",
-    jsPDF:{unit:"in",format:"a4",orientation:"landscape"}
-  }).from(wrapper).save();
-
+  html2pdf().set({margin:0.3,filename:"SiteLog_Live_Report.pdf",jsPDF:{unit:"in",format:"a4",orientation:"landscape"}}).from(wrapper).save();
   closeExportModal();
 }
 
-/* -------------------- TIMESHEETS MODAL -------------------- */
+/* -------------------- TIMESHEETS -------------------- */
 
-function getMainFilteredVisits(){
-  return filteredVisits.filter(passFilters);
-}
-
-function getTimesheetBaseVisits(){
-  return getMainFilteredVisits();
-}
+function getMainFilteredVisits(){ return filteredVisits.filter(passFilters); }
+function getTimesheetBaseVisits(){ return getMainFilteredVisits(); }
 
 function populateTimesheetFilters(baseVisits){
-  const companySel = document.getElementById("tsCompanyFilter");
-  const personSel = document.getElementById("tsPersonFilter");
-  const siteSel = document.getElementById("tsSiteFilter");
-
-  const currentCompany = companySel.value;
-  const currentPerson = personSel.value;
-  const currentSite = siteSel.value;
-
-  const companies = [...new Set(baseVisits.map(v => (v.company || "").trim()).filter(Boolean))]
-    .sort((a,b)=> companySortKey(a).localeCompare(companySortKey(b)));
-
-  const people = [...new Set(baseVisits.map(v => nameOf(v)).filter(Boolean))]
-    .sort((a,b)=>a.localeCompare(b));
-
-  const sites = [...new Set(baseVisits.map(v => (v.site_code || "").trim()).filter(Boolean))]
-    .sort((a,b)=>a.localeCompare(b));
-
-  companySel.innerHTML = `<option value="">All Companies</option>` +
-    companies.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
-
-  personSel.innerHTML = `<option value="">All Engineers</option>` +
-    people.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
-
-  siteSel.innerHTML = `<option value="">All Sites</option>` +
-    sites.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
-
-  if([...companySel.options].some(o=>o.value===currentCompany)) companySel.value = currentCompany;
-  if([...personSel.options].some(o=>o.value===currentPerson)) personSel.value = currentPerson;
-  if([...siteSel.options].some(o=>o.value===currentSite)) siteSel.value = currentSite;
+  const companySel=document.getElementById("tsCompanyFilter");
+  const personSel=document.getElementById("tsPersonFilter");
+  const siteSel=document.getElementById("tsSiteFilter");
+  const currentCompany=companySel.value;
+  const currentPerson=personSel.value;
+  const currentSite=siteSel.value;
+  const companies=[...new Set(baseVisits.map(v=>(v.company||"").trim()).filter(Boolean))].sort((a,b)=>companySortKey(a).localeCompare(companySortKey(b)));
+  const people=[...new Set(baseVisits.map(v=>nameOf(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const sites=[...new Set(baseVisits.map(v=>(v.site_code||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  companySel.innerHTML=`<option value="">All Companies</option>`+companies.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  personSel.innerHTML=`<option value="">All Engineers</option>`+people.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
+  siteSel.innerHTML=`<option value="">All Sites</option>`+sites.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
+  if([...companySel.options].some(o=>o.value===currentCompany)) companySel.value=currentCompany;
+  if([...personSel.options].some(o=>o.value===currentPerson)) personSel.value=currentPerson;
+  if([...siteSel.options].some(o=>o.value===currentSite)) siteSel.value=currentSite;
 }
 
 function getTimesheetFilteredVisits(){
-  const company = document.getElementById("tsCompanyFilter").value;
-  const person = document.getElementById("tsPersonFilter").value;
-  const site = document.getElementById("tsSiteFilter").value;
-  const from = document.getElementById("tsFromDate").value;
-  const to = document.getElementById("tsToDate").value;
-
+  const company=document.getElementById("tsCompanyFilter").value;
+  const person=document.getElementById("tsPersonFilter").value;
+  const site=document.getElementById("tsSiteFilter").value;
+  const from=document.getElementById("tsFromDate").value;
+  const to=document.getElementById("tsToDate").value;
   return getTimesheetBaseVisits().filter(v=>{
-    const day = (v.check_in_at || "").slice(0,10);
-
-    if(company && (v.company || "") !== company) return false;
-    if(person && nameOf(v) !== person) return false;
-    if(site && (v.site_code || "") !== site) return false;
-    if(from && day < from) return false;
-    if(to && day > to) return false;
+    const day=(v.check_in_at||"").slice(0,10);
+    if(company&&(v.company||"")!==company) return false;
+    if(person&&nameOf(v)!==person) return false;
+    if(site&&(v.site_code||"")!==site) return false;
+    if(from&&day<from) return false;
+    if(to&&day>to) return false;
     return true;
   });
 }
 
-function buildEngineerAdminPanel(engineer, engineerName, companyName, personId){
-  const record = engineer || {
-    id: personId || "",
-    first_name: engineerName.split(" ")[0] || "",
-    last_name: engineerName.split(" ").slice(1).join(" ") || "",
-    company: companyName || "",
-    purpose: "",
-    hourly_rate: ""
-  };
-
-  const id = record.id || personId || "";
-
+function buildEngineerAdminPanel(engineer,engineerName,companyName,personId){
+  const record=engineer||{id:personId||"",first_name:engineerName.split(" ")[0]||"",last_name:engineerName.split(" ").slice(1).join(" ")||"",company:companyName||"",purpose:"",hourly_rate:""};
+  const id=record.id||personId||"";
   return `
-    <div class="tsEngineerAdmin">
-      <input class="tsInput" data-ts-eng-first="${escapeHtml(id)}" value="${escapeHtml(record.first_name || "")}" placeholder="First name">
-      <input class="tsInput" data-ts-eng-last="${escapeHtml(id)}" value="${escapeHtml(record.last_name || "")}" placeholder="Last name">
-      <input class="tsInput" data-ts-eng-company="${escapeHtml(id)}" value="${escapeHtml(record.company || "")}" placeholder="Company">
-      <input class="tsInput" data-ts-eng-purpose="${escapeHtml(id)}" value="${escapeHtml(record.purpose || "")}" placeholder="Purpose">
-      <input class="tsInput" data-ts-eng-rate="${escapeHtml(id)}" type="number" step="0.01" min="0" value="${escapeHtml(record.hourly_rate ?? "")}" placeholder="Rate">
-      <div class="tsEngineerAdminBtns full">
-        <button class="tsBtn" type="button" onclick="saveTimesheetEngineer('${escapeHtml(id)}')">💾 Save Engineer</button>
-        <button class="tsBtn" type="button" onclick="toggleTimesheetEngineer('${escapeHtml(id)}')">🗃 Archive / Unarchive</button>
-        <button class="tsBtn" type="button" onclick="resetEngineerDevice('${escapeHtml(id)}','${escapeHtml(engineerName)}')">📱 Reset Device</button>
-        <button class="dangerBtn" type="button" onclick="deleteEngineerFromTimesheets('${escapeHtml(id)}','${escapeHtml(engineerName)}')">🗑 Delete Engineer</button>
+    <div class="ts-engineer-admin">
+      <input data-ts-eng-first="${escapeHtml(id)}" value="${escapeHtml(record.first_name||"")}" placeholder="First name">
+      <input data-ts-eng-last="${escapeHtml(id)}" value="${escapeHtml(record.last_name||"")}" placeholder="Last name">
+      <input data-ts-eng-company="${escapeHtml(id)}" value="${escapeHtml(record.company||"")}" placeholder="Company">
+      <input data-ts-eng-purpose="${escapeHtml(id)}" value="${escapeHtml(record.purpose||"")}" placeholder="Purpose">
+      <input data-ts-eng-rate="${escapeHtml(id)}" type="number" step="0.01" min="0" value="${escapeHtml(record.hourly_rate??"")}'" placeholder="Rate £/hr">
+      <div class="ts-engineer-admin-btns full">
+        <button class="btn-ghost btn-sm" type="button" onclick="saveTimesheetEngineer('${escapeHtml(id)}')">💾 Save</button>
+        <button class="btn-ghost btn-sm" type="button" onclick="toggleTimesheetEngineer('${escapeHtml(id)}')">🗃 Archive</button>
+        <button class="btn-ghost btn-sm" type="button" onclick="resetEngineerDevice('${escapeHtml(id)}','${escapeHtml(engineerName)}')">📱 Reset Device</button>
+        <button class="btn-danger btn-sm" type="button" onclick="deleteEngineerFromTimesheets('${escapeHtml(id)}','${escapeHtml(engineerName)}')">🗑 Delete</button>
       </div>
     </div>
   `;
 }
 
-function buildTimesheetTableForWeek(visits, engineerName, companyName, weekKey, personId){
-  const engineer = findEngineerRecord(personId, engineerName, companyName);
-  const engineerId = engineer?.id || personId || "";
-
-  const sorted = visits.slice().sort((a,b)=> (a.check_in_at || "").localeCompare(b.check_in_at || ""));
-
-  let totTotal = 0;
-  let totStd = 0;
-  let totOT = 0;
-
-  const rows = sorted.map(v=>{
-    const dayStr = (v.check_in_at || "").slice(0,10);
-    const totalMins = minutesBetween(v.check_in_at, v.check_out_at);
-    const totalHours = totalMins / 60;
-    const stdHours = Math.min(totalHours, 10);
-    const otHours = Math.max(totalHours - 10, 0);
-
-    totTotal += totalHours;
-    totStd += stdHours;
-    totOT += otHours;
-
-    const noteText = getTimesheetNoteText(v);
-    const noteHtml = noteText === "—"
-      ? `<span class="muted">—</span>`
-      : `<span class="tsNoteBad">${escapeHtml(noteText)}</span>`;
-
-    const locationCell = `${getTimesheetLocationMark(v)} ${mapPinHtml(v)}`;
-
+function buildTimesheetTableForWeek(visits,engineerName,companyName,weekKey,personId){
+  const engineer=findEngineerRecord(personId,engineerName,companyName);
+  const engineerId=engineer?.id||personId||"";
+  const sorted=visits.slice().sort((a,b)=>(a.check_in_at||"").localeCompare(b.check_in_at||""));
+  let totTotal=0,totStd=0,totOT=0;
+  const rows=sorted.map(v=>{
+    const dayStr=(v.check_in_at||"").slice(0,10);
+    const totalMins=minutesBetween(v.check_in_at,v.check_out_at);
+    const totalHours=totalMins/60;
+    const stdHours=Math.min(totalHours,10);
+    const otHours=Math.max(totalHours-10,0);
+    totTotal+=totalHours; totStd+=stdHours; totOT+=otHours;
+    const noteText=getTimesheetNoteText(v);
+    const noteHtml=noteText==="—"?`<span style="color:var(--label4);">—</span>`:`<span class="ts-note-bad">${escapeHtml(noteText)}</span>`;
     return `
       <tr>
         <td>${escapeHtml(formatTSDate(dayStr))}</td>
-        <td>${escapeHtml(v.site_code || "-")}</td>
+        <td>${escapeHtml(v.site_code||"-")}</td>
         <td>${escapeHtml(formatTimeOnly(v.check_in_at))}</td>
-        <td>${escapeHtml(v.check_out_at ? formatTimeOnly(v.check_out_at) : "—")}</td>
+        <td>${escapeHtml(v.check_out_at?formatTimeOnly(v.check_out_at):"—")}</td>
         <td>${escapeHtml(totalHours.toFixed(2))}</td>
         <td>${escapeHtml(stdHours.toFixed(2))}</td>
         <td>${escapeHtml(otHours.toFixed(2))}</td>
-        <td class="tsCellCenter">${escapeHtml(getTimesheetDeviceMark(v))}</td>
-        <td class="tsCellCenter">${locationCell}</td>
+        <td class="ts-cell-center">${escapeHtml(getTimesheetDeviceMark(v))}</td>
+        <td class="ts-cell-center">${getTimesheetLocationMark(v)} ${mapPinHtml(v)}</td>
         <td>${noteHtml}</td>
         <td>
-          <div class="tsVisitEdit">
-            <input class="tsInput" data-visit-in="${escapeHtml(v.visit_id)}" value="${escapeHtml(sqlShort(v.check_in_at))}" placeholder="YYYY-MM-DD HH:MM">
-            <input class="tsInput" data-visit-out="${escapeHtml(v.visit_id)}" value="${escapeHtml(sqlShort(v.check_out_at))}" placeholder="YYYY-MM-DD HH:MM">
-            <button class="tsBtn" type="button" onclick="saveVisitTimes('${escapeHtml(v.visit_id)}')">Save</button>
-            <button class="dangerBtn" type="button" onclick="openDeleteModal('${escapeHtml(v.visit_id)}','${escapeHtml(engineerName)}','${escapeHtml(v.site_code || "-")}')">Delete</button>
+          <div class="ts-visit-edit">
+            <input data-visit-in="${escapeHtml(v.visit_id)}" value="${escapeHtml(sqlShort(v.check_in_at))}" placeholder="YYYY-MM-DD HH:MM">
+            <input data-visit-out="${escapeHtml(v.visit_id)}" value="${escapeHtml(sqlShort(v.check_out_at))}" placeholder="YYYY-MM-DD HH:MM">
+            <button class="btn-ghost btn-sm" type="button" onclick="saveVisitTimes('${escapeHtml(v.visit_id)}')">Save</button>
+            <button class="btn-danger btn-sm" type="button" onclick="openDeleteModal('${escapeHtml(v.visit_id)}','${escapeHtml(engineerName)}','${escapeHtml(v.site_code||"-")}')">Delete</button>
           </div>
         </td>
-      </tr>
-    `;
+      </tr>`;
   }).join("");
-
   return `
-    <div class="tsWeekBlock">
-      <div class="tsEngineerTitle">${escapeHtml(engineerName)}</div>
-
-      ${buildEngineerAdminPanel(engineer, engineerName, companyName, engineerId)}
-
-      <div class="tsWeekHeader">
-        <div class="tsWeekText">Week Commencing: ${escapeHtml(formatWeekCommencing(weekKey))}</div>
-        <div class="tsPill">Company: ${escapeHtml(companyName)}</div>
+    <div class="ts-week-block">
+      <div class="ts-engineer-title">${escapeHtml(engineerName)}</div>
+      ${buildEngineerAdminPanel(engineer,engineerName,companyName,engineerId)}
+      <div class="ts-week-header">
+        <span class="ts-week-text">Week commencing: ${escapeHtml(formatWeekCommencing(weekKey))}</span>
+        <span class="ts-pill">Company: ${escapeHtml(companyName)}</span>
       </div>
-
-      <div class="tsTableWrap">
-        <table class="tsTable">
-          <thead>
-            <tr>
-              <th style="width:150px;">Date</th>
-              <th>Site Name</th>
-              <th style="width:90px;">Start</th>
-              <th style="width:90px;">Finish</th>
-              <th style="width:110px;">Total Hours</th>
-              <th style="width:120px;">Standard Hours</th>
-              <th style="width:120px;">Overtime Hours</th>
-              <th style="width:110px;">Device Verified</th>
-              <th style="width:110px;">Location</th>
-              <th style="width:170px;">Notes</th>
-              <th style="width:320px;">Admin</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="4">Weekly Totals</td>
-              <td>${escapeHtml(totTotal.toFixed(2))}</td>
-              <td>${escapeHtml(totStd.toFixed(2))}</td>
-              <td>${escapeHtml(totOT.toFixed(2))}</td>
-              <td colspan="4" class="muted">Engineer total for this week</td>
-            </tr>
-          </tfoot>
+      <div class="ts-table-wrap">
+        <table class="ts-table">
+          <thead><tr>
+            <th style="width:150px;">Date</th><th>Site</th>
+            <th style="width:80px;">Start</th><th style="width:80px;">Finish</th>
+            <th style="width:100px;">Total hrs</th><th style="width:100px;">Std hrs</th><th style="width:100px;">OT hrs</th>
+            <th style="width:90px;">Device</th><th style="width:90px;">Location</th>
+            <th style="width:160px;">Notes</th><th style="width:300px;">Admin</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr>
+            <td colspan="4">Weekly totals</td>
+            <td>${escapeHtml(totTotal.toFixed(2))}</td>
+            <td>${escapeHtml(totStd.toFixed(2))}</td>
+            <td>${escapeHtml(totOT.toFixed(2))}</td>
+            <td colspan="4" style="color:var(--label3);font-size:12px;">Engineer total for this week</td>
+          </tr></tfoot>
         </table>
       </div>
-
-      <div class="tsSummary">
-        <div class="tsPill">Standard: ${escapeHtml(totStd.toFixed(2))} h</div>
-        <div class="tsPill">Overtime: ${escapeHtml(totOT.toFixed(2))} h</div>
-        <div class="tsPill">Total: ${escapeHtml(totTotal.toFixed(2))} h</div>
+      <div class="ts-summary">
+        <span class="ts-pill">Standard: ${escapeHtml(totStd.toFixed(2))} h</span>
+        <span class="ts-pill">Overtime: ${escapeHtml(totOT.toFixed(2))} h</span>
+        <span class="ts-pill">Total: ${escapeHtml(totTotal.toFixed(2))} h</span>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
 function renderTimesheetsModal(){
-  const baseVisits = getTimesheetBaseVisits();
+  const baseVisits=getTimesheetBaseVisits();
   populateTimesheetFilters(baseVisits);
-
-  const visits = getTimesheetFilteredVisits();
-  const wrap = document.getElementById("timesheetsBody");
-  const info = document.getElementById("timesheetsMeta");
-
-  const from = document.getElementById("tsFromDate").value || "All";
-  const to = document.getElementById("tsToDate").value || "All";
-  info.innerHTML = `<strong>Date Range:</strong> ${escapeHtml(from)} → ${escapeHtml(to)} &nbsp; | &nbsp; <strong>Sessions:</strong> ${escapeHtml(visits.length)}`;
-
-  if(!visits.length){
-    wrap.innerHTML = `<div class="tsEmpty">No timesheets found for the current filters.</div>`;
-    return;
-  }
-
-  const grouped = {};
+  const visits=getTimesheetFilteredVisits();
+  const wrap=document.getElementById("timesheetsBody");
+  const info=document.getElementById("timesheetsMeta");
+  const from=document.getElementById("tsFromDate").value||"All";
+  const to=document.getElementById("tsToDate").value||"All";
+  info.innerHTML=`<strong>Date range:</strong> ${escapeHtml(from)} → ${escapeHtml(to)} &nbsp;·&nbsp; <strong>Sessions:</strong> ${escapeHtml(String(visits.length))}`;
+  if(!visits.length){ wrap.innerHTML=`<div class="ts-empty">No timesheets found for the current filters.</div>`; return; }
+  const grouped={};
   visits.forEach(v=>{
-    const company = (v.company || "No Company").trim() || "No Company";
-    const person = nameOf(v) || "Unknown";
-    const personId = v.person_id || "";
-    const day = (v.check_in_at || "").slice(0,10) || "";
-    const weekKey = startOfWeekMondayFromDayStr(day);
-
-    if(!grouped[company]) grouped[company] = {};
-    if(!grouped[company][person]) grouped[company][person] = { personId, weeks:{} };
-    if(!grouped[company][person].weeks[weekKey]) grouped[company][person].weeks[weekKey] = [];
+    const company=(v.company||"No Company").trim()||"No Company";
+    const person=nameOf(v)||"Unknown";
+    const personId=v.person_id||"";
+    const day=(v.check_in_at||"").slice(0,10)||"";
+    const weekKey=startOfWeekMondayFromDayStr(day);
+    if(!grouped[company]) grouped[company]={};
+    if(!grouped[company][person]) grouped[company][person]={personId,weeks:{}};
+    if(!grouped[company][person].weeks[weekKey]) grouped[company][person].weeks[weekKey]=[];
     grouped[company][person].weeks[weekKey].push(v);
   });
-
-  const companies = Object.keys(grouped).sort((a,b)=> companySortKey(a).localeCompare(companySortKey(b)));
-
-  let html = `<div class="tsCompanySections">`;
-
+  const companies=Object.keys(grouped).sort((a,b)=>companySortKey(a).localeCompare(companySortKey(b)));
+  let html=`<div>`;
   companies.forEach(company=>{
-    html += `<div class="tsCompanySection">`;
-    html += `<div class="tsCompanyTitle">${escapeHtml(company)}</div>`;
-
-    const people = Object.keys(grouped[company]).sort((a,b)=>a.localeCompare(b));
+    html+=`<div class="ts-company-section"><div class="ts-company-title">${escapeHtml(company)}</div>`;
+    const people=Object.keys(grouped[company]).sort((a,b)=>a.localeCompare(b));
     people.forEach(person=>{
-      html += `<div class="tsEngineerBlock">`;
-
-      const personId = grouped[company][person].personId || "";
-      const weeks = Object.keys(grouped[company][person].weeks).sort((a,b)=>a.localeCompare(b));
-      weeks.forEach(weekKey=>{
-        html += buildTimesheetTableForWeek(grouped[company][person].weeks[weekKey], person, company, weekKey, personId);
-      });
-
-      html += `</div>`;
+      html+=`<div class="ts-engineer-block"><div class="ts-engineer-header">`;
+      const personId=grouped[company][person].personId||"";
+      const weeks=Object.keys(grouped[company][person].weeks).sort((a,b)=>a.localeCompare(b));
+      weeks.forEach(weekKey=>{ html+=buildTimesheetTableForWeek(grouped[company][person].weeks[weekKey],person,company,weekKey,personId); });
+      html+=`</div></div>`;
     });
-
-    html += `</div>`;
+    html+=`</div>`;
   });
-
-  html += `</div>`;
-  wrap.innerHTML = html;
+  html+=`</div>`;
+  wrap.innerHTML=html;
 }
 
 function openTimesheetsModal(){
-  document.getElementById("timesheetsModal").style.display = "flex";
-
-  const mainFrom = document.getElementById("fromDate").value;
-  const mainTo = document.getElementById("toDate").value;
-
-  document.getElementById("tsFromDate").value = mainFrom || "";
-  document.getElementById("tsToDate").value = mainTo || "";
-
+  document.getElementById("timesheetsModal").style.display="flex";
+  document.getElementById("tsFromDate").value=document.getElementById("fromDate").value||"";
+  document.getElementById("tsToDate").value=document.getElementById("toDate").value||"";
   renderTimesheetsModal();
 }
 
 function closeTimesheetsModal(){
-  document.getElementById("timesheetsModal").style.display = "none";
+  document.getElementById("timesheetsModal").style.display="none";
 }
 
 function clearTimesheetFilters(){
-  document.getElementById("tsCompanyFilter").value = "";
-  document.getElementById("tsPersonFilter").value = "";
-  document.getElementById("tsSiteFilter").value = "";
-  document.getElementById("tsFromDate").value = document.getElementById("fromDate").value || "";
-  document.getElementById("tsToDate").value = document.getElementById("toDate").value || "";
+  document.getElementById("tsCompanyFilter").value="";
+  document.getElementById("tsPersonFilter").value="";
+  document.getElementById("tsSiteFilter").value="";
+  document.getElementById("tsFromDate").value=document.getElementById("fromDate").value||"";
+  document.getElementById("tsToDate").value=document.getElementById("toDate").value||"";
   renderTimesheetsModal();
 }
 
 function exportTimesheetsPdf(){
-  const el = document.getElementById("timesheetsPdfRoot");
-  html2pdf().set({
-    margin:0.25,
-    filename:"SiteLog_Timesheets.pdf",
-    jsPDF:{unit:"in",format:"a4",orientation:"landscape"},
-    html2canvas:{scale:2,useCORS:true}
-  }).from(el).save();
+  const el=document.getElementById("timesheetsPdfRoot");
+  html2pdf().set({margin:0.25,filename:"SiteLog_Timesheets.pdf",jsPDF:{unit:"in",format:"a4",orientation:"landscape"},html2canvas:{scale:2,useCORS:true}}).from(el).save();
 }
 
 async function saveTimesheetEngineer(id){
-  if(!id){
-    alert("Engineer id not found.");
-    return;
-  }
-
-  const firstName = (document.querySelector(`input[data-ts-eng-first="${CSS.escape(id)}"]`)?.value || "").trim();
-  const lastName  = (document.querySelector(`input[data-ts-eng-last="${CSS.escape(id)}"]`)?.value || "").trim();
-  const company   = (document.querySelector(`input[data-ts-eng-company="${CSS.escape(id)}"]`)?.value || "").trim();
-  const purpose   = (document.querySelector(`input[data-ts-eng-purpose="${CSS.escape(id)}"]`)?.value || "").trim();
-  const rateRaw   = (document.querySelector(`input[data-ts-eng-rate="${CSS.escape(id)}"]`)?.value || "").trim();
-  const hourlyRate = rateRaw === "" ? null : Number(rateRaw);
-
-  if(!firstName && !lastName){
-    alert("Engineer must have at least a first or last name.");
-    return;
-  }
-
-  const res = await fetch(`${API_BASE}/update-engineer`,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate })
-  });
-
-  const data = await res.json();
-  if(!res.ok || !data.ok){
-    alert(data.error || "Failed to save engineer.");
-    return;
-  }
-
-  await loadData();
-  renderTimesheetsModal();
+  if(!id){ alert("Engineer id not found."); return; }
+  const firstName=(document.querySelector(`input[data-ts-eng-first="${CSS.escape(id)}"]`)?.value||"").trim();
+  const lastName=(document.querySelector(`input[data-ts-eng-last="${CSS.escape(id)}"]`)?.value||"").trim();
+  const company=(document.querySelector(`input[data-ts-eng-company="${CSS.escape(id)}"]`)?.value||"").trim();
+  const purpose=(document.querySelector(`input[data-ts-eng-purpose="${CSS.escape(id)}"]`)?.value||"").trim();
+  const rateRaw=(document.querySelector(`input[data-ts-eng-rate="${CSS.escape(id)}"]`)?.value||"").trim();
+  const hourlyRate=rateRaw===""?null:Number(rateRaw);
+  if(!firstName&&!lastName){ alert("Engineer must have at least a first or last name."); return; }
+  const res=await fetch(`${API_BASE}/update-engineer`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,firstName,lastName,company,purpose,hourlyRate})});
+  const data=await res.json();
+  if(!res.ok||!data.ok){ alert(data.error||"Failed to save engineer."); return; }
+  await loadData(); renderTimesheetsModal();
 }
 
 async function toggleTimesheetEngineer(id){
-  if(!id){
-    alert("Engineer id not found.");
-    return;
-  }
-
-  const res = await fetch(`${API_BASE}/toggle-engineer`,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ id })
-  });
-
-  const data = await res.json();
-  if(!res.ok || !data.ok){
-    alert(data.error || "Failed to archive / unarchive engineer.");
-    return;
-  }
-
-  await loadData();
-  renderTimesheetsModal();
+  if(!id){ alert("Engineer id not found."); return; }
+  const res=await fetch(`${API_BASE}/toggle-engineer`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+  const data=await res.json();
+  if(!res.ok||!data.ok){ alert(data.error||"Failed to archive / unarchive engineer."); return; }
+  await loadData(); renderTimesheetsModal();
 }
 
-async function deleteEngineerFromTimesheets(id, name){
-  if(!id){
-    alert("Engineer id not found.");
-    return;
-  }
-
-  if(!confirm(`Delete engineer ${name}? If visit history exists they will be archived and device links removed instead.`)){
-    return;
-  }
-
-  const res = await fetch(`${API_BASE}/delete-engineer`,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ id })
-  });
-
-  const data = await res.json();
-  if(!res.ok || !data.ok){
-    alert(data.error || "Failed to delete engineer.");
-    return;
-  }
-
-  alert(data.message || "Engineer updated.");
-  await loadData();
-  renderTimesheetsModal();
+async function deleteEngineerFromTimesheets(id,name){
+  if(!id){ alert("Engineer id not found."); return; }
+  if(!confirm(`Delete engineer ${name}? If visit history exists they will be archived and device links removed instead.`)) return;
+  const res=await fetch(`${API_BASE}/delete-engineer`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+  const data=await res.json();
+  if(!res.ok||!data.ok){ alert(data.error||"Failed to delete engineer."); return; }
+  alert(data.message||"Engineer updated.");
+  await loadData(); renderTimesheetsModal();
 }
 
-async function resetEngineerDevice(id, name){
-  if(!id){
-    alert("Engineer id not found.");
-    return;
-  }
-
-  if(!confirm(`Reset device for ${name}? They will need to register this device again on next scan.`)){
-    return;
-  }
-
-  const res = await fetch(`${API_BASE}/reset-device`,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ personId:id })
-  });
-
-  const data = await res.json();
-  if(!res.ok || !data.ok){
-    alert(data.error || "Failed to reset device.");
-    return;
-  }
-
-  alert(`Removed ${data.removedDevices || 0} device link(s).`);
-  await loadData();
-  renderTimesheetsModal();
+async function resetEngineerDevice(id,name){
+  if(!id){ alert("Engineer id not found."); return; }
+  if(!confirm(`Reset device for ${name}? They will need to register this device again on next scan.`)) return;
+  const res=await fetch(`${API_BASE}/reset-device`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({personId:id})});
+  const data=await res.json();
+  if(!res.ok||!data.ok){ alert(data.error||"Failed to reset device."); return; }
+  alert(`Removed ${data.removedDevices||0} device link(s).`); await loadData(); renderTimesheetsModal();
 }
 
 async function saveVisitTimes(visitId){
-  const inEl = document.querySelector(`input[data-visit-in="${CSS.escape(visitId)}"]`);
-  const outEl = document.querySelector(`input[data-visit-out="${CSS.escape(visitId)}"]`);
-
-  const checkInAt = (inEl?.value || "").trim();
-  const checkOutAt = (outEl?.value || "").trim();
-
-  if(!checkInAt){
-    alert("Check-in time is required.");
-    return;
-  }
-
-  const res = await fetch(`${API_BASE}/update-visit-times`,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      visitId,
-      checkInAt,
-      checkOutAt: checkOutAt || null
-    })
-  });
-
-  const data = await res.json();
-  if(!res.ok || !data.ok){
-    alert(data.error || "Failed to update visit times.");
-    return;
-  }
-
-  await loadData();
-  renderTimesheetsModal();
+  const inEl=document.querySelector(`input[data-visit-in="${CSS.escape(visitId)}"]`);
+  const outEl=document.querySelector(`input[data-visit-out="${CSS.escape(visitId)}"]`);
+  const checkInAt=(inEl?.value||"").trim();
+  const checkOutAt=(outEl?.value||"").trim();
+  if(!checkInAt){ alert("Check-in time is required."); return; }
+  const res=await fetch(`${API_BASE}/update-visit-times`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({visitId,checkInAt,checkOutAt:checkOutAt||null})});
+  const data=await res.json();
+  if(!res.ok||!data.ok){ alert(data.error||"Failed to update visit times."); return; }
+  await loadData(); renderTimesheetsModal();
 }
 
 /* -------------------- SITES MODAL -------------------- */
@@ -1521,93 +1478,38 @@ function closeSitesModal(){
 }
 
 function renderSitesAdminTable(){
-  const wrap = document.getElementById("sitesAdminBody");
-  if(!sitesAll.length){
-    wrap.innerHTML = `<div class="muted" style="text-align:left;">No sites returned from /sites.</div>`;
-    return;
-  }
-
-  const rows = sitesAll
-    .slice()
-    .sort((a,b)=>String(a.site_name||"").localeCompare(String(b.site_name||"")))
-    .map(s=>{
-      const isArch = Number(s.archived||0) === 1;
-      const statusPill = isArch
-        ? `<span class="pill pill-arch">ARCHIVED</span>`
-        : `<span class="pill pill-active">ACTIVE</span>`;
-
-      return `
-        <tr>
-          <td style="text-align:left;">${statusPill}</td>
-          <td style="text-align:left;">
-            <input data-site-name="${escapeHtml(s.id)}" value="${escapeHtml(s.site_name||"")}" />
-          </td>
-          <td style="text-align:left;max-width:220px;">
-            <span class="muted">${escapeHtml((s.lat ?? "-") + ", " + (s.lng ?? "-"))}</span>
-          </td>
-          <td style="text-align:left;width:120px;">
-            <input data-site-radius="${escapeHtml(s.id)}" type="number" min="50" step="10" value="${escapeHtml(s.radius_m ?? 500)}" />
-          </td>
-          <td>
-            <div class="rowBtns">
-              <button class="tinyBtn" onclick="saveSite('${escapeHtml(s.id)}')">💾 Save</button>
-              <button class="tinyBtn ${isArch ? '' : 'ghostBtn'}" onclick="toggleSite('${escapeHtml(s.id)}')">
-                ${isArch ? 'Unarchive' : 'Archive'}
-              </button>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join("");
-
-  wrap.innerHTML = `
-    <table class="adminTable">
-      <thead>
-        <tr>
-          <th>Status</th>
-          <th>Site Name</th>
-          <th>Lat/Lng</th>
-          <th>Radius (m)</th>
-          <th style="text-align:right;">Actions</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
+  const wrap=document.getElementById("sitesAdminBody");
+  if(!sitesAll.length){ wrap.innerHTML=`<p style="color:var(--label3);">No sites returned.</p>`; return; }
+  const rows=sitesAll.slice().sort((a,b)=>String(a.site_name||"").localeCompare(String(b.site_name||""))).map(s=>{
+    const isArch=Number(s.archived||0)===1;
+    const pill=isArch?`<span class="pill pill-arch">Archived</span>`:`<span class="pill pill-active">Active</span>`;
+    return `<tr>
+      <td>${pill}</td>
+      <td><input class="admin-table-input" data-site-name="${escapeHtml(s.id)}" value="${escapeHtml(s.site_name||"")}" /></td>
+      <td style="color:var(--label3);font-size:12px;">${escapeHtml((s.lat??"-")+", "+(s.lng??"-"))}</td>
+      <td><input class="admin-table-input" data-site-radius="${escapeHtml(s.id)}" type="number" min="50" step="10" value="${escapeHtml(s.radius_m??500)}" style="width:90px;" /></td>
+      <td><div class="row-btns">
+        <button class="btn-primary btn-sm" onclick="saveSite('${escapeHtml(s.id)}')">Save</button>
+        <button class="btn-ghost btn-sm" onclick="toggleSite('${escapeHtml(s.id)}')">${isArch?"Unarchive":"Archive"}</button>
+      </div></td>
+    </tr>`;
+  }).join("");
+  wrap.innerHTML=`<table class="admin-table"><thead><tr><th>Status</th><th>Site Name</th><th>Lat / Lng</th><th>Radius (m)</th><th style="text-align:right;">Actions</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 async function saveSite(id){
-  const nameEl = document.querySelector(`input[data-site-name="${CSS.escape(id)}"]`);
-  const radEl  = document.querySelector(`input[data-site-radius="${CSS.escape(id)}"]`);
-  const siteName = (nameEl?.value || "").trim();
-  const radius = Number(radEl?.value || 500);
-
-  if(!siteName){
-    alert("Site name cannot be blank.");
-    return;
-  }
-
-  await fetch(`${API_BASE}/update-site`,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ id, siteName, radius })
-  });
-
-  await fetchSites();
-  renderSitesAdminTable();
-  renderAll();
+  const nameEl=document.querySelector(`input[data-site-name="${CSS.escape(id)}"]`);
+  const radEl=document.querySelector(`input[data-site-radius="${CSS.escape(id)}"]`);
+  const siteName=(nameEl?.value||"").trim();
+  const radius=Number(radEl?.value||500);
+  if(!siteName){ alert("Site name cannot be blank."); return; }
+  await fetch(`${API_BASE}/update-site`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,siteName,radius})});
+  await fetchSites(); renderSitesAdminTable(); renderAll();
 }
 
 async function toggleSite(id){
-  await fetch(`${API_BASE}/toggle-site`,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ id })
-  });
-
-  await fetchSites();
-  renderSitesAdminTable();
-  renderAll();
+  await fetch(`${API_BASE}/toggle-site`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+  await fetchSites(); renderSitesAdminTable(); renderAll();
 }
 
 /* -------------------- ENGINEERS MODAL -------------------- */
@@ -1622,114 +1524,52 @@ function closeEngineersModal(){
 }
 
 function renderEngineersAdminTable(){
-  const wrap = document.getElementById("engineersAdminBody");
-  if(!engineersAll.length){
-    wrap.innerHTML = `<div class="muted" style="text-align:left;">No engineers returned from /engineers.</div>`;
-    return;
-  }
-
-  const rows = engineersAll
-    .slice()
-    .sort((a,b)=>{
-      const an = `${a.first_name||""} ${a.last_name||""}`.trim();
-      const bn = `${b.first_name||""} ${b.last_name||""}`.trim();
-      return an.localeCompare(bn);
-    })
-    .map(p=>{
-      const isArch = Number(p.archived||0) === 1;
-      const statusPill = isArch
-        ? `<span class="pill pill-arch">ARCHIVED</span>`
-        : `<span class="pill pill-active">ACTIVE</span>`;
-
-      return `
-        <tr>
-          <td style="text-align:left;">${statusPill}</td>
-          <td style="text-align:left;width:140px;">
-            <input data-eng-first="${escapeHtml(p.id)}" value="${escapeHtml(p.first_name||"")}" />
-          </td>
-          <td style="text-align:left;width:160px;">
-            <input data-eng-last="${escapeHtml(p.id)}" value="${escapeHtml(p.last_name||"")}" />
-          </td>
-          <td style="text-align:left;width:220px;">
-            <input data-eng-company="${escapeHtml(p.id)}" value="${escapeHtml(p.company||"")}" />
-          </td>
-          <td style="text-align:left;width:140px;">
-            <input data-eng-purpose="${escapeHtml(p.id)}" value="${escapeHtml(p.purpose||"")}" />
-          </td>
-          <td style="text-align:left;width:120px;">
-            <input data-eng-rate="${escapeHtml(p.id)}" type="number" step="0.01" min="0" value="${escapeHtml(p.hourly_rate ?? p.rate ?? "")}" placeholder="(optional)" />
-          </td>
-          <td>
-            <div class="rowBtns">
-              <button class="tinyBtn" onclick="saveEngineer('${escapeHtml(p.id)}')">💾 Save</button>
-              <button class="tinyBtn ${isArch ? '' : 'ghostBtn'}" onclick="toggleEngineer('${escapeHtml(p.id)}')">
-                ${isArch ? 'Unarchive' : 'Archive'}
-              </button>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join("");
-
-  wrap.innerHTML = `
-    <table class="adminTable">
-      <thead>
-        <tr>
-          <th>Status</th>
-          <th>First</th>
-          <th>Last</th>
-          <th>Company</th>
-          <th>Purpose</th>
-          <th>Rate (£/hr)</th>
-          <th style="text-align:right;">Actions</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
+  const wrap=document.getElementById("engineersAdminBody");
+  if(!engineersAll.length){ wrap.innerHTML=`<p style="color:var(--label3);">No engineers returned.</p>`; return; }
+  const rows=engineersAll.slice().sort((a,b)=>{
+    const an=`${a.first_name||""} ${a.last_name||""}`.trim();
+    const bn=`${b.first_name||""} ${b.last_name||""}`.trim();
+    return an.localeCompare(bn);
+  }).map(p=>{
+    const isArch=Number(p.archived||0)===1;
+    const pill=isArch?`<span class="pill pill-arch">Archived</span>`:`<span class="pill pill-active">Active</span>`;
+    return `<tr>
+      <td>${pill}</td>
+      <td><input data-eng-first="${escapeHtml(p.id)}" value="${escapeHtml(p.first_name||"")}" /></td>
+      <td><input data-eng-last="${escapeHtml(p.id)}" value="${escapeHtml(p.last_name||"")}" /></td>
+      <td><input data-eng-company="${escapeHtml(p.id)}" value="${escapeHtml(p.company||"")}" /></td>
+      <td><input data-eng-purpose="${escapeHtml(p.id)}" value="${escapeHtml(p.purpose||"")}" /></td>
+      <td><input data-eng-rate="${escapeHtml(p.id)}" type="number" step="0.01" min="0" value="${escapeHtml(p.hourly_rate??p.rate??"")}" placeholder="—" style="width:90px;" /></td>
+      <td><div class="row-btns">
+        <button class="btn-primary btn-sm" onclick="saveEngineer('${escapeHtml(p.id)}')">Save</button>
+        <button class="btn-ghost btn-sm" onclick="toggleEngineer('${escapeHtml(p.id)}')">${isArch?"Unarchive":"Archive"}</button>
+      </div></td>
+    </tr>`;
+  }).join("");
+  wrap.innerHTML=`<table class="admin-table"><thead><tr><th>Status</th><th>First</th><th>Last</th><th>Company</th><th>Purpose</th><th>Rate £/hr</th><th style="text-align:right;">Actions</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 async function saveEngineer(id){
-  const firstName = (document.querySelector(`input[data-eng-first="${CSS.escape(id)}"]`)?.value || "").trim();
-  const lastName  = (document.querySelector(`input[data-eng-last="${CSS.escape(id)}"]`)?.value || "").trim();
-  const company   = (document.querySelector(`input[data-eng-company="${CSS.escape(id)}"]`)?.value || "").trim();
-  const purpose   = (document.querySelector(`input[data-eng-purpose="${CSS.escape(id)}"]`)?.value || "").trim();
-  const rateRaw   = (document.querySelector(`input[data-eng-rate="${CSS.escape(id)}"]`)?.value || "").trim();
-  const hourlyRate = rateRaw === "" ? null : Number(rateRaw);
-
-  if(!firstName && !lastName){
-    alert("Engineer must have at least a first or last name.");
-    return;
-  }
-
-  await fetch(`${API_BASE}/update-engineer`,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate })
-  });
-
-  await fetchEngineers();
-  renderEngineersAdminTable();
-  renderAll();
+  const firstName=(document.querySelector(`input[data-eng-first="${CSS.escape(id)}"]`)?.value||"").trim();
+  const lastName=(document.querySelector(`input[data-eng-last="${CSS.escape(id)}"]`)?.value||"").trim();
+  const company=(document.querySelector(`input[data-eng-company="${CSS.escape(id)}"]`)?.value||"").trim();
+  const purpose=(document.querySelector(`input[data-eng-purpose="${CSS.escape(id)}"]`)?.value||"").trim();
+  const rateRaw=(document.querySelector(`input[data-eng-rate="${CSS.escape(id)}"]`)?.value||"").trim();
+  const hourlyRate=rateRaw===""?null:Number(rateRaw);
+  if(!firstName&&!lastName){ alert("Engineer must have at least a first or last name."); return; }
+  await fetch(`${API_BASE}/update-engineer`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,firstName,lastName,company,purpose,hourlyRate})});
+  await fetchEngineers(); renderEngineersAdminTable(); renderAll();
 }
 
 async function toggleEngineer(id){
-  await fetch(`${API_BASE}/toggle-engineer`,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ id })
-  });
-
-  await fetchEngineers();
-  renderEngineersAdminTable();
-  renderAll();
+  await fetch(`${API_BASE}/toggle-engineer`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+  await fetchEngineers(); renderEngineersAdminTable(); renderAll();
 }
 
 /* -------------------- COMPANIES MODAL -------------------- */
 
 async function openCompaniesModal(){
-  await fetchSites();
-  await fetchCompaniesMaster();
+  await fetchSites(); await fetchCompaniesMaster();
   document.getElementById("companiesModal").style.display="flex";
   renderCompaniesAdmin();
 }
@@ -1739,239 +1579,234 @@ function closeCompaniesModal(){
 }
 
 async function renderCompaniesAdmin(){
-  const wrap = document.getElementById("companiesAdminBody");
-
-  if(!sitesActive.length){
-    wrap.innerHTML = `<div class="muted">No active sites found.</div>`;
-    return;
-  }
-
-  let html = `<table class="adminTable"><thead><tr>
-    <th>Site</th>
-    ${companiesAll.map(c=>`<th>${escapeHtml(c.name)}</th>`).join("")}
-  </tr></thead><tbody>`;
-
+  const wrap=document.getElementById("companiesAdminBody");
+  if(!sitesActive.length){ wrap.innerHTML=`<p style="color:var(--label3);">No active sites found.</p>`; return; }
+  let html=`<table class="admin-table"><thead><tr><th>Site</th>${companiesAll.map(c=>`<th>${escapeHtml(c.name)}</th>`).join("")}</tr></thead><tbody>`;
   for(const site of sitesActive){
-    const res = await fetch(`${API_BASE}/companies-for-site?site=${encodeURIComponent(site.site_name)}`);
-    const data = await res.json();
-    const assigned = (data.companies || []).map(c=>c.id);
-
-    html += `<tr><td style="text-align:left;font-weight:600;">${escapeHtml(site.site_name)}</td>`;
-
+    const res=await fetch(`${API_BASE}/companies-for-site?site=${encodeURIComponent(site.site_name)}`);
+    const data=await res.json();
+    const assigned=(data.companies||[]).map(c=>c.id);
+    html+=`<tr><td style="font-weight:500;">${escapeHtml(site.site_name)}</td>`;
     for(const c of companiesAll){
-      const checked = assigned.includes(c.id) ? "checked" : "";
-      html += `
-        <td style="text-align:center;">
-          <input type="checkbox"
-            data-site="${escapeHtml(site.id)}"
-            data-company="${escapeHtml(c.id)}"
-            ${checked}>
-        </td>
-      `;
+      const checked=assigned.includes(c.id)?"checked":"";
+      html+=`<td style="text-align:center;"><input type="checkbox" data-site="${escapeHtml(site.id)}" data-company="${escapeHtml(c.id)}" ${checked}></td>`;
     }
-
-    html += `</tr>`;
+    html+=`</tr>`;
   }
-
-  html += `</tbody></table>
-    <div style="margin-top:15px;">
-      <button onclick="saveCompanyMappings()">💾 Save Changes</button>
-    </div>`;
-
-  wrap.innerHTML = html;
+  html+=`</tbody></table><div style="margin-top:16px;display:flex;justify-content:flex-end;"><button class="btn-primary" onclick="saveCompanyMappings()">Save changes</button></div>`;
+  wrap.innerHTML=html;
 }
 
 async function saveCompanyMappings(){
-  const checkboxes = document.querySelectorAll("#companiesAdminBody input[type='checkbox']");
-  const map = {};
-
+  const checkboxes=document.querySelectorAll("#companiesAdminBody input[type='checkbox']");
+  const map={};
   checkboxes.forEach(cb=>{
-    const site = cb.dataset.site;
-    const company = cb.dataset.company;
-
-    if(!map[site]) map[site] = [];
+    const site=cb.dataset.site;
+    const company=cb.dataset.company;
+    if(!map[site]) map[site]=[];
     if(cb.checked) map[site].push(company);
   });
-
-  try {
-    const res = await fetch(`${API_BASE}/update-site-companies`,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify(map)
-    });
-
-    const data = await res.json();
-
-    if(!res.ok || !data.ok){
-      alert("❌ Failed to save changes.\n\n" + (data.error || "Unknown error"));
-      return;
-    }
-
-    alert("✅ Company mappings saved successfully.");
+  try{
+    const res=await fetch(`${API_BASE}/update-site-companies`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(map)});
+    const data=await res.json();
+    if(!res.ok||!data.ok){ alert("Failed to save changes.\n\n"+(data.error||"Unknown error")); return; }
+    alert("Company mappings saved.");
     await renderCompaniesAdmin();
-
-  } catch(err){
-    alert("❌ Network error while saving.\n\n" + err.message);
-  }
+  }catch(err){ alert("Network error while saving.\n\n"+err.message); }
 }
 
 /* -------------------- PRESETS -------------------- */
 
 function setPreset(type){
-  let fromDate = null;
-
-  if(type === "all"){
-    document.getElementById("fromDate").value = "";
-    document.getElementById("toDate").value = "";
-    loadData();
-    return;
+  if(type==="all"){ document.getElementById("fromDate").value=""; document.getElementById("toDate").value=""; loadData(); return; }
+  let fromDate=null;
+  if(type==="week"){
+    const now=new Date();
+    const day=now.getDay();
+    const diff=now.getDate()-day+(day===0?-6:1);
+    fromDate=new Date(now.getFullYear(),now.getMonth(),diff);
+  }else{
+    const now=new Date();
+    fromDate=new Date(now.getFullYear(),now.getMonth(),now.getDate()-type);
   }
-
-  if(type === "week"){
-    const now = new Date();
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    fromDate = new Date(now.getFullYear(), now.getMonth(), diff);
-  } else {
-    const now = new Date();
-    fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - type);
-  }
-
-  const format = d => d.toISOString().slice(0,10);
-
-  document.getElementById("fromDate").value = format(fromDate);
-  document.getElementById("toDate").value = format(new Date());
-
+  const format=d=>d.toISOString().slice(0,10);
+  document.getElementById("fromDate").value=format(fromDate);
+  document.getElementById("toDate").value=format(new Date());
   loadData();
 }
 </script>
 
+<!-- ===================== MODALS ===================== -->
+
+<!-- Delete Modal -->
+
 <div id="deleteModal" class="modal">
-  <div class="modalContent">
-    <h3>Delete Visit</h3>
-    <p id="deleteText"></p>
-    <button class="dangerBtn" onclick="confirmDelete()">Confirm Delete</button>
-    <button onclick="closeDeleteModal()" style="background:#ccc;color:#333;">Cancel</button>
+  <div class="modal-content" style="width:min(400px,100%);">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Delete Visit</div>
+        <div class="modal-subtitle">This action cannot be undone</div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <p id="deleteText" style="color:var(--label2);font-size:14px;line-height:1.5;"></p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn-danger" onclick="confirmDelete()">Delete Visit</button>
+    </div>
   </div>
 </div>
+
+<!-- Export Modal -->
 
 <div id="exportModal" class="modal">
-  <div class="modalContent">
-    <h3>Export Report</h3>
-    <p>This will export the current filtered live list.</p>
-    <button onclick="generatePDF()">Generate PDF</button>
-    <button onclick="closeExportModal()" style="background:#ccc;color:#333;">Cancel</button>
+  <div class="modal-content" style="width:min(400px,100%);">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Export PDF Report</div>
+        <div class="modal-subtitle">Exports the current filtered live list</div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--label3);font-size:13.5px;">The report will include all currently visible live-on-site entries.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeExportModal()">Cancel</button>
+      <button class="btn-primary" onclick="generatePDF()">Generate PDF</button>
+    </div>
   </div>
 </div>
+
+<!-- Sites Modal -->
 
 <div id="sitesModal" class="modal">
-  <div class="modalContent">
-    <div class="modalHead">
-      <h3>🗂 Sites — View / Edit / Archive</h3>
-      <button class="ghostBtn" onclick="closeSitesModal()">✕ Close</button>
+  <div class="modal-content">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Sites</div>
+        <div class="modal-subtitle">View, edit and archive sites</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="closeSitesModal()">Close</button>
     </div>
-    <div class="modalNote">
-      Archived sites are hidden from the <strong>Site</strong> dropdown and are excluded from <strong>/scan</strong> matching.
-      Historical logs will still show archived site names where they occurred.
+    <div class="modal-body">
+      <div class="modal-note">Archived sites are hidden from the Site dropdown and excluded from /scan matching. Historical logs still reference archived site names.</div>
+      <div id="sitesAdminBody"></div>
     </div>
-    <div id="sitesAdminBody"></div>
   </div>
 </div>
+
+<!-- Engineers Modal -->
 
 <div id="engineersModal" class="modal">
-  <div class="modalContent">
-    <div class="modalHead">
-      <h3>👷 Engineers — View / Edit / Archive / Rates</h3>
-      <button class="ghostBtn" onclick="closeEngineersModal()">✕ Close</button>
+  <div class="modal-content">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Engineers</div>
+        <div class="modal-subtitle">View, edit, archive and set rates</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="closeEngineersModal()">Close</button>
     </div>
-    <div class="modalNote">
-      Archived engineers are hidden from the <strong>People</strong> dropdown.
-      Rates are stored here for later use.
+    <div class="modal-body">
+      <div class="modal-note">Archived engineers are hidden from the People dropdown. Rates are stored here for timesheet calculations.</div>
+      <div id="engineersAdminBody"></div>
     </div>
-    <div id="engineersAdminBody"></div>
   </div>
 </div>
+
+<!-- Companies Modal -->
 
 <div id="companiesModal" class="modal">
-  <div class="modalContent">
-    <div class="modalHead">
-      <h3>🏢 Assign Companies Per Site</h3>
-      <button class="ghostBtn" onclick="closeCompaniesModal()">✕ Close</button>
+  <div class="modal-content">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Companies per Site</div>
+        <div class="modal-subtitle">Assign which companies appear at each site during registration</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="closeCompaniesModal()">Close</button>
     </div>
-    <div class="modalNote">
-      Tick which companies should appear during registration for each site.
-      Changes apply immediately to new registrations.
+    <div class="modal-body">
+      <div id="companiesAdminBody"></div>
     </div>
-    <div id="companiesAdminBody"></div>
   </div>
 </div>
 
-<div id="manualCheckoutModal" class="modal">
-  <div class="modalContent">
-    <h3>Manual Sign Out</h3>
-    <p id="manualCheckoutText"></p>
+<!-- Manual Checkout Modal -->
 
-    <div style="margin:12px 0;">
-      <label class="muted">Sign out time</label><br>
-      <input type="time" id="manualCheckoutTime" />
+<div id="manualCheckoutModal" class="modal checkout-modal">
+  <div class="modal-content" style="width:min(420px,100%);">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Manual Sign Out</div>
+        <div class="modal-subtitle" id="manualCheckoutText"></div>
+      </div>
     </div>
-
-    <button class="dangerBtn" onclick="confirmManualCheckout()">Confirm Sign Out</button>
-    <button onclick="closeManualCheckoutModal()" style="background:#ccc;color:#333;">Cancel</button>
+    <div class="modal-body">
+      <div class="checkout-field">
+        <label>Sign out time</label>
+        <input type="time" id="manualCheckoutTime" style="width:100%;" />
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeManualCheckoutModal()">Cancel</button>
+      <button class="btn-danger" onclick="confirmManualCheckout()">Confirm Sign Out</button>
+    </div>
   </div>
 </div>
+
+<!-- Timesheets Modal -->
 
 <div id="timesheetsModal" class="modal">
-  <div class="timesheetModalContent">
-    <div class="tsShell" id="timesheetsPdfRoot">
-      <div class="tsHeader">
-        <h3>Weekly Timesheets</h3>
-        <div class="headerBtns">
-          <button class="tsBtn" type="button" onclick="exportTimesheetsPdf()">📄 Export Visible PDF</button>
-          <button class="ghostBtn" type="button" onclick="closeTimesheetsModal()">✕ Close</button>
-        </div>
+  <div class="ts-modal-content" id="timesheetsPdfRoot">
+    <div class="modal-header" style="border-radius:20px 20px 0 0;">
+      <div>
+        <div class="modal-title">Weekly Timesheets</div>
       </div>
-
-      <div class="tsBody">
-        <div class="tsControls">
-          <div class="field">
-            <label>Company</label>
-            <select class="tsSelect" id="tsCompanyFilter" onchange="renderTimesheetsModal()">
-              <option value="">All Companies</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label>Engineer</label>
-            <select class="tsSelect" id="tsPersonFilter" onchange="renderTimesheetsModal()">
-              <option value="">All Engineers</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label>Site</label>
-            <select class="tsSelect" id="tsSiteFilter" onchange="renderTimesheetsModal()">
-              <option value="">All Sites</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label>From</label>
-            <input class="tsDate" type="date" id="tsFromDate" onchange="renderTimesheetsModal()">
-          </div>
-
-          <div class="field">
-            <label>To</label>
-            <input class="tsDate" type="date" id="tsToDate" onchange="renderTimesheetsModal()">
-          </div>
-
-          <button class="tsBtn" type="button" onclick="clearTimesheetFilters()">Reset Filters</button>
-        </div>
-
-        <div class="tsMeta" id="timesheetsMeta"></div>
-        <div id="timesheetsBody"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-ghost btn-sm" onclick="exportTimesheetsPdf()">↑ Export PDF</button>
+        <button class="btn-ghost btn-sm" onclick="closeTimesheetsModal()">Close</button>
       </div>
     </div>
+
+```
+<div class="ts-filter-bar">
+  <div class="field-stack">
+    <span class="field-label">Company</span>
+    <select id="tsCompanyFilter" onchange="renderTimesheetsModal()" style="width:160px;">
+      <option value="">All Companies</option>
+    </select>
+  </div>
+  <div class="field-stack">
+    <span class="field-label">Engineer</span>
+    <select id="tsPersonFilter" onchange="renderTimesheetsModal()" style="width:160px;">
+      <option value="">All Engineers</option>
+    </select>
+  </div>
+  <div class="field-stack">
+    <span class="field-label">Site</span>
+    <select id="tsSiteFilter" onchange="renderTimesheetsModal()" style="width:140px;">
+      <option value="">All Sites</option>
+    </select>
+  </div>
+  <div class="field-stack">
+    <span class="field-label">From</span>
+    <input type="date" id="tsFromDate" onchange="renderTimesheetsModal()" style="width:148px;">
+  </div>
+  <div class="field-stack">
+    <span class="field-label">To</span>
+    <input type="date" id="tsToDate" onchange="renderTimesheetsModal()" style="width:148px;">
+  </div>
+  <div style="display:flex;align-items:flex-end;">
+    <button class="btn-ghost btn-sm" onclick="clearTimesheetFilters()">Reset</button>
+  </div>
+</div>
+
+<div class="ts-body">
+  <div class="ts-meta" id="timesheetsMeta"></div>
+  <div id="timesheetsBody"></div>
+</div>
+```
+
   </div>
 </div>
 

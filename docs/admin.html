@@ -1416,6 +1416,33 @@ async function confirmDelete(){
 /* -------------------- PDF -------------------- */
 
 function openExportModal(){
+  // Build live stats preview when opening modal
+  const visits = filteredVisits.filter(passFilters);
+  const live    = visits.filter(v => !v.check_out_at);
+  const closed  = visits.filter(v =>  v.check_out_at);
+
+  const durations = closed.map(v => minutesBetween(v.check_in_at, v.check_out_at)).filter(m => m > 0);
+  const avgMins   = durations.length ? Math.round(durations.reduce((a,b)=>a+b,0) / durations.length) : 0;
+  const missedOut = visits.filter(v => Number(v.auto_checkout||0) === 1).length;
+  const uniquePeople = new Set(visits.map(v => nameOf(v))).size;
+  const uniqueSites  = new Set(visits.map(v => v.site_code).filter(Boolean)).size;
+  const totalHours   = durations.reduce((a,b)=>a+b,0) / 60;
+
+  const fromVal = document.getElementById("fromDate").value;
+  const toVal   = document.getElementById("toDate").value;
+  const dateRange = (fromVal && toVal)
+    ? `${fmtDay(fromVal)} – ${fmtDay(toVal)}`
+    : "All time";
+
+  document.getElementById("exportPreviewRange").textContent  = dateRange;
+  document.getElementById("exportPreviewSessions").textContent = visits.length;
+  document.getElementById("exportPreviewLive").textContent   = live.length;
+  document.getElementById("exportPreviewPeople").textContent = uniquePeople;
+  document.getElementById("exportPreviewSites").textContent  = uniqueSites;
+  document.getElementById("exportPreviewAvg").textContent    = avgMins ? fmtDuration(avgMins) : "—";
+  document.getElementById("exportPreviewMissed").textContent = missedOut;
+  document.getElementById("exportPreviewHours").textContent  = totalHours.toFixed(1) + " h";
+
   document.getElementById("exportModal").style.display="flex";
 }
 
@@ -1424,10 +1451,143 @@ function closeExportModal(){
 }
 
 function generatePDF(){
-  const wrapper=document.createElement("div");
-  wrapper.innerHTML=`<h2>SiteLog Live On Site Report</h2><div><strong>People Live On Site:</strong> ${escapeHtml(String(allVisits.filter(v=>!v.check_out_at).filter(passFilters).length))}</div><br>`;
-  wrapper.appendChild(document.getElementById("liveTable").cloneNode(true));
-  html2pdf().set({margin:0.3,filename:"SiteLog_Live_Report.pdf",jsPDF:{unit:"in",format:"a4",orientation:"landscape"}}).from(wrapper).save();
+  const visits  = filteredVisits.filter(passFilters);
+  const live    = visits.filter(v => !v.check_out_at);
+  const closed  = visits.filter(v =>  v.check_out_at);
+
+  const durations   = closed.map(v => minutesBetween(v.check_in_at, v.check_out_at)).filter(m => m > 0);
+  const avgMins     = durations.length ? Math.round(durations.reduce((a,b)=>a+b,0) / durations.length) : 0;
+  const missedOut   = visits.filter(v => Number(v.auto_checkout||0) === 1).length;
+  const uniquePeople= [...new Set(visits.map(v=>nameOf(v)).filter(Boolean))];
+  const uniqueSites = [...new Set(visits.map(v=>v.site_code).filter(Boolean))];
+  const totalHours  = durations.reduce((a,b)=>a+b,0) / 60;
+  const longestMins = durations.length ? Math.max(...durations) : 0;
+  const shortestMins= durations.length ? Math.min(...durations) : 0;
+
+  const fromVal = document.getElementById("fromDate").value;
+  const toVal   = document.getElementById("toDate").value;
+  const dateRange = (fromVal && toVal) ? `${fmtDay(fromVal)} – ${fmtDay(toVal)}` : "All time";
+  const generatedAt = new Date().toLocaleString("en-GB");
+
+  // Stat card helper
+  const statCard = (label, value, sub="") => `
+    <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e2e8f0;min-width:0;">
+      <div style="font-size:22px;font-weight:700;color:#1d1d1f;letter-spacing:-0.5px;">${value}</div>
+      <div style="font-size:11px;font-weight:600;color:#6e6e73;text-transform:uppercase;letter-spacing:0.5px;margin-top:3px;">${label}</div>
+      ${sub ? `<div style="font-size:11px;color:#aeaeb2;margin-top:2px;">${sub}</div>` : ""}
+    </div>`;
+
+  // Visits sorted by check-in descending
+  const sorted = visits.slice().sort((a,b)=>(b.check_in_at||"").localeCompare(a.check_in_at||""));
+
+  const tableRows = sorted.map((v, i) => {
+    const isLive   = !v.check_out_at;
+    const isMissed = Number(v.auto_checkout||0) === 1;
+    const dur      = v.check_out_at ? fmtDuration(minutesBetween(v.check_in_at,v.check_out_at)) : "—";
+    const rowBg    = i % 2 === 0 ? "#fff" : "#f9f9fb";
+    const statusDot = isLive
+      ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#34c759;margin-right:5px;"></span>Live`
+      : isMissed
+        ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ff3b30;margin-right:5px;"></span>No sign-out`
+        : `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#aeaeb2;margin-right:5px;"></span>Signed out`;
+
+    return `
+      <tr style="background:${rowBg};">
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;white-space:nowrap;">${statusDot}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;font-weight:600;">${escapeHtml(nameOf(v))}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">${escapeHtml(v.company||"—")}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">${escapeHtml(v.site_code||"—")}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;white-space:nowrap;">${escapeHtml(formatTimeOnly(v.check_in_at))}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;white-space:nowrap;">${escapeHtml(v.check_out_at ? formatTimeOnly(v.check_out_at) : "—")}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;font-weight:500;">${escapeHtml(dur)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">${escapeHtml(v.purpose||"—")}</td>
+      </tr>`;
+  }).join("");
+
+  const doc = document.createElement("div");
+  doc.style.cssText = "font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;background:#f2f2f7;padding:32px;min-width:900px;";
+
+  doc.innerHTML = `
+    <!-- HEADER -->
+    <div style="background:#1d1d1f;border-radius:14px;padding:24px 28px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.5px;">SiteLog</div>
+        <div style="font-size:13px;color:#aeaeb2;margin-top:4px;">Site Attendance Report</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:13px;font-weight:600;color:#fff;">${escapeHtml(dateRange)}</div>
+        <div style="font-size:11px;color:#6e6e73;margin-top:4px;">Generated ${escapeHtml(generatedAt)}</div>
+      </div>
+    </div>
+
+    <!-- STAT GRID -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;">
+      ${statCard("Total Sessions", visits.length)}
+      ${statCard("People", uniquePeople.length)}
+      ${statCard("Sites", uniqueSites.length)}
+      ${statCard("Total Hours", totalHours.toFixed(1)+"h", closed.length + " completed sessions")}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px;">
+      ${statCard("Avg Session", avgMins ? fmtDuration(avgMins) : "—", "per completed visit")}
+      ${statCard("Longest", longestMins ? fmtDuration(longestMins) : "—")}
+      ${statCard("Missed Sign-outs", missedOut, missedOut > 0 ? "requires attention" : "none — great!")}
+      ${statCard("Live Now", live.length, live.length > 0 ? "still on site" : "all signed out")}
+    </div>
+
+    <!-- SITES BREAKDOWN -->
+    ${uniqueSites.length > 0 ? `
+    <div style="background:#fff;border-radius:12px;padding:16px 20px;margin-bottom:20px;border:1px solid #e2e8f0;">
+      <div style="font-size:11px;font-weight:700;color:#6e6e73;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;">Sessions by Site</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;">
+        ${uniqueSites.map(site => {
+          const siteVisits = visits.filter(v => v.site_code === site);
+          const siteMissed = siteVisits.filter(v => Number(v.auto_checkout||0)===1).length;
+          return `<div style="flex:1;min-width:120px;background:#f9f9fb;border-radius:8px;padding:10px 14px;border:1px solid #f0f0f0;">
+            <div style="font-size:16px;font-weight:700;color:#1d1d1f;">${siteVisits.length}</div>
+            <div style="font-size:11px;font-weight:600;color:#1d1d1f;margin-top:2px;">${escapeHtml(site)}</div>
+            ${siteMissed > 0 ? `<div style="font-size:10px;color:#ff3b30;margin-top:2px;">${siteMissed} missed sign-out${siteMissed>1?"s":""}</div>` : ""}
+          </div>`;
+        }).join("")}
+      </div>
+    </div>` : ""}
+
+    <!-- VISIT LOG TABLE -->
+    <div style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+      <div style="padding:14px 18px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:13px;font-weight:600;color:#1d1d1f;">Visit Log</div>
+        <div style="font-size:11px;color:#aeaeb2;">${visits.length} entries</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:#f9f9fb;">
+            <th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;">Status</th>
+            <th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;">Name</th>
+            <th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;">Company</th>
+            <th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;">Site</th>
+            <th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;">In</th>
+            <th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;">Out</th>
+            <th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;">Duration</th>
+            <th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;">Purpose</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows || `<tr><td colspan="8" style="padding:24px;text-align:center;color:#aeaeb2;font-size:13px;">No visits in the current filter.</td></tr>`}</tbody>
+      </table>
+    </div>
+
+    <!-- FOOTER -->
+    <div style="margin-top:20px;padding-top:14px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-size:10.5px;color:#aeaeb2;">SiteLog — Confidential</div>
+      <div style="font-size:10.5px;color:#aeaeb2;">${escapeHtml(generatedAt)}</div>
+    </div>
+  `;
+
+  html2pdf().set({
+    margin: [0.3, 0.3, 0.3, 0.3],
+    filename: `SiteLog_Report_${(fromVal||"all").replace(/-/g,"")}.pdf`,
+    jsPDF: { unit:"in", format:"a4", orientation:"landscape" },
+    html2canvas: { scale:2, useCORS:true, backgroundColor:"#f2f2f7" }
+  }).from(doc).save();
+
   closeExportModal();
 }
 
@@ -1991,20 +2151,61 @@ function setPreset(type){
 <!-- Export Modal -->
 
 <div id="exportModal" class="modal">
-  <div class="modal-content" style="width:min(400px,100%);">
+  <div class="modal-content" style="width:min(560px,100%);">
     <div class="modal-header">
       <div>
         <div class="modal-title">Export PDF Report</div>
-        <div class="modal-subtitle">Exports the current filtered live list</div>
+        <div class="modal-subtitle" id="exportPreviewRange"></div>
       </div>
+      <button class="btn-ghost btn-sm" onclick="closeExportModal()">Cancel</button>
     </div>
     <div class="modal-body">
-      <p style="color:var(--label3);font-size:13.5px;">The report will include all currently visible live-on-site entries.</p>
+
+```
+  <!-- Stats preview grid -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:6px;">
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;">
+      <div style="font-size:22px;font-weight:700;color:var(--label);letter-spacing:-0.5px;" id="exportPreviewSessions">—</div>
+      <div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.5px;margin-top:3px;">Total Sessions</div>
     </div>
-    <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeExportModal()">Cancel</button>
-      <button class="btn-primary" onclick="generatePDF()">Generate PDF</button>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;">
+      <div style="font-size:22px;font-weight:700;color:var(--label);letter-spacing:-0.5px;" id="exportPreviewHours">—</div>
+      <div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.5px;margin-top:3px;">Total Hours</div>
     </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;">
+      <div style="font-size:22px;font-weight:700;color:var(--label);letter-spacing:-0.5px;" id="exportPreviewPeople">—</div>
+      <div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.5px;margin-top:3px;">People</div>
+    </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;">
+      <div style="font-size:22px;font-weight:700;color:var(--label);letter-spacing:-0.5px;" id="exportPreviewSites">—</div>
+      <div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.5px;margin-top:3px;">Sites</div>
+    </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;">
+      <div style="font-size:22px;font-weight:700;color:var(--label);letter-spacing:-0.5px;" id="exportPreviewAvg">—</div>
+      <div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.5px;margin-top:3px;">Avg Session Length</div>
+    </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;">
+      <div style="font-size:22px;font-weight:700;letter-spacing:-0.5px;" id="exportPreviewMissed" style="color:var(--label);">—</div>
+      <div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.5px;margin-top:3px;">Missed Sign-outs</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;">
+      <div style="font-size:22px;font-weight:700;color:var(--green);letter-spacing:-0.5px;" id="exportPreviewLive">—</div>
+      <div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.5px;margin-top:3px;">Live on Site Now</div>
+    </div>
+  </div>
+
+  <p style="color:var(--label4);font-size:12px;margin-top:14px;line-height:1.5;">
+    The PDF will include all of the above stats, a breakdown by site, and the full visit log for the current filters.
+  </p>
+</div>
+<div class="modal-actions">
+  <button class="btn-ghost" onclick="closeExportModal()">Cancel</button>
+  <button class="btn-primary" onclick="generatePDF()">Generate PDF</button>
+</div>
+```
+
   </div>
 </div>
 

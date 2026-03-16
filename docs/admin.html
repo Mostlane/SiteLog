@@ -1651,26 +1651,28 @@ function buildEngineerAdminPanel(engineer,engineerName,companyName,personId){
   `;
 }
 
-function buildTimesheetTableForWeek(visits,engineerName,companyName,weekKey,personId){
-  const engineer=findEngineerRecord(personId,engineerName,companyName);
-  const engineerId=engineer?.id||personId||"";
-  const sorted=visits.slice().sort((a,b)=>(a.check_in_at||"").localeCompare(b.check_in_at||""));
-  let totTotal=0,totStd=0,totOT=0;
-  const rows=sorted.map(v=>{
-    const dayStr=(v.check_in_at||"").slice(0,10);
-    const totalMins=minutesBetween(v.check_in_at,v.check_out_at);
-    const totalHours=totalMins/60;
-    const stdHours=Math.min(totalHours,10);
-    const otHours=Math.max(totalHours-10,0);
-    totTotal+=totalHours; totStd+=stdHours; totOT+=otHours;
-    const noteText=getTimesheetNoteText(v);
-    const noteHtml=noteText==="—"?`<span style="color:var(--label4);">—</span>`:`<span class="ts-note-bad">${escapeHtml(noteText)}</span>`;
+// Builds just one week's table rows — no engineer header (that's rendered once per engineer in renderTimesheetsModal)
+function buildTimesheetTableForWeek(visits, engineerName, companyName, weekKey){
+  const sorted = visits.slice().sort((a,b)=>(a.check_in_at||"").localeCompare(b.check_in_at||""));
+  let totTotal=0, totStd=0, totOT=0;
+
+  const rows = sorted.map(v=>{
+    const dayStr = (v.check_in_at||"").slice(0,10);
+    const totalMins  = minutesBetween(v.check_in_at, v.check_out_at);
+    const totalHours = totalMins / 60;
+    const stdHours   = Math.min(totalHours, 10);
+    const otHours    = Math.max(totalHours - 10, 0);
+    totTotal += totalHours; totStd += stdHours; totOT += otHours;
+    const noteText = getTimesheetNoteText(v);
+    const noteHtml = noteText === "—"
+      ? `<span style="color:var(--label4);">—</span>`
+      : `<span class="ts-note-bad">${escapeHtml(noteText)}</span>`;
     return `
       <tr>
         <td>${escapeHtml(formatTSDate(dayStr))}</td>
-        <td>${escapeHtml(v.site_code||"-")}</td>
+        <td>${escapeHtml(v.site_code||"—")}</td>
         <td>${escapeHtml(formatTimeOnly(v.check_in_at))}</td>
-        <td>${escapeHtml(v.check_out_at?formatTimeOnly(v.check_out_at):"—")}</td>
+        <td>${escapeHtml(v.check_out_at ? formatTimeOnly(v.check_out_at) : "—")}</td>
         <td>${escapeHtml(totalHours.toFixed(2))}</td>
         <td>${escapeHtml(stdHours.toFixed(2))}</td>
         <td>${escapeHtml(otHours.toFixed(2))}</td>
@@ -1682,15 +1684,14 @@ function buildTimesheetTableForWeek(visits,engineerName,companyName,weekKey,pers
             <input data-visit-in="${escapeHtml(v.visit_id)}" value="${escapeHtml(sqlShort(v.check_in_at))}" placeholder="YYYY-MM-DD HH:MM">
             <input data-visit-out="${escapeHtml(v.visit_id)}" value="${escapeHtml(sqlShort(v.check_out_at))}" placeholder="YYYY-MM-DD HH:MM">
             <button class="btn-ghost btn-sm" type="button" onclick="saveVisitTimes('${escapeHtml(v.visit_id)}')">Save</button>
-            <button class="btn-danger btn-sm" type="button" onclick="openDeleteModal('${escapeHtml(v.visit_id)}','${escapeHtml(engineerName)}','${escapeHtml(v.site_code||"-")}')">Delete</button>
+            <button class="btn-danger btn-sm" type="button" onclick="openDeleteModal('${escapeHtml(v.visit_id)}','${escapeHtml(engineerName)}','${escapeHtml(v.site_code||"—")}')">Delete</button>
           </div>
         </td>
       </tr>`;
   }).join("");
+
   return `
     <div class="ts-week-block">
-      <div class="ts-engineer-title">${escapeHtml(engineerName)}</div>
-      ${buildEngineerAdminPanel(engineer,engineerName,companyName,engineerId)}
       <div class="ts-week-header">
         <span class="ts-week-text">Week commencing: ${escapeHtml(formatWeekCommencing(weekKey))}</span>
         <span class="ts-pill">Company: ${escapeHtml(companyName)}</span>
@@ -1698,20 +1699,28 @@ function buildTimesheetTableForWeek(visits,engineerName,companyName,weekKey,pers
       <div class="ts-table-wrap">
         <table class="ts-table">
           <thead><tr>
-            <th style="width:150px;">Date</th><th>Site</th>
-            <th style="width:80px;">Start</th><th style="width:80px;">Finish</th>
-            <th style="width:100px;">Total hrs</th><th style="width:100px;">Std hrs</th><th style="width:100px;">OT hrs</th>
-            <th style="width:90px;">Device</th><th style="width:90px;">Location</th>
-            <th style="width:160px;">Notes</th><th style="width:300px;">Admin</th>
+            <th style="width:150px;">Date</th>
+            <th>Site</th>
+            <th style="width:80px;">Start</th>
+            <th style="width:80px;">Finish</th>
+            <th style="width:100px;">Total hrs</th>
+            <th style="width:100px;">Std hrs</th>
+            <th style="width:100px;">OT hrs</th>
+            <th style="width:90px;">Device</th>
+            <th style="width:90px;">Location</th>
+            <th style="width:160px;">Notes</th>
+            <th style="width:300px;">Admin</th>
           </tr></thead>
           <tbody>${rows}</tbody>
-          <tfoot><tr>
-            <td colspan="4">Weekly totals</td>
-            <td>${escapeHtml(totTotal.toFixed(2))}</td>
-            <td>${escapeHtml(totStd.toFixed(2))}</td>
-            <td>${escapeHtml(totOT.toFixed(2))}</td>
-            <td colspan="4" style="color:var(--label3);font-size:12px;">Engineer total for this week</td>
-          </tr></tfoot>
+          <tfoot>
+            <tr>
+              <td colspan="4">Weekly totals</td>
+              <td>${escapeHtml(totTotal.toFixed(2))}</td>
+              <td>${escapeHtml(totStd.toFixed(2))}</td>
+              <td>${escapeHtml(totOT.toFixed(2))}</td>
+              <td colspan="4" style="color:var(--label3);font-size:12px;">Engineer total for this week</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
       <div class="ts-summary">
@@ -1723,43 +1732,69 @@ function buildTimesheetTableForWeek(visits,engineerName,companyName,weekKey,pers
 }
 
 function renderTimesheetsModal(){
-  const baseVisits=getTimesheetBaseVisits();
+  const baseVisits = getTimesheetBaseVisits();
   populateTimesheetFilters(baseVisits);
-  const visits=getTimesheetFilteredVisits();
-  const wrap=document.getElementById("timesheetsBody");
-  const info=document.getElementById("timesheetsMeta");
-  const from=document.getElementById("tsFromDate").value||"All";
-  const to=document.getElementById("tsToDate").value||"All";
-  info.innerHTML=`<strong>Date range:</strong> ${escapeHtml(from)} → ${escapeHtml(to)} &nbsp;·&nbsp; <strong>Sessions:</strong> ${escapeHtml(String(visits.length))}`;
-  if(!visits.length){ wrap.innerHTML=`<div class="ts-empty">No timesheets found for the current filters.</div>`; return; }
-  const grouped={};
+
+  const visits = getTimesheetFilteredVisits();
+  const wrap   = document.getElementById("timesheetsBody");
+  const info   = document.getElementById("timesheetsMeta");
+
+  const from = document.getElementById("tsFromDate").value || "All";
+  const to   = document.getElementById("tsToDate").value   || "All";
+  info.innerHTML = `<strong>Date range:</strong> ${escapeHtml(from)} → ${escapeHtml(to)} &nbsp;·&nbsp; <strong>Sessions:</strong> ${escapeHtml(String(visits.length))}`;
+
+  if(!visits.length){
+    wrap.innerHTML = `<div class="ts-empty">No timesheets found for the current filters.</div>`;
+    return;
+  }
+
+  // Group: company → person → weekKey → visits[]
+  const grouped = {};
   visits.forEach(v=>{
-    const company=(v.company||"No Company").trim()||"No Company";
-    const person=nameOf(v)||"Unknown";
-    const personId=v.person_id||"";
-    const day=(v.check_in_at||"").slice(0,10)||"";
-    const weekKey=startOfWeekMondayFromDayStr(day);
-    if(!grouped[company]) grouped[company]={};
-    if(!grouped[company][person]) grouped[company][person]={personId,weeks:{}};
-    if(!grouped[company][person].weeks[weekKey]) grouped[company][person].weeks[weekKey]=[];
+    const company = (v.company||"No Company").trim() || "No Company";
+    const person  = nameOf(v) || "Unknown";
+    const personId = v.person_id || "";
+    const day     = (v.check_in_at||"").slice(0,10) || "";
+    const weekKey = startOfWeekMondayFromDayStr(day);
+    if(!grouped[company]) grouped[company] = {};
+    if(!grouped[company][person]) grouped[company][person] = { personId, weeks:{} };
+    if(!grouped[company][person].weeks[weekKey]) grouped[company][person].weeks[weekKey] = [];
     grouped[company][person].weeks[weekKey].push(v);
   });
-  const companies=Object.keys(grouped).sort((a,b)=>companySortKey(a).localeCompare(companySortKey(b)));
-  let html=`<div>`;
+
+  const companies = Object.keys(grouped).sort((a,b)=>companySortKey(a).localeCompare(companySortKey(b)));
+  let html = "";
+
   companies.forEach(company=>{
-    html+=`<div class="ts-company-section"><div class="ts-company-title">${escapeHtml(company)}</div>`;
-    const people=Object.keys(grouped[company]).sort((a,b)=>a.localeCompare(b));
+    html += `<div class="ts-company-section">`;
+    html += `<div class="ts-company-title">${escapeHtml(company)}</div>`;
+
+    const people = Object.keys(grouped[company]).sort((a,b)=>a.localeCompare(b));
     people.forEach(person=>{
-      html+=`<div class="ts-engineer-block"><div class="ts-engineer-header">`;
-      const personId=grouped[company][person].personId||"";
-      const weeks=Object.keys(grouped[company][person].weeks).sort((a,b)=>a.localeCompare(b));
-      weeks.forEach(weekKey=>{ html+=buildTimesheetTableForWeek(grouped[company][person].weeks[weekKey],person,company,weekKey,personId); });
-      html+=`</div></div>`;
+      const personId  = grouped[company][person].personId || "";
+      const engineer  = findEngineerRecord(personId, person, company);
+      const engineerId = engineer?.id || personId || "";
+
+      // Engineer block: header (name + admin panel) then week tables below
+      html += `<div class="ts-engineer-block">`;
+      html += `<div class="ts-engineer-header">`;
+      html += `<div class="ts-engineer-title">${escapeHtml(person)}</div>`;
+      html += buildEngineerAdminPanel(engineer, person, company, engineerId);
+      html += `</div>`; // close ts-engineer-header
+
+      // Week tables sit outside the header, inside the block
+      const weeks = Object.keys(grouped[company][person].weeks).sort((a,b)=>a.localeCompare(b));
+      weeks.forEach(weekKey=>{
+        html += buildTimesheetTableForWeek(grouped[company][person].weeks[weekKey], person, company, weekKey);
+      });
+
+      html += `</div>`; // close ts-engineer-block
     });
-    html+=`</div>`;
+
+    html += `</div>`; // close ts-company-section
   });
-  html+=`</div>`;
-  wrap.innerHTML=html;
+
+  wrap.innerHTML = html;
 }
 
 function openTimesheetsModal(){

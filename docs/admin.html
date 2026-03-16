@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 
 <html lang="en">
@@ -54,25 +55,26 @@
 
     /* ── TOP NAV ── */
     .topbar {
-      background: rgba(255,255,255,0.82);
+      background: rgba(255,255,255,0.92);
       backdrop-filter: blur(20px) saturate(180%);
       -webkit-backdrop-filter: blur(20px) saturate(180%);
       border-bottom: 1px solid var(--border);
       position: sticky;
       top: 0;
       z-index: 100;
-      padding: 0 28px;
+      padding: 0 20px;
       height: 52px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
+      gap: 12px;
     }
 
     .topbar-brand {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
+      flex-shrink: 0;
     }
 
     .topbar-logo {
@@ -84,6 +86,7 @@
       align-items: center;
       justify-content: center;
       font-size: 14px;
+      flex-shrink: 0;
     }
 
     .topbar-title {
@@ -102,7 +105,48 @@
     .topbar-actions {
       display: flex;
       align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+
+    /* Mobile nav drawer */
+    .nav-menu-btn {
+      display: none;
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--border-heavy);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font-size: 18px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .nav-drawer {
+      display: none;
+      position: fixed;
+      top: 52px;
+      left: 0; right: 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px 16px;
+      z-index: 99;
+      flex-direction: column;
       gap: 8px;
+      box-shadow: var(--shadow-md);
+    }
+
+    .nav-drawer.open { display: flex; }
+
+    .nav-drawer button {
+      width: 100%;
+      height: 44px;
+      font-size: 15px;
+      justify-content: flex-start;
+      padding: 0 16px;
+      border-radius: var(--radius-md);
     }
 
     /* ── PAGE LAYOUT ── */
@@ -738,13 +782,159 @@
 
     /* ── RESPONSIVE ── */
     @media (max-width: 768px) {
-      .topbar { padding: 0 16px; }
-      .page { padding: 16px 12px 0; }
-      .filter-card { padding: 12px 14px; }
-      .filter-group { width: 100%; }
+      .page { padding: 12px 10px 0; }
+
+      /* Topbar — hide desktop action buttons, show hamburger */
+      .topbar-actions { display: none; }
       .topbar-subtitle { display: none; }
-      .ts-filter-bar { padding: 12px 14px; }
-      .ts-body { padding: 12px 14px; }
+      .nav-menu-btn { display: flex; }
+
+      /* Filter card stacks vertically */
+      .filter-card {
+        flex-direction: column;
+        padding: 12px 14px;
+        gap: 12px;
+      }
+      .filter-group { width: 100%; }
+      .field-stack { width: 100%; }
+      .field-stack input,
+      .field-stack select { width: 100% !important; }
+      .chip-group { gap: 6px; }
+      .chip { flex: 1 1 auto; text-align: center; }
+
+      /* Modals: full-screen sheet on mobile */
+      .modal { padding: 0; align-items: flex-end; }
+      .modal-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        max-height: 92vh;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      }
+      .ts-modal-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        max-height: 92vh;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      }
+      .modal-header {
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
+      }
+
+      /* Modal header wraps on small screens */
+      .modal-header { flex-wrap: wrap; gap: 8px; }
+      .modal-actions { flex-wrap: wrap; }
+      .modal-actions button { flex: 1 1 auto; }
+
+      /* Admin tables scroll horizontally */
+      .admin-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+      /* Sites/engineers: card-style rows instead of table on mobile */
+      .mobile-card-list .admin-table { display: none; }
+      .mobile-card-list .mobile-cards { display: flex; flex-direction: column; gap: 10px; }
+
+      /* Timesheet filter stacks */
+      .ts-filter-bar {
+        flex-direction: column;
+        padding: 12px 14px;
+        gap: 10px;
+      }
+      .ts-filter-bar .field-stack { width: 100%; }
+      .ts-filter-bar select,
+      .ts-filter-bar input { width: 100% !important; }
+      .ts-body { padding: 12px 10px; }
+
+      /* Row buttons wrap */
+      .row-btns { flex-wrap: wrap; }
+      .row-btns button { flex: 1 1 auto; }
+
+      /* Add-site form */
+      .add-form-grid { grid-template-columns: 1fr 1fr !important; }
+    }
+
+    @media (max-width: 480px) {
+      .add-form-grid { grid-template-columns: 1fr !important; }
+      .topbar-title { font-size: 14px; }
+    }
+
+    /* ── ADD FORM ── */
+    .add-form {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      margin-bottom: 18px;
+    }
+
+    .add-form-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--label3);
+      margin-bottom: 10px;
+    }
+
+    .add-form-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      align-items: end;
+    }
+
+    .add-form-grid .field-stack { min-width: 0; }
+    .add-form-grid input { width: 100%; }
+
+    /* ── COMPANY SITE MAPPING (inside Sites modal) ── */
+    .site-companies-section {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    .site-companies-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--label3);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .company-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .company-chip-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border-heavy);
+      background: var(--surface);
+      color: var(--label3);
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+      user-select: none;
+    }
+
+    .company-chip-toggle.active {
+      background: var(--blue-soft);
+      color: var(--blue);
+      border-color: var(--blue);
+    }
+
+    /* Sites expanded row */
+    .site-row-detail {
+      background: var(--surface2);
+    }
+
+    .site-row-detail td {
+      padding: 10px 14px 14px 14px !important;
     }
 
     /* ── FADE IN ── */
@@ -781,6 +971,18 @@
     <button class="btn-primary btn-sm" onclick="openExportModal()">↑ Export PDF</button>
     <button class="btn-icon btn-ghost btn-sm" onclick="loadData()" title="Refresh">↺</button>
   </div>
+  <button class="nav-menu-btn" onclick="toggleNavDrawer()" id="navMenuBtn">☰</button>
+</div>
+
+<!-- MOBILE NAV DRAWER -->
+
+<div class="nav-drawer" id="navDrawer">
+  <button class="btn-ghost" onclick="openTimesheetsModal();closeNavDrawer()">🧾 Timesheets</button>
+  <button class="btn-ghost" onclick="openSitesModal();closeNavDrawer()">🗂 Sites</button>
+  <button class="btn-ghost" onclick="openEngineersModal();closeNavDrawer()">👷 Engineers</button>
+  <button class="btn-ghost" onclick="openCompaniesModal();closeNavDrawer()">🏢 Companies</button>
+  <button class="btn-primary" onclick="openExportModal();closeNavDrawer()">↑ Export PDF</button>
+  <button class="btn-ghost" onclick="loadData();closeNavDrawer()">↺ Refresh</button>
 </div>
 
 <!-- PAGE -->
@@ -888,6 +1090,7 @@ let sitesActive = [];
 let engineersAll = [];
 let engineersActive = [];
 let companiesAll = [];
+let siteCompanyMap = {}; // siteId -> [companyId, ...]
 
 /* -------------------- HELPERS -------------------- */
 
@@ -1122,6 +1325,18 @@ async function fetchCompaniesMaster(){
     const data=await res.json();
     companiesAll=data.companies||[];
   }catch(e){ companiesAll=[]; }
+}
+
+async function loadSiteCompanyMap(){
+  // For each active site, fetch which companies are assigned
+  siteCompanyMap={};
+  for(const site of sitesAll){
+    try{
+      const res=await fetch(`${API_BASE}/companies-for-site?site=${encodeURIComponent(site.site_name)}`);
+      const data=await res.json();
+      siteCompanyMap[site.id]=(data.companies||[]).map(c=>c.id);
+    }catch(e){ siteCompanyMap[site.id]=[]; }
+  }
 }
 
 /* -------------------- RENDER -------------------- */
@@ -1468,8 +1683,12 @@ async function saveVisitTimes(visitId){
 
 /* -------------------- SITES MODAL -------------------- */
 
-function openSitesModal(){
+async function openSitesModal(){
   document.getElementById("sitesModal").style.display="flex";
+  document.getElementById("sitesAdminBody").innerHTML=`<p style="color:var(--label3);">Loading…</p>`;
+  await fetchSites();
+  await fetchCompaniesMaster();
+  await loadSiteCompanyMap();
   renderSitesAdminTable();
 }
 
@@ -1480,21 +1699,75 @@ function closeSitesModal(){
 function renderSitesAdminTable(){
   const wrap=document.getElementById("sitesAdminBody");
   if(!sitesAll.length){ wrap.innerHTML=`<p style="color:var(--label3);">No sites returned.</p>`; return; }
+
   const rows=sitesAll.slice().sort((a,b)=>String(a.site_name||"").localeCompare(String(b.site_name||""))).map(s=>{
     const isArch=Number(s.archived||0)===1;
     const pill=isArch?`<span class="pill pill-arch">Archived</span>`:`<span class="pill pill-active">Active</span>`;
-    return `<tr>
-      <td>${pill}</td>
-      <td><input class="admin-table-input" data-site-name="${escapeHtml(s.id)}" value="${escapeHtml(s.site_name||"")}" /></td>
-      <td style="color:var(--label3);font-size:12px;">${escapeHtml((s.lat??"-")+", "+(s.lng??"-"))}</td>
-      <td><input class="admin-table-input" data-site-radius="${escapeHtml(s.id)}" type="number" min="50" step="10" value="${escapeHtml(s.radius_m??500)}" style="width:90px;" /></td>
-      <td><div class="row-btns">
-        <button class="btn-primary btn-sm" onclick="saveSite('${escapeHtml(s.id)}')">Save</button>
-        <button class="btn-ghost btn-sm" onclick="toggleSite('${escapeHtml(s.id)}')">${isArch?"Unarchive":"Archive"}</button>
-      </div></td>
-    </tr>`;
+
+    // Company chips for this site
+    const siteCompanyIds=(siteCompanyMap[s.id]||[]);
+    const companyChips=companiesAll.map(c=>{
+      const active=siteCompanyIds.includes(c.id)?"active":"";
+      return `<span class="company-chip-toggle ${active}" data-site-id="${escapeHtml(s.id)}" data-company-id="${escapeHtml(c.id)}" onclick="toggleSiteCompanyChip(this)">${escapeHtml(c.name)}</span>`;
+    }).join("");
+
+    return `
+      <tr>
+        <td>${pill}</td>
+        <td><input data-site-name="${escapeHtml(s.id)}" value="${escapeHtml(s.site_name||"")}" /></td>
+        <td style="color:var(--label3);font-size:12px;white-space:nowrap;">${escapeHtml((s.lat??"-")+", "+(s.lng??"-"))}</td>
+        <td><input data-site-radius="${escapeHtml(s.id)}" type="number" min="50" step="10" value="${escapeHtml(s.radius_m??500)}" style="width:80px;" /></td>
+        <td><div class="row-btns">
+          <button class="btn-primary btn-sm" onclick="saveSite('${escapeHtml(s.id)}')">Save</button>
+          <button class="btn-ghost btn-sm" onclick="toggleSite('${escapeHtml(s.id)}')">${isArch?"Unarchive":"Archive"}</button>
+        </div></td>
+      </tr>
+      <tr class="site-row-detail">
+        <td colspan="5">
+          <div class="site-companies-section">
+            <div class="site-companies-label">Companies at this site</div>
+            <div class="company-chip-row" id="chips-${escapeHtml(s.id)}">
+              ${companyChips.length?companyChips:`<span style="color:var(--label4);font-size:12px;">No companies configured</span>`}
+            </div>
+            <div style="margin-top:8px;">
+              <button class="btn-primary btn-sm" onclick="saveSiteCompanies('${escapeHtml(s.id)}')">Save company assignments</button>
+            </div>
+          </div>
+        </td>
+      </tr>`;
   }).join("");
-  wrap.innerHTML=`<table class="admin-table"><thead><tr><th>Status</th><th>Site Name</th><th>Lat / Lng</th><th>Radius (m)</th><th style="text-align:right;">Actions</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+  wrap.innerHTML=`
+    <div class="admin-table-scroll">
+      <table class="admin-table">
+        <thead><tr><th>Status</th><th>Site Name</th><th>Lat / Lng</th><th>Radius (m)</th><th style="text-align:right;">Actions</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function toggleSiteCompanyChip(el){
+  el.classList.toggle("active");
+}
+
+async function saveSiteCompanies(siteId){
+  const chips=document.querySelectorAll(`#chips-${CSS.escape(siteId)} .company-chip-toggle`);
+  const companyIds=[...chips].filter(c=>c.classList.contains("active")).map(c=>c.dataset.companyId);
+
+  // Build a map with just this site
+  const map={[siteId]:companyIds};
+
+  // Update local cache
+  siteCompanyMap[siteId]=companyIds;
+
+  try{
+    const res=await fetch(`${API_BASE}/update-site-companies`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(map)});
+    const data=await res.json();
+    if(!res.ok||!data.ok){ alert("Failed to save.\n\n"+(data.error||"Unknown error")); return; }
+    // Flash the button as confirmation
+    const btn=document.querySelector(`#chips-${CSS.escape(siteId)}`).nextElementSibling.querySelector("button");
+    if(btn){ const orig=btn.textContent; btn.textContent="✓ Saved"; setTimeout(()=>btn.textContent=orig,1500); }
+  }catch(err){ alert("Network error.\n\n"+err.message); }
 }
 
 async function saveSite(id){
@@ -1504,12 +1777,30 @@ async function saveSite(id){
   const radius=Number(radEl?.value||500);
   if(!siteName){ alert("Site name cannot be blank."); return; }
   await fetch(`${API_BASE}/update-site`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,siteName,radius})});
-  await fetchSites(); renderSitesAdminTable(); renderAll();
+  await fetchSites(); await loadSiteCompanyMap(); renderSitesAdminTable(); renderAll();
 }
 
 async function toggleSite(id){
   await fetch(`${API_BASE}/toggle-site`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
   await fetchSites(); renderSitesAdminTable(); renderAll();
+}
+
+async function addSite(){
+  const nameEl=document.getElementById("newSiteName");
+  const latEl=document.getElementById("newSiteLat");
+  const lngEl=document.getElementById("newSiteLng");
+  const radEl=document.getElementById("newSiteRadius");
+  const siteName=(nameEl?.value||"").trim();
+  const lat=latEl?.value.trim();
+  const lng=lngEl?.value.trim();
+  const radius=Number(radEl?.value||500);
+  if(!siteName||!lat||!lng){ alert("Site name, latitude and longitude are required."); return; }
+  if(isNaN(Number(lat))||isNaN(Number(lng))){ alert("Latitude and longitude must be numbers."); return; }
+  const res=await fetch(`${API_BASE}/add-site`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({siteName,lat:Number(lat),lng:Number(lng),radius})});
+  const data=await res.json();
+  if(!res.ok||!data.ok){ alert("Failed to add site.\n\n"+(data.error||"Unknown error")); return; }
+  nameEl.value=""; latEl.value=""; lngEl.value=""; radEl.value="500";
+  await fetchSites(); await loadSiteCompanyMap(); renderSitesAdminTable(); renderAll();
 }
 
 /* -------------------- ENGINEERS MODAL -------------------- */
@@ -1569,7 +1860,7 @@ async function toggleEngineer(id){
 /* -------------------- COMPANIES MODAL -------------------- */
 
 async function openCompaniesModal(){
-  await fetchSites(); await fetchCompaniesMaster();
+  await fetchSites(); await fetchCompaniesMaster(); await loadSiteCompanyMap();
   document.getElementById("companiesModal").style.display="flex";
   renderCompaniesAdmin();
 }
@@ -1578,44 +1869,83 @@ function closeCompaniesModal(){
   document.getElementById("companiesModal").style.display="none";
 }
 
-async function renderCompaniesAdmin(){
+function renderCompaniesAdmin(){
   const wrap=document.getElementById("companiesAdminBody");
-  if(!sitesActive.length){ wrap.innerHTML=`<p style="color:var(--label3);">No active sites found.</p>`; return; }
-  let html=`<table class="admin-table"><thead><tr><th>Site</th>${companiesAll.map(c=>`<th>${escapeHtml(c.name)}</th>`).join("")}</tr></thead><tbody>`;
-  for(const site of sitesActive){
-    const res=await fetch(`${API_BASE}/companies-for-site?site=${encodeURIComponent(site.site_name)}`);
-    const data=await res.json();
-    const assigned=(data.companies||[]).map(c=>c.id);
-    html+=`<tr><td style="font-weight:500;">${escapeHtml(site.site_name)}</td>`;
-    for(const c of companiesAll){
-      const checked=assigned.includes(c.id)?"checked":"";
-      html+=`<td style="text-align:center;"><input type="checkbox" data-site="${escapeHtml(site.id)}" data-company="${escapeHtml(c.id)}" ${checked}></td>`;
-    }
-    html+=`</tr>`;
+
+  // Company list with delete option
+  const companyRows=companiesAll.map(c=>`
+    <tr>
+      <td style="font-weight:500;">${escapeHtml(c.name)}</td>
+      <td><div class="row-btns">
+        <button class="btn-danger btn-sm" onclick="deleteCompany('${escapeHtml(c.id)}','${escapeHtml(c.name)}')">Delete</button>
+      </div></td>
+    </tr>`).join("");
+
+  wrap.innerHTML=`
+    <div class="add-form" style="margin-bottom:16px;">
+      <div class="add-form-title">Add New Company</div>
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+        <div class="field-stack" style="flex:1;min-width:180px;">
+          <span class="field-label">Company Name</span>
+          <input id="newCompanyName" type="text" placeholder="e.g. Acme Ltd" style="width:100%;" />
+        </div>
+        <button class="btn-primary" onclick="addCompany()">Add Company</button>
+      </div>
+    </div>
+
+    ${companiesAll.length ? `
+    <div class="admin-table-scroll">
+      <table class="admin-table">
+        <thead><tr><th>Company Name</th><th style="text-align:right;">Actions</th></tr></thead>
+        <tbody>${companyRows}</tbody>
+      </table>
+    </div>` : `<div class="ts-empty">No companies yet. Add one above.</div>`}
+  `;
+}
+
+async function addCompany(){
+  const nameEl=document.getElementById("newCompanyName");
+  const name=(nameEl?.value||"").trim();
+  if(!name){ alert("Company name is required."); return; }
+
+  const res=await fetch(`${API_BASE}/add-company`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})});
+  const data=await res.json();
+  if(!res.ok||!data.ok){ alert("Failed to add company.\n\n"+(data.error||"Unknown error")); return; }
+  nameEl.value="";
+  await fetchCompaniesMaster();
+  renderCompaniesAdmin();
+}
+
+async function deleteCompany(id, name){
+  if(!confirm(`Remove company "${name}"? This will not delete any historical visit data.`)) return;
+
+  const res=await fetch(`${API_BASE}/delete-company`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+  const data=await res.json();
+  if(!res.ok||!data.ok){ alert("Failed to delete company.\n\n"+(data.error||"Unknown error")); return; }
+  await fetchCompaniesMaster();
+  renderCompaniesAdmin();
+}
+
+/* -------------------- NAV DRAWER -------------------- */
+
+function toggleNavDrawer(){
+  const drawer=document.getElementById("navDrawer");
+  drawer.classList.toggle("open");
+}
+
+function closeNavDrawer(){
+  document.getElementById("navDrawer").classList.remove("open");
+}
+
+// Close drawer on outside tap
+document.addEventListener("click",function(e){
+  const drawer=document.getElementById("navDrawer");
+  const btn=document.getElementById("navMenuBtn");
+  if(drawer.classList.contains("open")&&!drawer.contains(e.target)&&!btn.contains(e.target)){
+    drawer.classList.remove("open");
   }
-  html+=`</tbody></table><div style="margin-top:16px;display:flex;justify-content:flex-end;"><button class="btn-primary" onclick="saveCompanyMappings()">Save changes</button></div>`;
-  wrap.innerHTML=html;
-}
+});
 
-async function saveCompanyMappings(){
-  const checkboxes=document.querySelectorAll("#companiesAdminBody input[type='checkbox']");
-  const map={};
-  checkboxes.forEach(cb=>{
-    const site=cb.dataset.site;
-    const company=cb.dataset.company;
-    if(!map[site]) map[site]=[];
-    if(cb.checked) map[site].push(company);
-  });
-  try{
-    const res=await fetch(`${API_BASE}/update-site-companies`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(map)});
-    const data=await res.json();
-    if(!res.ok||!data.ok){ alert("Failed to save changes.\n\n"+(data.error||"Unknown error")); return; }
-    alert("Company mappings saved.");
-    await renderCompaniesAdmin();
-  }catch(err){ alert("Network error while saving.\n\n"+err.message); }
-}
-
-/* -------------------- PRESETS -------------------- */
 
 function setPreset(type){
   if(type==="all"){ document.getElementById("fromDate").value=""; document.getElementById("toDate").value=""; loadData(); return; }
@@ -1685,14 +2015,44 @@ function setPreset(type){
     <div class="modal-header">
       <div>
         <div class="modal-title">Sites</div>
-        <div class="modal-subtitle">View, edit and archive sites</div>
+        <div class="modal-subtitle">Add, edit, archive and assign companies</div>
       </div>
       <button class="btn-ghost btn-sm" onclick="closeSitesModal()">Close</button>
     </div>
     <div class="modal-body">
-      <div class="modal-note">Archived sites are hidden from the Site dropdown and excluded from /scan matching. Historical logs still reference archived site names.</div>
-      <div id="sitesAdminBody"></div>
+      <div class="modal-note">Archived sites are hidden from the Site dropdown and excluded from scan matching. Historical logs still reference archived site names.</div>
+
+```
+  <!-- Add Site Form -->
+  <div class="add-form">
+    <div class="add-form-title">Add New Site</div>
+    <div class="add-form-grid">
+      <div class="field-stack">
+        <span class="field-label">Site Name</span>
+        <input id="newSiteName" type="text" placeholder="e.g. Warehouse A" />
+      </div>
+      <div class="field-stack">
+        <span class="field-label">Latitude</span>
+        <input id="newSiteLat" type="text" placeholder="51.5074" />
+      </div>
+      <div class="field-stack">
+        <span class="field-label">Longitude</span>
+        <input id="newSiteLng" type="text" placeholder="-0.1278" />
+      </div>
+      <div class="field-stack">
+        <span class="field-label">Radius (m)</span>
+        <input id="newSiteRadius" type="number" value="500" min="50" step="10" />
+      </div>
     </div>
+    <div style="margin-top:10px;">
+      <button class="btn-primary btn-sm" onclick="addSite()">Add Site</button>
+    </div>
+  </div>
+
+  <div id="sitesAdminBody"></div>
+</div>
+```
+
   </div>
 </div>
 
@@ -1720,8 +2080,8 @@ function setPreset(type){
   <div class="modal-content">
     <div class="modal-header">
       <div>
-        <div class="modal-title">Companies per Site</div>
-        <div class="modal-subtitle">Assign which companies appear at each site during registration</div>
+        <div class="modal-title">Companies</div>
+        <div class="modal-subtitle">Add or remove companies. Assign them to sites in the Sites modal.</div>
       </div>
       <button class="btn-ghost btn-sm" onclick="closeCompaniesModal()">Close</button>
     </div>

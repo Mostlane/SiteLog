@@ -5,7 +5,7 @@
   <title>SiteLog Scan</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- FIX #19: Maps SDK removed. Decorative map uses a static iframe, saving ~15KB JS on mobile. -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyANo2Q7OehYzHTTgMTxRr5ISamf5IradcM"></script>
 
   <style>
     body {
@@ -736,14 +736,21 @@ function confirmSignInNo() {
     "<strong>⚠️ Check In Refused:</strong> Please contact Mostlane office on 02380 262000";
 }
 
-/* FIX #19: Static iframe replaces the full Maps SDK.
-   The map is purely decorative (locked) so there is no need for the
-   full Maps JS library (~15KB) on mobile. */
+/* 🔒 LOCKED MAP — uses Maps JS SDK (satellite, non-interactive) */
 function showMap(lat, lng) {
-  const mapEl = document.getElementById("map");
-  const key   = "AIzaSyANo2Q7OehYzHTTgMTxRr5ISamf5IradcM";
-  const src   = "https://www.google.com/maps/embed/v1/place?key=" + key + "&q=" + lat + "," + lng + "&zoom=18&maptype=satellite";
-  mapEl.innerHTML = '<iframe src="' + src + '" width="100%" height="260" style="border:0;border-radius:10px;display:block;pointer-events:none;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>';
+  const map = new google.maps.Map(document.getElementById("map"), {
+    center: { lat, lng },
+    zoom: 18,
+    mapTypeId: "hybrid",
+    disableDefaultUI: true,
+    draggable: false,
+    scrollwheel: false,
+    disableDoubleClickZoom: true,
+    keyboardShortcuts: false,
+    gestureHandling: "none"
+  });
+
+  new google.maps.Marker({ position: { lat, lng }, map });
 }
 
 /* ======================================

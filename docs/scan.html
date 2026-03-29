@@ -193,6 +193,148 @@
       display: none !important;
     }
 
+    /* ==============================
+       📍 GPS ERROR PANEL
+    ============================== */
+    #gpsErrorPanel {
+      display: none;
+      margin: 0 auto;
+      max-width: 520px;
+      background: rgba(255,255,255,0.97);
+      border: 2px solid #f87171;
+      border-radius: 14px;
+      padding: 20px 18px 18px;
+      text-align: left;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    }
+
+    #gpsErrorPanel .gps-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: #dc2626;
+      margin: 0 0 6px 0;
+    }
+
+    #gpsErrorPanel .gps-reason {
+      font-size: 14px;
+      color: #334155;
+      margin: 0 0 14px 0;
+      line-height: 1.5;
+    }
+
+    /* Device toggle pill */
+    .gps-device-toggle {
+      display: flex;
+      gap: 0;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 999px;
+      padding: 3px;
+      margin-bottom: 14px;
+      width: fit-content;
+    }
+
+    .gps-device-toggle button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border-radius: 999px;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+      width: auto;
+      max-width: none;
+      margin: 0;
+      line-height: 1;
+    }
+
+    .gps-device-toggle button.active {
+      background: #fff;
+      color: #004a99;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    }
+
+    .gps-device-toggle button:active {
+      opacity: 1;
+      transform: none;
+    }
+
+    /* Instruction panels */
+    .gps-instructions {
+      display: none;
+    }
+    .gps-instructions.visible {
+      display: block;
+    }
+
+    .gps-steps {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+
+    .gps-steps-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      margin: 0 0 8px 0;
+    }
+
+    .gps-steps ol {
+      margin: 0;
+      padding-left: 18px;
+      color: #1e293b;
+      font-size: 14px;
+      line-height: 1.75;
+    }
+
+    .gps-steps ol li { margin-bottom: 2px; }
+
+    #gpsErrorPanel .gps-private-warning {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      font-size: 13.5px;
+      color: #92400e;
+      line-height: 1.5;
+    }
+
+    #gpsErrorPanel .gps-private-warning strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    #gpsErrorPanel .gps-retry-btn {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      background: #004a99;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      margin: 8px 0 0 0;
+    }
+
+    #gpsErrorPanel .gps-retry-btn:active {
+      opacity: 0.85;
+    }
+
     /* 🔁 Subtle backup reset link */
     .not-you{
       margin: 8px auto 0;
@@ -287,6 +429,52 @@
 ```
 
   </div>
+</div>
+
+<!-- GPS ERROR PANEL -->
+
+<div id="gpsErrorPanel" role="alert">
+  <p class="gps-title">📍 Location Access Required</p>
+  <p class="gps-reason" id="gpsErrorReason">GPS permission was denied or unavailable.</p>
+
+  <!-- Private browsing warning (shown instead of steps when detected) -->
+
+  <div id="gpsPrivateWarning" class="gps-private-warning" style="display:none;">
+    <strong>⚠️ Private / Incognito Browser Detected</strong>
+    Location access is blocked in private browsing mode. Please open this link in your normal browser (Safari or Chrome) and try again.
+  </div>
+
+  <!-- Device toggle + per-device instructions -->
+
+  <div id="gpsStepsBox">
+
+```
+<div class="gps-device-toggle" id="gpsDeviceToggle">
+  <button id="btnIphone" onclick="switchDevice('iphone')" class="active">🍎 iPhone</button>
+  <button id="btnAndroid" onclick="switchDevice('android')">🤖 Android</button>
+</div>
+
+<!-- iPhone instructions -->
+<div class="gps-instructions visible" id="instructionsIphone">
+  <div class="gps-steps" id="iphoneStepsBox">
+    <p class="gps-steps-title" id="iphoneStepsTitle">How to fix on iPhone</p>
+    <ol id="iphoneStepsList"></ol>
+  </div>
+</div>
+
+<!-- Android instructions -->
+<div class="gps-instructions" id="instructionsAndroid">
+  <div class="gps-steps" id="androidStepsBox">
+    <p class="gps-steps-title" id="androidStepsTitle">How to fix on Android</p>
+    <ol id="androidStepsList"></ol>
+  </div>
+</div>
+```
+
+  </div>
+
+<button class="gps-retry-btn" onclick="retryLocation()">🔄 Try Again</button>
+
 </div>
 
 <div id="successOverlay" aria-hidden="true">
@@ -769,6 +957,187 @@ async function register() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+/* ============================================================
+   GPS HANDLING — clear errors, iPhone/Android toggle,
+   private browsing detection, and retry.
+============================================================ */
+
+function isLikelyPrivateBrowsing() {
+  try {
+    const test = "__ml_test__";
+    localStorage.setItem(test, "1");
+    localStorage.removeItem(test);
+    return false;
+  } catch(e) {
+    return true;
+  }
+}
+
+function detectDevice() {
+  const ua = navigator.userAgent;
+  return {
+    isIOS:     /iphone|ipad|ipod/i.test(ua),
+    isAndroid: /android/i.test(ua),
+    isSafari:  /safari/i.test(ua) && !/chrome/i.test(ua),
+    isChrome:  /chrome/i.test(ua),
+    isFirefox: /firefox/i.test(ua)
+  };
+}
+
+// All step sets keyed by [device][errorCode]
+const GPS_STEPS = {
+  iphone: {
+    1: {
+      title: "Enable Location on iPhone — Safari",
+      steps: [
+        "Open the <strong>Settings</strong> app on your iPhone",
+        "Scroll down and tap <strong>Safari</strong>",
+        "Tap <strong>Location</strong> and choose <strong>Ask</strong> or <strong>Allow</strong>",
+        "Return here and tap <strong>Try Again</strong> — then tap <strong>Allow</strong> when Safari asks"
+      ],
+      alt: {
+        title: "Using Chrome on iPhone instead?",
+        steps: [
+          "Open <strong>Settings</strong> and scroll down to <strong>Chrome</strong>",
+          "Tap <strong>Location</strong> and choose <strong>While Using the App</strong>",
+          "Return here and tap <strong>Try Again</strong>"
+        ]
+      }
+    },
+    2: {
+      title: "GPS Signal Unavailable — iPhone",
+      steps: [
+        "Go to <strong>Settings → Privacy & Security → Location Services</strong>",
+        "Make sure <strong>Location Services</strong> is switched <strong>ON</strong>",
+        "Step outside or move away from thick walls for a better signal",
+        "Wait a few seconds then tap <strong>Try Again</strong>"
+      ]
+    },
+    3: {
+      title: "GPS Timed Out — iPhone",
+      steps: [
+        "Go to <strong>Settings → Privacy & Security → Location Services</strong> and confirm it is <strong>ON</strong>",
+        "Move slightly — sometimes a small position change helps the GPS lock",
+        "Tap <strong>Try Again</strong>"
+      ]
+    }
+  },
+  android: {
+    1: {
+      title: "Enable Location on Android — Chrome",
+      steps: [
+        "Tap the <strong>lock icon</strong> or <strong>ⓘ</strong> in the address bar at the top",
+        "Tap <strong>Permissions</strong> then <strong>Location</strong> and set it to <strong>Allow</strong>",
+        "Tap <strong>Try Again</strong> below",
+        "Still blocked? Go to <strong>Settings → Apps → Chrome → Permissions → Location → Allow</strong>"
+      ],
+      alt: {
+        title: "Using a different Android browser?",
+        steps: [
+          "Tap the <strong>⋮ menu</strong> or <strong>lock icon</strong> in your browser",
+          "Find <strong>Site Settings</strong> or <strong>Permissions → Location</strong>",
+          "Set location to <strong>Allow</strong> and tap <strong>Try Again</strong>"
+        ]
+      }
+    },
+    2: {
+      title: "GPS Signal Unavailable — Android",
+      steps: [
+        "Swipe down and make sure <strong>Location</strong> is toggled <strong>on</strong> in Quick Settings",
+        "Go to <strong>Settings → Location</strong> and ensure it is enabled",
+        "Step outside or move for a clearer view of the sky",
+        "Tap <strong>Try Again</strong>"
+      ]
+    },
+    3: {
+      title: "GPS Timed Out — Android",
+      steps: [
+        "Swipe down and check that <strong>Location</strong> is on in Quick Settings",
+        "Move slightly then tap <strong>Try Again</strong>",
+        "If the problem continues, toggle Location off and back on in Settings"
+      ]
+    }
+  }
+};
+
+// Which device tab is currently showing
+let currentDevice = "iphone";
+
+function switchDevice(device) {
+  currentDevice = device;
+
+  // Toggle button active state
+  document.getElementById("btnIphone").classList.toggle("active",  device === "iphone");
+  document.getElementById("btnAndroid").classList.toggle("active", device === "android");
+
+  // Show/hide instruction panels
+  document.getElementById("instructionsIphone").classList.toggle("visible",  device === "iphone");
+  document.getElementById("instructionsAndroid").classList.toggle("visible", device === "android");
+}
+
+function renderStepsForDevice(device, errorCode) {
+  const set  = (GPS_STEPS[device] && GPS_STEPS[device][errorCode]) || GPS_STEPS[device][1];
+  const titleEl = document.getElementById(device + "StepsTitle");
+  const listEl  = document.getElementById(device + "StepsList");
+  const boxEl   = document.getElementById(device + "StepsBox");
+
+  titleEl.textContent = set.title;
+  listEl.innerHTML = set.steps.map(s => "<li>" + s + "</li>").join("");
+
+  // Append alternative browser tip if present
+  if (set.alt) {
+    listEl.innerHTML +=
+      "</ol><p style='font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin:10px 0 6px 0;'>" +
+      set.alt.title + "</p><ol style='margin:0;padding-left:18px;color:#1e293b;font-size:14px;line-height:1.75;'>" +
+      set.alt.steps.map(s => "<li>" + s + "</li>").join("");
+  }
+}
+
+function showGpsError(errorCode, errorMessage) {
+  document.getElementById("card").style.display = "none";
+  document.getElementById("gpsErrorPanel").style.display = "block";
+  document.getElementById("title").innerText = "📍 Location Required";
+
+  const isPrivate = isLikelyPrivateBrowsing();
+  const privateWarning = document.getElementById("gpsPrivateWarning");
+  const stepsBox       = document.getElementById("gpsStepsBox");
+
+  if (isPrivate) {
+    privateWarning.style.display = "block";
+    stepsBox.style.display = "none";
+    document.getElementById("gpsErrorReason").innerText =
+      "You appear to be using a private or incognito browser window, which blocks location access.";
+    return;
+  }
+
+  privateWarning.style.display = "none";
+  stepsBox.style.display = "block";
+
+  const reasons = {
+    1: "Location permission was denied. SiteLog needs your GPS to verify you are on site — this cannot be bypassed.",
+    2: "Your device could not get a GPS signal. This is usually a settings or signal issue.",
+    3: "Your device took too long to get a GPS fix."
+  };
+  document.getElementById("gpsErrorReason").innerText =
+    reasons[errorCode] || ("Location error: " + errorMessage);
+
+  // Render steps for both devices so toggling is instant with no re-render
+  renderStepsForDevice("iphone",  errorCode);
+  renderStepsForDevice("android", errorCode);
+
+  // Auto-select the tab that matches the user's actual device
+  const { isAndroid } = detectDevice();
+  switchDevice(isAndroid ? "android" : "iphone");
+}
+
+function retryLocation() {
+  document.getElementById("gpsErrorPanel").style.display = "none";
+  document.getElementById("card").style.display = "block";
+  document.getElementById("title").innerText = "Checking Location…";
+  document.getElementById("status").innerText = "Requesting GPS…";
+  startLocation();
+}
+
 function startLocation() {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
@@ -777,13 +1146,11 @@ function startLocation() {
         lng: pos.coords.longitude,
         accuracy: pos.coords.accuracy
       };
-
       showMap(lastLocation.lat, lastLocation.lng);
       scan();
     },
     (err) => {
-      document.getElementById("status").innerText =
-        "Location required: " + err.message;
+      showGpsError(err.code, err.message);
     },
     { enableHighAccuracy: true, timeout: 20000 }
   );
@@ -791,11 +1158,10 @@ function startLocation() {
 
 if (navigator.permissions && navigator.permissions.query) {
   navigator.permissions.query({ name: "geolocation" }).then((result) => {
-    if (result.state === "granted" || result.state === "prompt") {
-      startLocation();
+    if (result.state === "denied") {
+      showGpsError(1, "Permission denied");
     } else {
-      document.getElementById("status").innerText =
-        "Location access is required. Please enable it in your browser settings.";
+      startLocation();
     }
   }).catch(() => startLocation());
 } else {

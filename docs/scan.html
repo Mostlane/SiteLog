@@ -194,6 +194,71 @@
     }
 
     /* ==============================
+       📡 NETWORK ERROR PANEL
+    ============================== */
+    #networkErrorPanel {
+      display: none;
+      margin: 0 auto 16px;
+      max-width: 520px;
+      background: rgba(255,255,255,0.97);
+      border: 2px solid #f59e0b;
+      border-radius: 14px;
+      padding: 20px 18px 18px;
+      text-align: left;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    }
+
+    #networkErrorPanel .net-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: #b45309;
+      margin: 0 0 6px 0;
+    }
+
+    #networkErrorPanel .net-reason {
+      font-size: 14px;
+      color: #334155;
+      margin: 0 0 14px 0;
+      line-height: 1.5;
+    }
+
+    #networkErrorPanel .net-tips {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      font-size: 14px;
+      color: #1e293b;
+      line-height: 1.75;
+    }
+
+    #networkErrorPanel .net-tips ol {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    #networkErrorPanel .net-tips li { margin-bottom: 2px; }
+
+    #networkErrorPanel .net-retry-btn {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      background: #004a99;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      margin: 0;
+    }
+
+    #networkErrorPanel .net-retry-btn:active { opacity: 0.85; }
+
+    /* ==============================
        📍 GPS ERROR PANEL
     ============================== */
     #gpsErrorPanel {
@@ -431,6 +496,21 @@
   </div>
 </div>
 
+<!-- NETWORK ERROR PANEL -->
+
+<div id="networkErrorPanel" role="alert">
+  <p class="net-title">📡 No Internet Connection</p>
+  <p class="net-reason" id="networkErrorReason">SiteLog could not reach the server. This is usually because your WiFi has no internet access.</p>
+  <div class="net-tips">
+    <ol>
+      <li>Turn <strong>WiFi off</strong> and use mobile data instead</li>
+      <li>Or move to an area with a working internet connection</li>
+      <li>Then tap <strong>Try Again</strong> below</li>
+    </ol>
+  </div>
+  <button class="net-retry-btn" onclick="retryAfterNetwork()">🔄 Try Again</button>
+</div>
+
 <!-- GPS ERROR PANEL -->
 
 <div id="gpsErrorPanel" role="alert">
@@ -622,15 +702,20 @@ async function confirmSignOutYes() {
   const firstName = pendingCheckoutFirstName;
   const siteName = pendingCheckoutSite;
 
-  const res = await fetch(API + "/confirm-checkout", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      visitId: pendingCheckoutVisitId
-    })
-  });
-
-  const data = await res.json();
+  let res, data;
+  try {
+    res  = await fetchWithTimeout(API + "/confirm-checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        visitId: pendingCheckoutVisitId
+      })
+    });
+    data = await res.json();
+  } catch(err) {
+    showNetworkError("checkout");
+    return;
+  }
 
   if (!res.ok || !data.ok) {
     alert(data.error || "Failed to sign out.");
@@ -687,19 +772,24 @@ function closeSignInConfirm() {
 }
 
 async function confirmSignInYes() {
-  const res = await fetch(API + "/confirm-checkin", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      deviceToken,
-      lat: lastLocation.lat,
-      lng: lastLocation.lng,
-      accuracy: lastLocation.accuracy,
-      site: pendingCheckinSite
-    })
-  });
-
-  const data = await res.json();
+  let res, data;
+  try {
+    res  = await fetchWithTimeout(API + "/confirm-checkin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceToken,
+        lat: lastLocation.lat,
+        lng: lastLocation.lng,
+        accuracy: lastLocation.accuracy,
+        site: pendingCheckinSite
+      })
+    });
+    data = await res.json();
+  } catch(err) {
+    showNetworkError("checkin");
+    return;
+  }
 
   if (!res.ok || !data.ok) {
     alert(data.error || "Failed to check in.");
@@ -758,7 +848,7 @@ function showMap(lat, lng) {
 ======================================*/
 async function loadCompaniesForSite(siteName) {
   try {
-    const res = await fetch(API + "/companies-for-site?site=" + encodeURIComponent(siteName));
+    const res = await fetchWithTimeout(API + "/companies-for-site?site=" + encodeURIComponent(siteName));
     const data = await res.json();
 
     const companySelect = document.getElementById("company");
@@ -789,18 +879,23 @@ async function loadCompaniesForSite(siteName) {
 }
 
 async function scan() {
-  const res = await fetch(API + "/scan", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      deviceToken,
-      lat: lastLocation.lat,
-      lng: lastLocation.lng,
-      accuracy: lastLocation.accuracy
-    })
-  });
-
-  const data = await res.json();
+  let res, data;
+  try {
+    res  = await fetchWithTimeout(API + "/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceToken,
+        lat: lastLocation.lat,
+        lng: lastLocation.lng,
+        accuracy: lastLocation.accuracy
+      })
+    });
+    data = await res.json();
+  } catch(err) {
+    showNetworkError("scan");
+    return;
+  }
   const noticeBox = document.getElementById("noticeBox");
 
   if (data.status === "unknown_site") {
@@ -934,23 +1029,28 @@ async function register() {
     company
   }));
 
-  const res = await fetch(API + "/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      deviceToken,
-      firstName,
-      lastName,
-      purpose,
-      company,
-      siteCode: currentSite,
-      lat: lastLocation.lat,
-      lng: lastLocation.lng,
-      accuracy: lastLocation.accuracy
-    })
-  });
-
-  const data = await res.json();
+  let res, data;
+  try {
+    res  = await fetchWithTimeout(API + "/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceToken,
+        firstName,
+        lastName,
+        purpose,
+        company,
+        siteCode: currentSite,
+        lat: lastLocation.lat,
+        lng: lastLocation.lng,
+        accuracy: lastLocation.accuracy
+      })
+    });
+    data = await res.json();
+  } catch(err) {
+    showNetworkError("register");
+    return;
+  }
 
   if (!data.ok) {
     alert("Registration failed");
@@ -962,6 +1062,68 @@ async function register() {
   await scan();
 
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/* ============================================================
+   NETWORK HELPERS — timeout wrapper, error display, retry.
+============================================================ */
+
+// Wraps fetch with a 12-second timeout so a dead connection never
+// leaves the user staring at a spinner indefinitely.
+function fetchWithTimeout(url, options, ms = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timer));
+}
+
+// What were we trying to do when the network failed — used for
+// the retry button so it can resume the right action.
+let pendingNetworkAction = null;
+
+function showNetworkError(action) {
+  pendingNetworkAction = action;
+
+  document.getElementById("card").style.display = "none";
+  document.getElementById("networkErrorPanel").style.display = "block";
+  document.getElementById("title").innerText = "📡 No Connection";
+
+  const reasons = {
+    scan:     "Could not reach the SiteLog server to check your location.",
+    checkin:  "Your check-in could not be recorded — the server was unreachable.",
+    checkout: "Your sign-out could not be recorded — the server was unreachable.",
+    register: "Your registration could not be saved — the server was unreachable."
+  };
+  document.getElementById("networkErrorReason").innerText =
+    (reasons[action] || "Could not reach the SiteLog server.") +
+    " This usually means your WiFi has no internet access.";
+}
+
+function hideNetworkError() {
+  document.getElementById("networkErrorPanel").style.display = "none";
+  document.getElementById("card").style.display = "block";
+}
+
+async function retryAfterNetwork() {
+  hideNetworkError();
+  document.getElementById("title").innerText = "Retrying…";
+  document.getElementById("status").innerText = "Connecting…";
+
+  const action = pendingNetworkAction;
+  pendingNetworkAction = null;
+
+  if (action === "scan") {
+    await scan();
+  } else if (action === "checkin") {
+    await confirmSignInYes();
+  } else if (action === "checkout") {
+    await confirmSignOutYes();
+  } else if (action === "register") {
+    await register();
+  } else {
+    // Fallback — restart from GPS
+    startLocation();
+  }
 }
 
 /* ============================================================

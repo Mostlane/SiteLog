@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 
 <html lang="en">
@@ -1506,14 +1505,9 @@ function renderLive(){
 }
 
 function openTimesheetForPerson(personName, company){
-  // Open timesheets modal filtered to this person
-  openTimesheetsModal();
-  // After render, set the person filter
-  setTimeout(()=>{
-    const sel = document.getElementById("tsPersonFilter");
-    const opt = [...sel.options].find(o => o.value === personName);
-    if(opt){ opt.selected = true; renderTimesheetsModal(); }
-  }, 100);
+  // FIX #16: Pass the initial filter directly to openTimesheetsModal so there
+  // is no setTimeout race condition. The filter is applied before the first render.
+  openTimesheetsModal(personName);
 }
 
 function renderAll(){
@@ -1541,6 +1535,20 @@ document.getElementById("companyFilter").addEventListener("change",renderAll);
 document.getElementById("purposeFilter").addEventListener("change",renderAll);
 document.getElementById("siteFilter").addEventListener("change",renderAll);
 
+// FIX #14: Default to last 7 days on first load so the dashboard is fast
+// and does not attempt to render all-time data immediately.
+(function setDefaultDateRange(){
+  const toDate   = new Date();
+  const fromDate = new Date();
+  fromDate.setDate(toDate.getDate() - 7);
+  const fmt = d => d.toISOString().slice(0,10);
+  const fromEl = document.getElementById("fromDate");
+  const toEl   = document.getElementById("toDate");
+  if(!fromEl.value && !toEl.value){
+    fromEl.value = fmt(fromDate);
+    toEl.value   = fmt(toDate);
+  }
+})();
 loadData();
 
 /* -------------------- DELETE -------------------- */
@@ -1764,7 +1772,14 @@ function populateTimesheetFilters(baseVisits){
   personSel.innerHTML=`<option value="">All Engineers</option>`+people.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
   siteSel.innerHTML=`<option value="">All Sites</option>`+sites.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
   if([...companySel.options].some(o=>o.value===currentCompany)) companySel.value=currentCompany;
-  if([...personSel.options].some(o=>o.value===currentPerson)) personSel.value=currentPerson;
+  // FIX #16: Apply the initial person from openTimesheetForPerson (race-condition-free).
+  const initialPerson = window.__tsInitialPerson;
+  if(initialPerson){
+    if([...personSel.options].some(o=>o.value===initialPerson)) personSel.value=initialPerson;
+    window.__tsInitialPerson = null;
+  } else {
+    if([...personSel.options].some(o=>o.value===currentPerson)) personSel.value=currentPerson;
+  }
   if([...siteSel.options].some(o=>o.value===currentSite)) siteSel.value=currentSite;
 }
 
@@ -1986,10 +2001,12 @@ function renderTimesheetsModal(){
   wrap.innerHTML = html;
 }
 
-function openTimesheetsModal(){
+function openTimesheetsModal(initialPerson){
   document.getElementById("timesheetsModal").style.display="flex";
   document.getElementById("tsFromDate").value=document.getElementById("fromDate").value||"";
   document.getElementById("tsToDate").value=document.getElementById("toDate").value||"";
+  // FIX #16: Store desired person filter; populateTimesheetFilters applies it synchronously.
+  window.__tsInitialPerson = initialPerson || null;
   renderTimesheetsModal();
 }
 
@@ -2010,12 +2027,13 @@ function exportTimesheetsPdf(){
   const el = document.getElementById("timesheetsPdfRoot");
 
   // Temporarily expand the modal to show all content for capture
-  const origMaxH = el.style.maxHeight;
-  const origOverflow = el.style.overflow;
-  el.style.maxHeight = "none";
-  el.style.overflow = "visible";
+  const origMaxH    = el.style.maxHeight;
+  const origOverflow  = el.style.overflow;
+  const origOverflowY = el.style.overflowY; // FIX #17: capture overflowY too
 
-  const origBodyScroll = el.style.overflowY;
+  el.style.maxHeight = "none";
+  el.style.overflow  = "visible";
+  el.style.overflowY = "visible"; // ensure no clipping during capture
 
   html2pdf().set({
     margin: 0.2,
@@ -2023,8 +2041,10 @@ function exportTimesheetsPdf(){
     jsPDF: { unit:"in", format:"a4", orientation:"landscape" },
     html2canvas: { scale:2, useCORS:true, scrollY:0, windowWidth: el.scrollWidth }
   }).from(el).save().then(()=>{
+    // FIX #17: Restore all three properties that were captured
     el.style.maxHeight = origMaxH;
     el.style.overflow  = origOverflow;
+    el.style.overflowY = origOverflowY;
   });
 }
 

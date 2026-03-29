@@ -1,11 +1,11 @@
-
 <!DOCTYPE html>
+
 <html>
 <head>
   <title>SiteLog Scan</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyANo2Q7OehYzHTTgMTxRr5ISamf5IradcM"></script>
+  <!-- FIX #19: Maps SDK removed. Decorative map uses a static iframe, saving ~15KB JS on mobile. -->
 
   <style>
     body {
@@ -240,6 +240,7 @@
       color: #333;
     }
   </style>
+
 </head>
 
 <body>
@@ -263,25 +264,28 @@
   <div id="registerBox" style="display:none; text-align:center;">
     <h3>First Visit Registration</h3>
 
-    <input id="firstName" placeholder="First Name">
-    <input id="lastName" placeholder="Last Name">
+```
+<input id="firstName" placeholder="First Name">
+<input id="lastName" placeholder="Last Name">
 
-    <select id="purpose" required>
-      <option value="" disabled selected>Select from list</option>
-      <option value="Visiting">Visiting</option>
-      <option value="Contractor">Contractor</option>
-    </select>
+<select id="purpose" required>
+  <option value="" disabled selected>Select from list</option>
+  <option value="Visiting">Visiting</option>
+  <option value="Contractor">Contractor</option>
+</select>
 
-    <select id="company" required>
-      <option value="" disabled selected>Select from list</option>
-    </select>
+<select id="company" required>
+  <option value="" disabled selected>Select from list</option>
+</select>
 
-    <label>
-      <input type="checkbox" id="hsAck">
-      <span>I have read site rules and will report to site foreman</span>
-    </label>
+<label>
+  <input type="checkbox" id="hsAck">
+  <span>I have read site rules and will report to site foreman</span>
+</label>
 
-    <button onclick="register()">Confirm & Check In</button>
+<button onclick="register()">Confirm & Check In</button>
+```
+
   </div>
 </div>
 
@@ -299,8 +303,11 @@
     <h3 class="confirmTitle">Confirm Sign Out</h3>
     <p id="confirmSignOutText" class="confirmText"></p>
 
-    <button onclick="confirmSignOutYes()">Yes, Sign Me Out</button>
-    <button class="secondaryBtn" onclick="confirmSignOutNo()">No, Stay Signed In</button>
+```
+<button onclick="confirmSignOutYes()">Yes, Sign Me Out</button>
+<button class="secondaryBtn" onclick="confirmSignOutNo()">No, Stay Signed In</button>
+```
+
   </div>
 </div>
 
@@ -309,8 +316,11 @@
     <h3 class="confirmTitle">Confirm Check In</h3>
     <p id="confirmSignInText" class="confirmText"></p>
 
-    <button onclick="confirmSignInYes()">Yes, Check Me In</button>
-    <button class="secondaryBtn" onclick="confirmSignInNo()">No</button>
+```
+<button onclick="confirmSignInYes()">Yes, Check Me In</button>
+<button class="secondaryBtn" onclick="confirmSignInNo()">No</button>
+```
+
   </div>
 </div>
 
@@ -538,21 +548,14 @@ function confirmSignInNo() {
     "<strong>⚠️ Check In Refused:</strong> Please contact Mostlane office on 02380 262000";
 }
 
-/* 🔒 LOCKED MAP VERSION */
+/* FIX #19: Static iframe replaces the full Maps SDK.
+   The map is purely decorative (locked) so there is no need for the
+   full Maps JS library (~15KB) on mobile. */
 function showMap(lat, lng) {
-  const map = new google.maps.Map(document.getElementById("map"), {
-    center: { lat, lng },
-    zoom: 18,
-    mapTypeId: "hybrid",
-    disableDefaultUI: true,
-    draggable: false,
-    scrollwheel: false,
-    disableDoubleClickZoom: true,
-    keyboardShortcuts: false,
-    gestureHandling: "none"
-  });
-
-  new google.maps.Marker({ position: { lat, lng }, map });
+  const mapEl = document.getElementById("map");
+  const key   = "AIzaSyANo2Q7OehYzHTTgMTxRr5ISamf5IradcM";
+  const src   = "https://www.google.com/maps/embed/v1/place?key=" + key + "&q=" + lat + "," + lng + "&zoom=18&maptype=satellite";
+  mapEl.innerHTML = '<iframe src="' + src + '" width="100%" height="260" style="border:0;border-radius:10px;display:block;pointer-events:none;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>';
 }
 
 /* ======================================

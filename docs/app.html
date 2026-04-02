@@ -1197,7 +1197,29 @@ function appRetryGps() {
   document.getElementById("appGpsError").style.display = "none";
   document.getElementById("appTitle").textContent = "Checking Location...";
   document.getElementById("appStatus").textContent = "Requesting GPS...";
-  startLocation();
+  // Use startLocation which also sets gps_granted on success
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      lastLocation = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy
+      };
+      dbSet("gps_granted", true);
+      showMap(lastLocation.lat, lastLocation.lng);
+      appScan();
+    },
+    function(err) {
+      if (err.code === 1) {
+        dbDel("gps_granted");
+        showScreen("screen-permission");
+        showPermissionError(err.code, err.message);
+      } else {
+        showGpsErrorInScan(err.code, err.message);
+      }
+    },
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 300000 }
+  );
 }
 
 // ── MAP ────────────────────────────────────────────
@@ -1501,9 +1523,6 @@ async function appRegister() {
 
 // ── LOCATION ───────────────────────────────────────
 function startLocation() {
-  // Called explicitly when user taps Allow on permission screen.
-  // Use maximumAge so iOS can return a cached position instantly
-  // if the user just granted permission and GPS has a recent fix.
   navigator.geolocation.getCurrentPosition(
     function(pos) {
       lastLocation = {
@@ -1511,23 +1530,30 @@ function startLocation() {
         lng: pos.coords.longitude,
         accuracy: pos.coords.accuracy
       };
-      // Always move to scan screen — we came from permission gate
+      // Store flag so future opens skip the permission gate entirely
+      dbSet("gps_granted", true);
+      // Always move to scan screen
       showScreen("screen-scan");
       showMap(lastLocation.lat, lastLocation.lng);
       appScan();
     },
     function(err) {
       if (err.code === 1) {
-        // Still denied after they tapped Allow — show updated fix steps
-        showPermissionError(err.code, err.message);
+        // Denied — clear stored flag and show fix steps
+        dbDel("gps_granted");
+        if (document.getElementById("screen-permission").classList.contains("active")) {
+          showPermissionError(err.code, err.message);
+        } else {
+          showScreen("screen-permission");
+          showPermissionError(err.code, err.message);
+        }
       } else {
-        // Permission granted but GPS unavailable/timed out
-        // Move to scan screen and show the GPS error there instead
+        // GPS unavailable/timeout — permission is fine, go to scan screen
         showScreen("screen-scan");
         showGpsErrorInScan(err.code, err.message);
       }
     },
-    { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 300000 }
   );
 }
 
@@ -1684,73 +1710,56 @@ async function init() {
   deviceToken = await getDeviceToken();
   tokenFallbackWrite(deviceToken);
 
-  // 2. Try to silently get location first.
-  //    - If it works: go straight to scan, never show permission screen.
-  //    - If it fails with PERMISSION_DENIED: show fix steps.
-  //    - If it fails with UNAVAILABLE/TIMEOUT: show scan screen with GPS error.
-  //    This way a user who has already granted permission NEVER sees the permission gate.
+  // 2. Check if we have previously stored a "gps_granted" flag in IndexedDB.
+  //    On iOS Safari, navigator.permissions is not available, so we use our own
+  //    flag set after the first successful GPS fix to skip the permission gate
+  //    on all future opens.
+  var prevGranted = await dbGet("gps_granted");
 
-  // First check via Permissions API if available (Android Chrome, Firefox)
+  // 3. Android / browsers with Permissions API
   if (navigator.permissions && navigator.permissions.query) {
     try {
       var result = await navigator.permissions.query({ name: "geolocation" });
 
       if (result.state === "granted") {
-        // Permission already stored — skip gate entirely
         showScreen("screen-scan");
         startLocation();
         return;
       }
 
       if (result.state === "denied") {
-        // Hard blocked — show fix steps immediately, no point trying
         showScreen("screen-permission");
         showPermissionError(1, "Permission denied");
         return;
       }
 
-      // "prompt" — first time, need to ask
+      // "prompt" state — but check our own flag first
+      // (handles case where Permissions API reports "prompt" incorrectly)
+      if (prevGranted) {
+        showScreen("screen-scan");
+        startLocation();
+        return;
+      }
+
       showScreen("screen-permission");
       return;
 
     } catch(e) {
-      // Permissions API not supported (iOS Safari) — fall through to silent probe
+      // Permissions API not supported — fall through
     }
   }
 
-  // iOS Safari / browsers without Permissions API:
-  // Silently attempt geolocation with a short timeout.
-  // If it works immediately (permission was previously granted), go to scan.
-  // If it errors, show the permission gate.
-  showScreen("screen-splash");
-  document.getElementById("splashSpinner").style.display = "block";
+  // 4. iOS Safari path:
+  //    If we have our own stored flag, skip straight to scan and fire GPS.
+  //    The OS will return the position silently without a dialog.
+  if (prevGranted) {
+    showScreen("screen-scan");
+    startLocation();
+    return;
+  }
 
-  navigator.geolocation.getCurrentPosition(
-    function(pos) {
-      // Permission was already granted silently
-      lastLocation = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracy: pos.coords.accuracy
-      };
-      showScreen("screen-scan");
-      showMap(lastLocation.lat, lastLocation.lng);
-      appScan();
-    },
-    function(err) {
-      if (err.code === 1) {
-        // Denied — show permission screen with fix steps
-        showScreen("screen-permission");
-        showPermissionError(1, err.message);
-      } else {
-        // Unavailable or timeout — permission IS granted but GPS failed
-        // Go to scan screen and show GPS error there
-        showScreen("screen-scan");
-        showGpsErrorInScan(err.code, err.message);
-      }
-    },
-    { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
-  );
+  // 5. Truly first time — show permission gate, user must tap Allow.
+  showScreen("screen-permission");
 }
 
 init();

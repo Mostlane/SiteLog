@@ -624,6 +624,118 @@
       cursor: pointer;
     }
     .err-btn:active { opacity: 0.85; }
+  /* ── INSTALL BANNER ─────────────────────────────── */
+    #installBanner {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 8000;
+      padding: 0 12px calc(var(--safe-bot) + 12px);
+    }
+    .install-card {
+      background: #fff;
+      border-radius: 20px 20px 0 0;
+      padding: 18px 18px 20px;
+      box-shadow: 0 -4px 30px rgba(0,0,0,0.18);
+    }
+    .install-handle {
+      width: 36px;
+      height: 4px;
+      background: #e2e8f0;
+      border-radius: 2px;
+      margin: 0 auto 14px;
+    }
+    .install-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .install-logo {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      object-fit: cover;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .install-text-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+    .install-text-sub {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .install-steps {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+    }
+    .install-step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13.5px;
+      color: var(--text);
+      padding: 5px 0;
+    }
+    .install-step:not(:last-child) {
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .install-step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--blue);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .install-step-icon {
+      font-size: 18px;
+      flex-shrink: 0;
+      width: 22px;
+      text-align: center;
+    }
+    .install-dismiss {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      background: #f1f5f9;
+      border: none;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      text-align: center;
+    }
+    .install-dismiss:active { opacity: 0.8; }
+    .install-android-btn {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      background: var(--blue);
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+    .install-android-btn:active { opacity: 0.85; }
   </style>
 
 </head>
@@ -1389,6 +1501,9 @@ async function appRegister() {
 
 // ── LOCATION ───────────────────────────────────────
 function startLocation() {
+  // Called explicitly when user taps Allow on permission screen.
+  // Use maximumAge so iOS can return a cached position instantly
+  // if the user just granted permission and GPS has a recent fix.
   navigator.geolocation.getCurrentPosition(
     function(pos) {
       lastLocation = {
@@ -1396,21 +1511,23 @@ function startLocation() {
         lng: pos.coords.longitude,
         accuracy: pos.coords.accuracy
       };
-      // If we were on permission screen, move to scan screen
-      if (document.getElementById("screen-permission").classList.contains("active")) {
-        showScreen("screen-scan");
-      }
+      // Always move to scan screen — we came from permission gate
+      showScreen("screen-scan");
       showMap(lastLocation.lat, lastLocation.lng);
       appScan();
     },
     function(err) {
-      if (document.getElementById("screen-permission").classList.contains("active")) {
+      if (err.code === 1) {
+        // Still denied after they tapped Allow — show updated fix steps
         showPermissionError(err.code, err.message);
       } else {
+        // Permission granted but GPS unavailable/timed out
+        // Move to scan screen and show the GPS error there instead
+        showScreen("screen-scan");
         showGpsErrorInScan(err.code, err.message);
       }
     },
-    { enableHighAccuracy: true, timeout: 20000 }
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
   );
 }
 
@@ -1488,45 +1605,201 @@ document.getElementById("adminTrigger").addEventListener("click", function() {
 });
 
 // ── INIT ───────────────────────────────────────────
+// ── INSTALL BANNER LOGIC ──────────────────────────
+var deferredInstallPrompt = null;
+
+// Android: capture the beforeinstallprompt event
+window.addEventListener("beforeinstallprompt", function(e) {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  showInstallBanner("android");
+});
+
+// iOS: detect Safari on iOS that is NOT already installed
+function isIosSafari() {
+  var ua = navigator.userAgent;
+  var isIOS = /iphone|ipad|ipod/i.test(ua);
+  var isSafari = /safari/i.test(ua) && !/crios|fxios|opios|chrome/i.test(ua);
+  return isIOS && isSafari;
+}
+
+function isStandalone() {
+  return window.matchMedia("(display-mode: standalone)").matches ||
+         window.navigator.standalone === true;
+}
+
+function showInstallBanner(platform) {
+  // Never show if already installed as PWA
+  if (isStandalone()) return;
+  // Never show if user dismissed recently (7 days)
+  try {
+    var dismissed = localStorage.getItem("ml_install_dismissed");
+    if (dismissed && (Date.now() - Number(dismissed)) < 7 * 24 * 60 * 60 * 1000) return;
+  } catch(e) {}
+
+  var banner = document.getElementById("installBanner");
+  if (!banner) return;
+
+  if (platform === "ios") {
+    document.getElementById("installSub").textContent = "Follow these steps to add SiteLog to your home screen:";
+    document.getElementById("installIosSteps").style.display = "block";
+    document.getElementById("installAndroidBtn").style.display = "none";
+  } else {
+    document.getElementById("installSub").textContent = "Install for faster access and persistent location permissions.";
+    document.getElementById("installIosSteps").style.display = "none";
+    document.getElementById("installAndroidBtn").style.display = "block";
+
+    var btn = document.getElementById("androidInstallBtn");
+    if (btn) {
+      btn.addEventListener("click", function() {
+        if (deferredInstallPrompt) {
+          deferredInstallPrompt.prompt();
+          deferredInstallPrompt.userChoice.then(function(result) {
+            if (result.outcome === "accepted") {
+              dismissInstallBanner();
+            }
+            deferredInstallPrompt = null;
+          });
+        }
+      });
+    }
+  }
+
+  banner.style.display = "block";
+}
+
+function dismissInstallBanner() {
+  var banner = document.getElementById("installBanner");
+  if (banner) banner.style.display = "none";
+  try { localStorage.setItem("ml_install_dismissed", String(Date.now())); } catch(e) {}
+}
+
+// Hide banner if app is opened as installed PWA
+window.addEventListener("appinstalled", function() {
+  dismissInstallBanner();
+});
+
 async function init() {
-  // 1. Get/create device token using IndexedDB with cookie+localStorage fallback
+  // 1. Get/create device token
   deviceToken = await getDeviceToken();
   tokenFallbackWrite(deviceToken);
 
-  // 2. Check geolocation permission state
+  // 2. Try to silently get location first.
+  //    - If it works: go straight to scan, never show permission screen.
+  //    - If it fails with PERMISSION_DENIED: show fix steps.
+  //    - If it fails with UNAVAILABLE/TIMEOUT: show scan screen with GPS error.
+  //    This way a user who has already granted permission NEVER sees the permission gate.
+
+  // First check via Permissions API if available (Android Chrome, Firefox)
   if (navigator.permissions && navigator.permissions.query) {
     try {
       var result = await navigator.permissions.query({ name: "geolocation" });
 
       if (result.state === "granted") {
-        // Already have permission — go straight to scan screen
+        // Permission already stored — skip gate entirely
         showScreen("screen-scan");
         startLocation();
         return;
       }
 
       if (result.state === "denied") {
-        // Hard denied — show permission screen with fix steps immediately
+        // Hard blocked — show fix steps immediately, no point trying
         showScreen("screen-permission");
         showPermissionError(1, "Permission denied");
         return;
       }
 
-      // "prompt" state — show permission request screen
+      // "prompt" — first time, need to ask
       showScreen("screen-permission");
       return;
 
     } catch(e) {
-      // permissions API not available — fall through to prompt screen
+      // Permissions API not supported (iOS Safari) — fall through to silent probe
     }
   }
 
-  // Fallback: show permission screen, user taps Allow
-  showScreen("screen-permission");
+  // iOS Safari / browsers without Permissions API:
+  // Silently attempt geolocation with a short timeout.
+  // If it works immediately (permission was previously granted), go to scan.
+  // If it errors, show the permission gate.
+  showScreen("screen-splash");
+  document.getElementById("splashSpinner").style.display = "block";
+
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      // Permission was already granted silently
+      lastLocation = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy
+      };
+      showScreen("screen-scan");
+      showMap(lastLocation.lat, lastLocation.lng);
+      appScan();
+    },
+    function(err) {
+      if (err.code === 1) {
+        // Denied — show permission screen with fix steps
+        showScreen("screen-permission");
+        showPermissionError(1, err.message);
+      } else {
+        // Unavailable or timeout — permission IS granted but GPS failed
+        // Go to scan screen and show GPS error there
+        showScreen("screen-scan");
+        showGpsErrorInScan(err.code, err.message);
+      }
+    },
+    { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
+  );
 }
 
 init();
+
+// Show iOS install banner after a short delay (not during splash)
+if (isIosSafari() && !isStandalone()) {
+  setTimeout(function() { showInstallBanner("ios"); }, 2500);
+}
 </script>
+
+<!-- ═══════════════════════════════════════════════
+     INSTALL BANNER
+═══════════════════════════════════════════════ -->
+
+<div id="installBanner">
+  <div class="install-card">
+    <div class="install-handle"></div>
+    <div class="install-row">
+      <img src="Mostlane Logo.jpg" alt="Mostlane" class="install-logo" />
+      <div>
+        <div class="install-text-title">Install SiteLog</div>
+        <div class="install-text-sub" id="installSub">Add to your home screen for the best experience</div>
+      </div>
+    </div>
+    <!-- iOS steps -->
+    <div id="installIosSteps" class="install-steps" style="display:none;">
+      <div class="install-step">
+        <span class="install-step-num">1</span>
+        <span>Tap the <strong>Share</strong> button at the bottom of your screen</span>
+        <span class="install-step-icon">&#11014;</span>
+      </div>
+      <div class="install-step">
+        <span class="install-step-num">2</span>
+        <span>Scroll down and tap <strong>Add to Home Screen</strong></span>
+        <span class="install-step-icon">&#43;</span>
+      </div>
+      <div class="install-step">
+        <span class="install-step-num">3</span>
+        <span>Tap <strong>Add</strong> in the top right corner</span>
+        <span class="install-step-icon">&#10003;</span>
+      </div>
+    </div>
+    <!-- Android button -->
+    <div id="installAndroidBtn" style="display:none;">
+      <button class="install-android-btn" id="androidInstallBtn">Install App</button>
+    </div>
+    <button class="install-dismiss" onclick="dismissInstallBanner()">Maybe later</button>
+  </div>
+</div>
 
 </body>
 </html>

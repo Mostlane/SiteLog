@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SiteLog</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <!-- PWA meta -->
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#004a99" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="SiteLog" />
+  <link rel="apple-touch-icon" href="Mostlane Logo.jpg" />
+
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyANo2Q7OehYzHTTgMTxRr5ISamf5IradcM"></script>
+
+  <style>
+    :root {
+      --blue:     #004a99;
+      --blue-dk:  #003366;
+      --green:    #16a34a;
+      --red:      #dc2626;
+      --amber:    #d97706;
+      --bg:       #e6e8eb;
+      --surface:  rgba(255,255,255,0.97);
+      --text:     #0f172a;
+      --muted:    #64748b;
+      --border:   #cbd5e1;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bot: env(safe-area-inset-bottom, 0px);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--blue);
+      color: var(--text);
+      min-height: 100vh;
+      min-height: -webkit-fill-available;
+    }
+
+    /* ── SCREEN SYSTEM ─────────────────────────────── */
+    .screen {
+      display: none;
+      flex-direction: column;
+      min-height: 100vh;
+      min-height: -webkit-fill-available;
+    }
+    .screen.active { display: flex; }
+
+    /* ── SPLASH ─────────────────────────────────────── */
+    #screen-splash {
+      background: var(--blue);
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+    }
+    .splash-logo {
+      width: 120px;
+      height: 120px;
+      border-radius: 28px;
+      object-fit: cover;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    .splash-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.5px;
+    }
+    .splash-sub {
+      font-size: 14px;
+      color: rgba(255,255,255,0.65);
+      margin-top: -12px;
+    }
+    .splash-spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── PERMISSION GATE ────────────────────────────── */
+    #screen-permission {
+      background: var(--blue);
+      align-items: center;
+      justify-content: center;
+      padding: 32px 24px;
+      gap: 0;
+    }
+    .perm-card {
+      background: var(--surface);
+      border-radius: 24px;
+      padding: 32px 24px 28px;
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    }
+    .perm-icon {
+      font-size: 52px;
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+    .perm-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .perm-body {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .perm-btn {
+      display: block;
+      width: 100%;
+      padding: 15px;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+    .perm-btn:active { opacity: 0.85; }
+    .perm-btn.secondary {
+      background: #f1f5f9;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .perm-error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    .perm-error-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--red);
+      margin-bottom: 4px;
+    }
+    .perm-error-body {
+      font-size: 13px;
+      color: #991b1b;
+      line-height: 1.5;
+    }
+
+    .device-toggle {
+      display: flex;
+      background: #f1f5f9;
+      border-radius: 999px;
+      padding: 3px;
+      gap: 0;
+      margin: 0 auto 16px;
+      width: fit-content;
+    }
+    .device-toggle button {
+      padding: 7px 18px;
+      border-radius: 999px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .device-toggle button.active {
+      background: #fff;
+      color: var(--blue);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+    .fix-steps {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      text-align: left;
+      margin-bottom: 16px;
+    }
+    .fix-steps ol {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.75;
+    }
+
+    /* ── MAIN SCAN SCREEN ───────────────────────────── */
+    #screen-scan {
+      background: var(--bg) url('Mostlane_Embossed.png') no-repeat center center fixed;
+      background-size: 180%;
+    }
+
+    .app-header {
+      background: rgba(0,74,153,0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding: calc(var(--safe-top) + 12px) 16px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .app-header-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .app-header-logo img {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+
+    .app-header-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.2px;
+    }
+
+    /* Triple-tap logo area to reveal PIN prompt — invisible hit target */
+    #adminTrigger {
+      position: absolute;
+      top: calc(var(--safe-top) + 6px);
+      left: 0;
+      width: 80px;
+      height: 52px;
+      cursor: default;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .scan-content {
+      flex: 1;
+      padding: 20px 16px calc(var(--safe-bot) + 20px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+
+    .status-card {
+      width: 100%;
+      max-width: 520px;
+      background: var(--surface);
+      border-radius: 18px;
+      padding: 18px 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      margin-bottom: 14px;
+    }
+
+    #appStatus {
+      font-size: 15px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    #appTitle {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text);
+      text-align: center;
+      margin-bottom: 6px;
+      letter-spacing: -0.3px;
+    }
+
+    #appMap {
+      height: 220px;
+      border-radius: 12px;
+      margin-top: 12px;
+      touch-action: none;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .not-you {
+      font-size: 12px;
+      color: rgba(15,23,42,0.4);
+      text-align: right;
+      width: 100%;
+      max-width: 520px;
+      margin-bottom: 6px;
+    }
+    .not-you a {
+      color: rgba(0,74,153,0.6);
+      font-weight: 600;
+      text-decoration: underline;
+    }
+
+    .site-notice {
+      width: 100%;
+      max-width: 520px;
+      padding: 13px 16px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.92);
+      border: 2px solid rgba(0,59,130,0.2);
+      color: var(--text);
+      font-size: 16px;
+      text-align: center;
+      margin-bottom: 14px;
+    }
+    .site-notice strong { color: #003b82; }
+
+    /* Register form */
+    #appRegisterBox {
+      width: 100%;
+      max-width: 520px;
+      display: none;
+    }
+    #appRegisterBox input,
+    #appRegisterBox select,
+    #appRegisterBox button {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1.5px solid var(--border);
+      font-size: 16px;
+      background: #fff;
+      color: var(--text);
+      margin-bottom: 10px;
+      text-align: center;
+      -webkit-appearance: none;
+      appearance: none;
+      outline: none;
+    }
+    #appRegisterBox select {
+      -webkit-appearance: menulist;
+      appearance: menulist;
+    }
+    #appRegisterBox button {
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #appRegisterBox button:active { opacity: 0.85; }
+    #appRegisterBox label {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 12px;
+      padding: 0 2px;
+      line-height: 1.4;
+    }
+    #appRegisterBox label input[type="checkbox"] {
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+      margin: 0;
+      padding: 0;
+      border-radius: 6px;
+      -webkit-appearance: auto;
+      appearance: auto;
+    }
+
+    /* ── SUCCESS OVERLAY ────────────────────────────── */
+    #appSuccessOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      z-index: 9999;
+    }
+    #appSuccessOverlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .success-card {
+      background: #fff;
+      width: min(380px, calc(100% - 40px));
+      border-radius: 28px;
+      padding: 44px 24px 40px;
+      text-align: center;
+      transform: scale(0.88);
+      transition: transform 0.25s ease;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    #appSuccessOverlay.active .success-card { transform: scale(1); }
+    .success-icon { font-size: 72px; line-height: 1; margin-bottom: 14px; }
+    .success-title { font-size: 28px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+    .success-sub   { font-size: 15px; color: var(--muted); }
+
+    /* ── CONFIRM MODALS ─────────────────────────────── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 10000;
+      padding-bottom: var(--safe-bot);
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-sheet {
+      background: #fff;
+      width: 100%;
+      max-width: 520px;
+      border-radius: 24px 24px 0 0;
+      padding: 24px 20px calc(20px + var(--safe-bot));
+      text-align: center;
+    }
+    .modal-handle {
+      width: 36px;
+      height: 4px;
+      background: #e2e8f0;
+      border-radius: 2px;
+      margin: 0 auto 20px;
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .modal-body {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 22px;
+      line-height: 1.5;
+    }
+    .modal-btn {
+      display: block;
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+    .modal-btn.primary { background: var(--blue); color: #fff; }
+    .modal-btn.secondary { background: #f1f5f9; color: var(--muted); font-weight: 500; }
+    .modal-btn:active { opacity: 0.85; }
+
+    /* ── PIN SCREEN ─────────────────────────────────── */
+    #screen-pin {
+      background: var(--blue);
+      align-items: center;
+      justify-content: center;
+      padding: 32px 24px;
+    }
+    .pin-card {
+      background: var(--surface);
+      border-radius: 24px;
+      padding: 32px 24px 28px;
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    }
+    .pin-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .pin-sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    .pin-dots {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .pin-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: transparent;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .pin-dot.filled {
+      background: var(--blue);
+      border-color: var(--blue);
+    }
+    .pin-dot.error {
+      background: var(--red);
+      border-color: var(--red);
+    }
+    .pin-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .pin-key {
+      padding: 18px 0;
+      background: #f1f5f9;
+      border: none;
+      border-radius: 14px;
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .pin-key:active { background: #e2e8f0; }
+    .pin-key.wide {
+      grid-column: span 2;
+    }
+    .pin-error {
+      font-size: 13px;
+      color: var(--red);
+      min-height: 18px;
+      margin-bottom: 8px;
+    }
+    .pin-back-btn {
+      font-size: 13px;
+      color: var(--muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px;
+      text-decoration: underline;
+    }
+
+    /* ── ADMIN WEBVIEW ──────────────────────────────── */
+    #screen-admin {
+      background: #fff;
+      position: fixed;
+      inset: 0;
+      z-index: 20000;
+      display: none;
+      flex-direction: column;
+    }
+    #screen-admin.active { display: flex; }
+    .admin-bar {
+      background: var(--blue);
+      padding: calc(var(--safe-top) + 10px) 16px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .admin-bar-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .admin-close-btn {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 7px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    #adminFrame {
+      flex: 1;
+      border: none;
+      width: 100%;
+    }
+
+    /* ── NETWORK / GPS ERROR PANELS ─────────────────── */
+    #appNetworkError, #appGpsError {
+      display: none;
+      width: 100%;
+      max-width: 520px;
+      background: var(--surface);
+      border-radius: 18px;
+      padding: 22px 18px 18px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      margin-bottom: 14px;
+    }
+    .err-title { font-size: 17px; font-weight: 800; margin-bottom: 6px; }
+    .err-body  { font-size: 14px; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
+    .err-btn {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .err-btn:active { opacity: 0.85; }
+  </style>
+
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     SPLASH
+═══════════════════════════════════════════════ -->
+
+<div id="screen-splash" class="screen active">
+  <img src="Mostlane Logo.jpg" alt="Mostlane" class="splash-logo" />
+  <div class="splash-title">SiteLog</div>
+  <div class="splash-sub">Mostlane Site Attendance</div>
+  <div class="splash-spinner" id="splashSpinner"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PERMISSION GATE
+═══════════════════════════════════════════════ -->
+
+<div id="screen-permission" class="screen">
+  <div class="perm-card">
+    <div class="perm-icon" id="permIcon">📍</div>
+    <div class="perm-title" id="permTitle">Location Required</div>
+
+```
+<div id="permError" class="perm-error" style="display:none;">
+  <div class="perm-error-title" id="permErrorTitle">Location Blocked</div>
+  <div class="perm-error-body" id="permErrorBody"></div>
+</div>
+
+<div id="permDeviceToggle" class="device-toggle" style="display:none;">
+  <button id="permBtnIphone" class="active" onclick="permSwitchDevice('iphone')">iPhone</button>
+  <button id="permBtnAndroid" onclick="permSwitchDevice('android')">Android</button>
+</div>
+
+<div id="permFixSteps" class="fix-steps" style="display:none;">
+  <ol id="permStepsList"></ol>
+</div>
+
+<div id="permNormalBody">
+  <div class="perm-body">SiteLog needs your location to verify you are on site. Please tap Allow when prompted.</div>
+</div>
+
+<button class="perm-btn" id="permActionBtn" onclick="requestPermission()">Allow Location Access</button>
+<button class="perm-btn secondary" id="permRetryBtn" style="display:none;" onclick="retryPermission()">Try Again</button>
+```
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SCAN SCREEN
+═══════════════════════════════════════════════ -->
+
+<div id="screen-scan" class="screen">
+
+  <div class="app-header">
+    <!-- Triple-tap trigger zone — invisible -->
+    <div id="adminTrigger"></div>
+    <div class="app-header-logo">
+      <img src="Mostlane Logo.jpg" alt="Mostlane" />
+      <span class="app-header-title">SiteLog</span>
+    </div>
+    <div style="width:32px;"></div>
+  </div>
+
+  <div class="scan-content">
+
+```
+<div class="site-notice" id="appNoticeBox">
+  <strong>Site Notice:</strong> Report to site foreman
+</div>
+
+<div class="status-card" id="appCard">
+  <div id="appTitle">Checking Location...</div>
+  <div id="appStatus">Requesting GPS...</div>
+  <div id="appMap"></div>
+</div>
+
+<div class="not-you" id="appNotYouRow" style="display:none;">
+  Not you? <a href="#" onclick="appResetDevice(); return false;">Reset device</a>
+</div>
+
+<div id="appRegisterBox">
+  <div class="status-card" style="text-align:center;">
+    <div style="font-size:17px;font-weight:700;margin-bottom:14px;">First Visit Registration</div>
+    <input id="appFirstName" placeholder="First Name" />
+    <input id="appLastName"  placeholder="Last Name" />
+    <select id="appPurpose" required>
+      <option value="" disabled selected>Select purpose</option>
+      <option value="Visiting">Visiting</option>
+      <option value="Contractor">Contractor</option>
+    </select>
+    <select id="appCompany" required>
+      <option value="" disabled selected>Select company</option>
+    </select>
+    <label>
+      <input type="checkbox" id="appHsAck" />
+      <span>I have read the site rules and will report to the site foreman</span>
+    </label>
+    <button onclick="appRegister()">Confirm &amp; Check In</button>
+  </div>
+</div>
+
+<!-- Network error -->
+<div id="appNetworkError">
+  <div class="err-title" style="color:var(--amber);">No Connection</div>
+  <div class="err-body" id="appNetworkMsg">Could not reach the SiteLog server. Switch to mobile data and try again.</div>
+  <button class="err-btn" onclick="appRetryNetwork()">Try Again</button>
+</div>
+
+<!-- GPS error (within scan screen — for retry after permission) -->
+<div id="appGpsError">
+  <div class="err-title" style="color:var(--red);">Location Unavailable</div>
+  <div class="err-body" id="appGpsMsg">GPS signal could not be obtained.</div>
+  <button class="err-btn" onclick="appRetryGps()">Try Again</button>
+</div>
+```
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PIN SCREEN
+═══════════════════════════════════════════════ -->
+
+<div id="screen-pin" class="screen">
+  <div class="pin-card">
+    <div class="pin-title">Admin Access</div>
+    <div class="pin-sub">Enter your 4-digit PIN</div>
+    <div class="pin-dots">
+      <div class="pin-dot" id="pd0"></div>
+      <div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div>
+      <div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-error" id="pinError"></div>
+    <div class="pin-grid">
+      <button class="pin-key" onclick="pinPress('1')">1</button>
+      <button class="pin-key" onclick="pinPress('2')">2</button>
+      <button class="pin-key" onclick="pinPress('3')">3</button>
+      <button class="pin-key" onclick="pinPress('4')">4</button>
+      <button class="pin-key" onclick="pinPress('5')">5</button>
+      <button class="pin-key" onclick="pinPress('6')">6</button>
+      <button class="pin-key" onclick="pinPress('7')">7</button>
+      <button class="pin-key" onclick="pinPress('8')">8</button>
+      <button class="pin-key" onclick="pinPress('9')">9</button>
+      <button class="pin-key" onclick="pinPress('0')">0</button>
+      <button class="pin-key" onclick="pinBackspace()">&#9003;</button>
+    </div>
+    <button class="pin-back-btn" onclick="closePinScreen()">Cancel</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     ADMIN WEBVIEW
+═══════════════════════════════════════════════ -->
+
+<div id="screen-admin">
+  <div class="admin-bar">
+    <span class="admin-bar-title">Admin Dashboard</span>
+    <button class="admin-close-btn" onclick="closeAdmin()">Close</button>
+  </div>
+  <iframe id="adminFrame" src="about:blank" allow="clipboard-read; clipboard-write"></iframe>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SUCCESS OVERLAY
+═══════════════════════════════════════════════ -->
+
+<div id="appSuccessOverlay">
+  <div class="success-card">
+    <div class="success-icon" id="appSuccessIcon">&#x2705;</div>
+    <div class="success-title" id="appSuccessTitle">Checked In</div>
+    <div class="success-sub"   id="appSuccessSub">Recorded successfully</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     CONFIRM MODALS
+═══════════════════════════════════════════════ -->
+
+<div class="modal-overlay" id="modalSignOut">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Confirm Sign Out</div>
+    <div class="modal-body" id="modalSignOutText"></div>
+    <button class="modal-btn primary" onclick="appConfirmSignOutYes()">Yes, Sign Me Out</button>
+    <button class="modal-btn secondary" onclick="appConfirmSignOutNo()">No, Stay Signed In</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalSignIn">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Confirm Check In</div>
+    <div class="modal-body" id="modalSignInText">I am aware of the site rules and will report to the site foreman.</div>
+    <button class="modal-btn primary" onclick="appConfirmSignInYes()">Yes, Check Me In</button>
+    <button class="modal-btn secondary" onclick="appConfirmSignInNo()">No</button>
+  </div>
+</div>
+
+<script>
+const API = "https://sitelog-api.jamie-def.workers.dev";
+
+// ── SET YOUR ADMIN PIN HERE ──────────────────────────
+const ADMIN_PIN = "1234";
+// ────────────────────────────────────────────────────
+
+// ── DEVICE TOKEN — IndexedDB (survives private mode in standalone PWA) ──
+const DB_NAME  = "sitelog";
+const DB_STORE = "kv";
+let deviceToken = null;
+
+function openDB() {
+  return new Promise(function(resolve, reject) {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = function(e) {
+      e.target.result.createObjectStore(DB_STORE);
+    };
+    req.onsuccess = function(e) { resolve(e.target.result); };
+    req.onerror   = function()  { reject(); };
+  });
+}
+
+async function dbGet(key) {
+  try {
+    const db = await openDB();
+    return new Promise(function(resolve) {
+      const tx  = db.transaction(DB_STORE, "readonly");
+      const req = tx.objectStore(DB_STORE).get(key);
+      req.onsuccess = function() { resolve(req.result || null); };
+      req.onerror   = function() { resolve(null); };
+    });
+  } catch(e) { return null; }
+}
+
+async function dbSet(key, value) {
+  try {
+    const db = await openDB();
+    return new Promise(function(resolve) {
+      const tx  = db.transaction(DB_STORE, "readwrite");
+      tx.objectStore(DB_STORE).put(value, key);
+      tx.oncomplete = function() { resolve(); };
+      tx.onerror    = function() { resolve(); };
+    });
+  } catch(e) {}
+}
+
+async function dbDel(key) {
+  try {
+    const db = await openDB();
+    return new Promise(function(resolve) {
+      const tx  = db.transaction(DB_STORE, "readwrite");
+      tx.objectStore(DB_STORE).delete(key);
+      tx.oncomplete = function() { resolve(); };
+      tx.onerror    = function() { resolve(); };
+    });
+  } catch(e) {}
+}
+
+// Fallback: also mirror to localStorage + cookie so guest browsers still work
+function tokenFallbackRead() {
+  // Cookie first, then localStorage
+  const cookie = document.cookie.split(";").map(function(c){ return c.trim(); })
+    .find(function(c){ return c.startsWith("ml_did="); });
+  if (cookie) return cookie.split("=")[1];
+  try { return localStorage.getItem("mostlane_device_id"); } catch(e) { return null; }
+}
+
+function tokenFallbackWrite(tok) {
+  try {
+    // Set a cookie that lasts 2 years, SameSite=Lax
+    document.cookie = "ml_did=" + tok + "; max-age=63072000; path=/; SameSite=Lax";
+  } catch(e) {}
+  try { localStorage.setItem("mostlane_device_id", tok); } catch(e) {}
+}
+
+async function getDeviceToken() {
+  // 1. Try IndexedDB
+  let tok = await dbGet("device_id");
+  if (tok) return tok;
+  // 2. Try cookie / localStorage fallback
+  tok = tokenFallbackRead();
+  if (tok) {
+    await dbSet("device_id", tok);
+    return tok;
+  }
+  // 3. Generate new
+  tok = crypto.randomUUID();
+  await dbSet("device_id", tok);
+  tokenFallbackWrite(tok);
+  return tok;
+}
+
+async function clearDeviceToken() {
+  await dbDel("device_id");
+  await dbDel("last_checkin");
+  await dbDel("profile");
+  try { localStorage.removeItem("mostlane_device_id"); localStorage.removeItem("mostlane_last_checkin"); localStorage.removeItem("mostlane_profile"); } catch(e) {}
+  document.cookie = "ml_did=; max-age=0; path=/";
+}
+
+// ── SCREEN MANAGEMENT ──────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(function(s) {
+    s.classList.remove("active");
+  });
+  var el = document.getElementById(id);
+  if (el) el.classList.add("active");
+}
+
+// ── STATE ──────────────────────────────────────────
+let lastLocation       = null;
+let currentSite        = null;
+let pendingCheckoutId  = null;
+let pendingCheckoutName = "";
+let pendingCheckoutSite = "";
+let pendingCheckinSite  = "";
+let pendingCheckinFirst = "";
+let pendingCheckinCo    = "";
+let pendingNetworkAction = null;
+let permCurrentDevice  = "iphone";
+let adminTapCount      = 0;
+let adminTapTimer      = null;
+let pinValue           = "";
+
+// ── PERMISSION GATE ────────────────────────────────
+const PERM_STEPS = {
+  iphone: {
+    1: ["Open the <strong>Settings</strong> app","Scroll down and tap <strong>Safari</strong>","Tap <strong>Location</strong> and choose <strong>Allow</strong>","Return here and tap <strong>Try Again</strong>"],
+    2: ["Go to <strong>Settings &gt; Privacy &gt; Location Services</strong>","Make sure Location Services is <strong>ON</strong>","Step outside for a better signal and tap <strong>Try Again</strong>"],
+    3: ["Go to <strong>Settings &gt; Privacy &gt; Location Services</strong> and confirm it is ON","Move slightly then tap <strong>Try Again</strong>"]
+  },
+  android: {
+    1: ["Tap the <strong>lock icon</strong> in the address bar","Tap <strong>Permissions &gt; Location &gt; Allow</strong>","Tap <strong>Try Again</strong> below"],
+    2: ["Swipe down and make sure <strong>Location</strong> is on in Quick Settings","Go to <strong>Settings &gt; Location</strong> and enable it","Tap <strong>Try Again</strong>"],
+    3: ["Swipe down and check <strong>Location</strong> is on","Move slightly then tap <strong>Try Again</strong>"]
+  }
+};
+
+function permSwitchDevice(device) {
+  permCurrentDevice = device;
+  document.getElementById("permBtnIphone").classList.toggle("active",  device === "iphone");
+  document.getElementById("permBtnAndroid").classList.toggle("active", device === "android");
+  permRenderSteps(device, window.__permLastCode || 1);
+}
+
+function permRenderSteps(device, code) {
+  window.__permLastCode = code;
+  var steps = (PERM_STEPS[device] && PERM_STEPS[device][code]) || PERM_STEPS[device][1];
+  document.getElementById("permStepsList").innerHTML =
+    steps.map(function(s) { return "<li>" + s + "</li>"; }).join("");
+}
+
+function showPermissionError(code, message) {
+  logFailedScan(code === 1 ? "denied" : code === 2 ? "unavailable" : "timeout");
+
+  document.getElementById("permError").style.display = "block";
+  document.getElementById("permDeviceToggle").style.display = "flex";
+  document.getElementById("permFixSteps").style.display = "block";
+  document.getElementById("permNormalBody").style.display = "none";
+  document.getElementById("permActionBtn").style.display = "none";
+  document.getElementById("permRetryBtn").style.display = "block";
+
+  var titles = { 1: "Location Permission Denied", 2: "GPS Signal Unavailable", 3: "GPS Timed Out" };
+  var bodies = {
+    1: "SiteLog needs your GPS location to verify you are on site. Please follow the steps below to enable it.",
+    2: "Your device could not get a GPS fix. Try moving outside or to an area with a clearer sky view.",
+    3: "GPS took too long to respond. This can happen indoors or in areas with poor signal."
+  };
+
+  document.getElementById("permErrorTitle").textContent = titles[code] || "Location Error";
+  document.getElementById("permErrorBody").textContent  = bodies[code] || message;
+
+  var ua = navigator.userAgent;
+  permCurrentDevice = /android/i.test(ua) ? "android" : "iphone";
+  permSwitchDevice(permCurrentDevice);
+}
+
+function requestPermission() {
+  document.getElementById("permActionBtn").textContent = "Requesting...";
+  document.getElementById("permActionBtn").disabled = true;
+  startLocation();
+}
+
+function retryPermission() {
+  document.getElementById("permError").style.display = "none";
+  document.getElementById("permDeviceToggle").style.display = "none";
+  document.getElementById("permFixSteps").style.display = "none";
+  document.getElementById("permNormalBody").style.display = "block";
+  document.getElementById("permRetryBtn").style.display = "none";
+  document.getElementById("permActionBtn").style.display = "block";
+  document.getElementById("permActionBtn").textContent = "Allow Location Access";
+  document.getElementById("permActionBtn").disabled = false;
+  startLocation();
+}
+
+// ── REGISTER SERVICE WORKER ────────────────────────
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(function() {});
+}
+
+// ── SILENT GPS FAIL LOGGER ─────────────────────────
+function logFailedScan(errorType) {
+  if (!deviceToken) return;
+  try {
+    fetch(API + "/log-failed-scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceToken: deviceToken, errorType: errorType })
+    }).catch(function() {});
+  } catch(e) {}
+}
+
+// ── FETCH WITH TIMEOUT ─────────────────────────────
+function fetchWithTimeout(url, options, ms) {
+  if (!ms) ms = 12000;
+  var ctrl  = new AbortController();
+  var timer = setTimeout(function() { ctrl.abort(); }, ms);
+  return fetch(url, Object.assign({}, options || {}, { signal: ctrl.signal }))
+    .finally(function() { clearTimeout(timer); });
+}
+
+// ── NETWORK ERROR ──────────────────────────────────
+function showNetworkError(action, msg) {
+  pendingNetworkAction = action;
+  document.getElementById("appNetworkError").style.display = "block";
+  document.getElementById("appGpsError").style.display = "none";
+  document.getElementById("appNetworkMsg").textContent =
+    msg || "Could not reach the SiteLog server. Switch to mobile data and try again.";
+}
+
+function hideNetworkError() {
+  document.getElementById("appNetworkError").style.display = "none";
+}
+
+async function appRetryNetwork() {
+  hideNetworkError();
+  var action = pendingNetworkAction;
+  pendingNetworkAction = null;
+  if      (action === "scan")     { await appScan(); }
+  else if (action === "checkin")  { await appConfirmSignInYes(); }
+  else if (action === "checkout") { await appConfirmSignOutYes(); }
+  else if (action === "register") { await appRegister(); }
+  else { startLocation(); }
+}
+
+// ── GPS IN SCAN SCREEN ─────────────────────────────
+function showGpsErrorInScan(code, msg) {
+  logFailedScan(code === 1 ? "denied" : code === 2 ? "unavailable" : "timeout");
+  document.getElementById("appGpsError").style.display = "block";
+  document.getElementById("appNetworkError").style.display = "none";
+  document.getElementById("appGpsMsg").textContent = msg || "GPS signal could not be obtained.";
+}
+
+function appRetryGps() {
+  document.getElementById("appGpsError").style.display = "none";
+  document.getElementById("appTitle").textContent = "Checking Location...";
+  document.getElementById("appStatus").textContent = "Requesting GPS...";
+  startLocation();
+}
+
+// ── MAP ────────────────────────────────────────────
+function showMap(lat, lng) {
+  var map = new google.maps.Map(document.getElementById("appMap"), {
+    center: { lat: lat, lng: lng }, zoom: 18, mapTypeId: "hybrid",
+    disableDefaultUI: true, draggable: false, scrollwheel: false,
+    disableDoubleClickZoom: true, keyboardShortcuts: false, gestureHandling: "none"
+  });
+  new google.maps.Marker({ position: { lat: lat, lng: lng }, map: map });
+}
+
+// ── SUCCESS OVERLAY ────────────────────────────────
+function showSuccess(type, siteName, firstName, duration) {
+  var overlay = document.getElementById("appSuccessOverlay");
+  var icon    = document.getElementById("appSuccessIcon");
+  var title   = document.getElementById("appSuccessTitle");
+  var sub     = document.getElementById("appSuccessSub");
+
+  if (type === "in") {
+    icon.textContent  = "✅";
+    title.textContent = firstName ? "Welcome " + firstName : "Checked In";
+    sub.textContent   = siteName  ? "Signed in at " + siteName : "You are now on site";
+  } else if (type === "out") {
+    icon.textContent  = "👋";
+    title.textContent = firstName ? "Goodbye " + firstName : "Checked Out";
+    sub.textContent   = (siteName && duration) ? "Signed out from " + siteName + " — " + duration + " on site"
+                      : duration ? duration + " on site" : "Visit completed";
+  } else {
+    icon.textContent  = "✅";
+    title.textContent = "Registered";
+    sub.textContent   = "Check-in confirmed";
+  }
+
+  overlay.classList.add("active");
+  try { if (navigator.vibrate) navigator.vibrate(80); } catch(e) {}
+
+  clearTimeout(window.__fadT);
+  window.__fadT = setTimeout(function() {
+    overlay.classList.remove("active");
+  }, 2200);
+}
+
+// ── RESET DEVICE ───────────────────────────────────
+async function appResetDevice() {
+  if (!confirm("This will reset your device and return to first-time registration.")) return;
+  await clearDeviceToken();
+  deviceToken = await getDeviceToken();
+  location.reload();
+}
+
+// ── COMPANIES ──────────────────────────────────────
+async function loadCompanies(siteName) {
+  try {
+    var res  = await fetchWithTimeout(API + "/companies-for-site?site=" + encodeURIComponent(siteName));
+    var data = await res.json();
+    var sel  = document.getElementById("appCompany");
+    sel.innerHTML = '<option value="" disabled selected>Select company</option>';
+    (data.companies || []).forEach(function(c) {
+      var o = document.createElement("option");
+      o.value = c.name; o.textContent = c.name;
+      sel.appendChild(o);
+    });
+    var prof = await dbGet("profile");
+    if (prof && prof.company) {
+      var exists = Array.from(sel.options).some(function(o) { return o.value === prof.company; });
+      if (exists) sel.value = prof.company;
+    }
+  } catch(e) {}
+}
+
+// ── SIGN OUT MODAL ─────────────────────────────────
+function openSignOutModal(visitId, siteName, firstName) {
+  pendingCheckoutId   = visitId;
+  pendingCheckoutName = firstName || "";
+  pendingCheckoutSite = siteName  || "";
+  document.getElementById("modalSignOutText").textContent =
+    (firstName ? firstName + ", are you" : "Are you") +
+    " sure you want to sign out" + (siteName ? " from " + siteName : "") + "?";
+  document.getElementById("modalSignOut").classList.add("open");
+}
+
+function closeSignOutModal() {
+  document.getElementById("modalSignOut").classList.remove("open");
+  pendingCheckoutId = null; pendingCheckoutName = ""; pendingCheckoutSite = "";
+}
+
+async function appConfirmSignOutYes() {
+  if (!pendingCheckoutId) return;
+  var firstName = pendingCheckoutName;
+  var siteName  = pendingCheckoutSite;
+  var res, data;
+  try {
+    res  = await fetchWithTimeout(API + "/confirm-checkout", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visitId: pendingCheckoutId })
+    });
+    data = await res.json();
+  } catch(e) { showNetworkError("checkout"); return; }
+  if (!res.ok || !data.ok) { alert(data.error || "Failed to sign out."); return; }
+
+  var start = await dbGet("last_checkin");
+  var durText = "";
+  if (start) {
+    var mins = Math.round((Date.now() - start) / 60000);
+    var hrs  = Math.floor(mins / 60);
+    var rem  = mins % 60;
+    durText = hrs > 0 ? hrs + "h " + rem + "m" : mins + "m";
+    await dbDel("last_checkin");
+  }
+
+  document.getElementById("appTitle").textContent  = "Checked Out";
+  document.getElementById("appStatus").textContent = firstName
+    ? "Goodbye " + firstName + " — " + (durText || "Visit recorded")
+    : "Visit completed" + (durText ? " — " + durText + " on site" : "");
+  document.getElementById("appNoticeBox").innerHTML = "<strong>Visit Complete:</strong> Thank you, you may now leave site.";
+
+  closeSignOutModal();
+  showSuccess("out", siteName, firstName, durText);
+}
+
+function appConfirmSignOutNo() {
+  closeSignOutModal();
+  document.getElementById("appTitle").textContent  = "Still Checked In";
+  document.getElementById("appStatus").textContent = "Sign out cancelled.";
+}
+
+// ── SIGN IN MODAL ──────────────────────────────────
+function openSignInModal(siteName, firstName, company) {
+  pendingCheckinSite  = siteName  || "";
+  pendingCheckinFirst = firstName || "";
+  pendingCheckinCo    = company   || "";
+  document.getElementById("modalSignIn").classList.add("open");
+}
+
+function closeSignInModal() {
+  document.getElementById("modalSignIn").classList.remove("open");
+  pendingCheckinSite = ""; pendingCheckinFirst = ""; pendingCheckinCo = "";
+}
+
+async function appConfirmSignInYes() {
+  var res, data;
+  try {
+    res  = await fetchWithTimeout(API + "/confirm-checkin", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceToken: deviceToken,
+        lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy,
+        site: pendingCheckinSite
+      })
+    });
+    data = await res.json();
+  } catch(e) { showNetworkError("checkin"); return; }
+  if (!res.ok || !data.ok) { alert(data.error || "Failed to check in."); return; }
+
+  var firstName = data.firstName || pendingCheckinFirst || "";
+  var company   = data.company   || pendingCheckinCo    || "";
+  var siteName  = data.site      || pendingCheckinSite  || currentSite;
+
+  document.getElementById("appNotYouRow").style.display = "block";
+  await dbSet("last_checkin", Date.now());
+
+  document.getElementById("appTitle").textContent  = "Checked In";
+  document.getElementById("appStatus").textContent = (firstName && company)
+    ? "Welcome back " + firstName + " from " + company
+    : "You are now on site: " + siteName;
+  document.getElementById("appNoticeBox").innerHTML = "<strong>Site Notice:</strong> Report to site foreman";
+
+  closeSignInModal();
+  showSuccess("in", siteName, firstName);
+}
+
+function appConfirmSignInNo() {
+  closeSignInModal();
+  document.getElementById("appTitle").textContent  = "Check In Not Completed";
+  document.getElementById("appStatus").textContent = "Please contact Mostlane on 02380 262000";
+  document.getElementById("appNoticeBox").innerHTML = "<strong>Check In Refused:</strong> Contact Mostlane on 02380 262000";
+}
+
+// ── SCAN ───────────────────────────────────────────
+async function appScan() {
+  var res, data;
+  try {
+    res  = await fetchWithTimeout(API + "/scan", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceToken: deviceToken,
+        lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy
+      })
+    });
+    data = await res.json();
+  } catch(e) { showNetworkError("scan"); return; }
+
+  if (data.status === "unknown_site") {
+    document.getElementById("appTitle").textContent  = "Not On Site";
+    document.getElementById("appStatus").textContent = "You are not within range of an active Mostlane job.";
+    return;
+  }
+
+  currentSite = data.site;
+  await loadCompanies(currentSite);
+
+  var firstName = data.firstName || "";
+  var company   = data.company   || "";
+
+  if (data.status === "first_visit") {
+    document.getElementById("appTitle").textContent  = "Registration Required";
+    document.getElementById("appStatus").textContent = "First visit at " + currentSite;
+    var prof = await dbGet("profile");
+    if (prof) {
+      document.getElementById("appFirstName").value = prof.firstName || "";
+      document.getElementById("appLastName").value  = prof.lastName  || "";
+      var sp = (prof.purpose || "").trim();
+      if (sp === "Visiting" || sp === "Contractor") document.getElementById("appPurpose").value = sp;
+    }
+    document.getElementById("appRegisterBox").style.display = "block";
+    return;
+  }
+
+  if (data.status === "confirm_sign_out") {
+    document.getElementById("appNotYouRow").style.display = "block";
+    document.getElementById("appTitle").textContent  = "Confirm Sign Out";
+    document.getElementById("appStatus").textContent = firstName
+      ? firstName + ", please confirm sign out."
+      : "Please confirm sign out.";
+    openSignOutModal(data.visitId, currentSite, firstName);
+    return;
+  }
+
+  if (data.status === "confirm_check_in") {
+    document.getElementById("appNotYouRow").style.display = "block";
+    document.getElementById("appTitle").textContent  = "Confirm Check In";
+    document.getElementById("appStatus").textContent = firstName
+      ? firstName + ", please confirm check in."
+      : "Please confirm check in.";
+    openSignInModal(currentSite, firstName, company);
+    return;
+  }
+
+  if (data.status === "checked_in") {
+    document.getElementById("appNotYouRow").style.display = "block";
+    await dbSet("last_checkin", Date.now());
+    document.getElementById("appTitle").textContent  = "Checked In";
+    document.getElementById("appStatus").textContent = (firstName && company)
+      ? "Welcome back " + firstName + " from " + company
+      : "You are now on site: " + currentSite;
+    document.getElementById("appNoticeBox").innerHTML = "<strong>Site Notice:</strong> Report to site foreman";
+    showSuccess("in", currentSite, firstName);
+    return;
+  }
+
+  if (data.status === "checked_out") {
+    document.getElementById("appNotYouRow").style.display = "block";
+    var start = await dbGet("last_checkin");
+    var durText = "";
+    if (start) {
+      var mins = Math.round((Date.now() - start) / 60000);
+      var hrs  = Math.floor(mins / 60);
+      var rem  = mins % 60;
+      durText = hrs > 0 ? hrs + "h " + rem + "m" : mins + "m";
+      await dbDel("last_checkin");
+    }
+    document.getElementById("appTitle").textContent  = "Checked Out";
+    document.getElementById("appStatus").textContent = firstName
+      ? "Goodbye " + firstName + " — " + (durText || "Visit recorded")
+      : "Visit completed";
+    document.getElementById("appNoticeBox").innerHTML = "<strong>Visit Complete:</strong> Thank you, you may now leave site.";
+    showSuccess("out", currentSite, firstName, durText);
+    return;
+  }
+}
+
+// ── REGISTER ───────────────────────────────────────
+async function appRegister() {
+  var first  = document.getElementById("appFirstName").value.trim();
+  var last   = document.getElementById("appLastName").value.trim();
+  var purpose = document.getElementById("appPurpose").value;
+  var company = document.getElementById("appCompany").value;
+  var ack     = document.getElementById("appHsAck").checked;
+  if (!first || !last || !purpose || !company || !ack) {
+    alert("Please complete all fields and confirm the site rules.");
+    return;
+  }
+  await dbSet("profile", { firstName: first, lastName: last, purpose: purpose, company: company });
+  var res, data;
+  try {
+    res  = await fetchWithTimeout(API + "/register", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceToken: deviceToken, firstName: first, lastName: last,
+        purpose: purpose, company: company, siteCode: currentSite,
+        lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy
+      })
+    });
+    data = await res.json();
+  } catch(e) { showNetworkError("register"); return; }
+  if (!data.ok) { alert("Registration failed. Please try again."); return; }
+  document.getElementById("appRegisterBox").style.display = "none";
+  await appScan();
+}
+
+// ── LOCATION ───────────────────────────────────────
+function startLocation() {
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      lastLocation = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy
+      };
+      // If we were on permission screen, move to scan screen
+      if (document.getElementById("screen-permission").classList.contains("active")) {
+        showScreen("screen-scan");
+      }
+      showMap(lastLocation.lat, lastLocation.lng);
+      appScan();
+    },
+    function(err) {
+      if (document.getElementById("screen-permission").classList.contains("active")) {
+        showPermissionError(err.code, err.message);
+      } else {
+        showGpsErrorInScan(err.code, err.message);
+      }
+    },
+    { enableHighAccuracy: true, timeout: 20000 }
+  );
+}
+
+// ── PIN SYSTEM ─────────────────────────────────────
+function pinPress(digit) {
+  if (pinValue.length >= 4) return;
+  pinValue += digit;
+  updatePinDots();
+  if (pinValue.length === 4) {
+    setTimeout(checkPin, 120);
+  }
+}
+
+function pinBackspace() {
+  pinValue = pinValue.slice(0, -1);
+  updatePinDots();
+  document.getElementById("pinError").textContent = "";
+}
+
+function updatePinDots(state) {
+  for (var i = 0; i < 4; i++) {
+    var dot = document.getElementById("pd" + i);
+    dot.className = "pin-dot";
+    if (state === "error") dot.classList.add("error");
+    else if (i < pinValue.length) dot.classList.add("filled");
+  }
+}
+
+function checkPin() {
+  if (pinValue === ADMIN_PIN) {
+    pinValue = "";
+    updatePinDots();
+    document.getElementById("pinError").textContent = "";
+    openAdmin();
+  } else {
+    updatePinDots("error");
+    document.getElementById("pinError").textContent = "Incorrect PIN";
+    setTimeout(function() {
+      pinValue = "";
+      updatePinDots();
+      document.getElementById("pinError").textContent = "";
+    }, 900);
+  }
+}
+
+function closePinScreen() {
+  pinValue = "";
+  updatePinDots();
+  document.getElementById("pinError").textContent = "";
+  showScreen("screen-scan");
+}
+
+// ── ADMIN ──────────────────────────────────────────
+function openAdmin() {
+  var frame = document.getElementById("adminFrame");
+  if (frame.src === "about:blank" || frame.src === "") {
+    frame.src = "admin.html";
+  }
+  document.getElementById("screen-admin").classList.add("active");
+}
+
+function closeAdmin() {
+  document.getElementById("screen-admin").classList.remove("active");
+}
+
+// ── ADMIN TRIPLE-TAP TRIGGER ───────────────────────
+document.getElementById("adminTrigger").addEventListener("click", function() {
+  adminTapCount++;
+  clearTimeout(adminTapTimer);
+  adminTapTimer = setTimeout(function() { adminTapCount = 0; }, 600);
+  if (adminTapCount >= 3) {
+    adminTapCount = 0;
+    showScreen("screen-pin");
+  }
+});
+
+// ── INIT ───────────────────────────────────────────
+async function init() {
+  // 1. Get/create device token using IndexedDB with cookie+localStorage fallback
+  deviceToken = await getDeviceToken();
+  tokenFallbackWrite(deviceToken);
+
+  // 2. Check geolocation permission state
+  if (navigator.permissions && navigator.permissions.query) {
+    try {
+      var result = await navigator.permissions.query({ name: "geolocation" });
+
+      if (result.state === "granted") {
+        // Already have permission — go straight to scan screen
+        showScreen("screen-scan");
+        startLocation();
+        return;
+      }
+
+      if (result.state === "denied") {
+        // Hard denied — show permission screen with fix steps immediately
+        showScreen("screen-permission");
+        showPermissionError(1, "Permission denied");
+        return;
+      }
+
+      // "prompt" state — show permission request screen
+      showScreen("screen-permission");
+      return;
+
+    } catch(e) {
+      // permissions API not available — fall through to prompt screen
+    }
+  }
+
+  // Fallback: show permission screen, user taps Allow
+  showScreen("screen-permission");
+}
+
+init();
+</script>
+
+</body>
+</html>

@@ -4,6 +4,8 @@
 <head>
   <meta charset="UTF-8" />
   <title>SiteLog — Admin</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <link rel="apple-touch-icon" href="Mostlane_Icon_180.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1518,6 +1520,25 @@ function updateFilterSummary(){
 
 /* -------------------- RENDER -------------------- */
 
+async function assignDeviceFromGpsFail(deviceToken){
+  const first = (document.getElementById("gf-first-"+CSS.escape(deviceToken))||{}).value||"";
+  const last  = (document.getElementById("gf-last-"+CSS.escape(deviceToken))||{}).value||"";
+  const co    = (document.getElementById("gf-company-"+CSS.escape(deviceToken))||{}).value||"";
+  if(!first.trim()&&!last.trim()){ alert("Please enter at least a first or last name."); return; }
+  const btn = document.getElementById("gf-btn-"+CSS.escape(deviceToken));
+  if(btn){ btn.textContent="Saving..."; btn.disabled=true; }
+  try{
+    const res=await fetch(API_BASE+"/assign-device",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({deviceToken,firstName:first.trim(),lastName:last.trim(),company:co.trim()})
+    });
+    const data=await res.json();
+    if(!res.ok||!data.ok){ alert(data.error||"Failed to assign."); if(btn){btn.textContent="Assign";btn.disabled=false;} return; }
+    await loadData();
+  }catch(e){ alert("Network error."); if(btn){btn.textContent="Assign";btn.disabled=false;} }
+}
+
 async function assignDevice(deviceToken){
   const first = (document.getElementById("assign-first-"+CSS.escape(deviceToken))||{}).value||"";
   const last  = (document.getElementById("assign-last-"+CSS.escape(deviceToken))||{}).value||"";
@@ -1640,14 +1661,44 @@ function renderLive(){
   };
 
   const failedRows = visibleFailed.map(f => {
-    const personName = (f.first_name||f.last_name)
-      ? ((f.first_name||"") + " " + (f.last_name||"")).trim()
-      : "Unknown Device";
     const errorLabel = GPS_ERROR_LABELS[f.error_type] || "GPS Failed";
+
+    // Case 1: registered person — we know exactly who it is
+    const isKnownPerson = !!(f.first_name || f.last_name);
+    // Case 2: device token exists but no person linked (unregistered device with GPS failure)
+    const hasToken = !!f.device_token;
+    const tokShort = hasToken ? f.device_token.slice(0,8) + "..." : null;
+
+    // Name cell content
+    let nameCell = "";
+    let actionCell = "";
+
+    if(isKnownPerson){
+      const personName = ((f.first_name||"") + " " + (f.last_name||"")).trim();
+      nameCell = `<span class="name-link" onclick="openTimesheetForPerson('${escapeHtml(personName)}','${escapeHtml(f.company||"")}')">${escapeHtml(personName)}</span>`;
+      actionCell = `<span style="font-size:11.5px;color:var(--label3);">GPS blocked — person known</span>`;
+    } else if(hasToken){
+      // Unregistered device that also had GPS failure — show token + assign inputs
+      nameCell = `
+        <span style="font-size:11px;font-family:monospace;color:var(--label3);" title="${escapeHtml(f.device_token)}">${escapeHtml(tokShort)}</span>
+        <span style="margin-left:6px;font-size:10.5px;color:var(--label4);">unregistered</span>`;
+      actionCell = `
+        <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+          <input id="gf-first-${escapeHtml(f.device_token)}" placeholder="First" style="height:26px;width:80px;padding:0 7px;font-size:11.5px;border:1px solid var(--border-heavy);border-radius:6px;background:var(--surface);" />
+          <input id="gf-last-${escapeHtml(f.device_token)}"  placeholder="Last"  style="height:26px;width:80px;padding:0 7px;font-size:11.5px;border:1px solid var(--border-heavy);border-radius:6px;background:var(--surface);" />
+          <input id="gf-company-${escapeHtml(f.device_token)}" placeholder="Company" style="height:26px;width:100px;padding:0 7px;font-size:11.5px;border:1px solid var(--border-heavy);border-radius:6px;background:var(--surface);" />
+          <button id="gf-btn-${escapeHtml(f.device_token)}" class="btn-primary btn-sm" style="height:26px;" onclick="assignDeviceFromGpsFail('${escapeHtml(f.device_token)}')">Assign</button>
+        </div>`;
+    } else {
+      // Truly anonymous — no token, no person. Nothing to link.
+      nameCell = `<span style="color:var(--label4);font-size:12px;">Anonymous — no device token</span>`;
+      actionCell = `<span style="font-size:11.5px;color:var(--label4);">Cannot attribute</span>`;
+    }
+
     return `
     <tr style="background:rgba(255,59,48,0.04);">
       <td><span class="pill pill-gps" title="${escapeHtml(errorLabel)}">${escapeHtml(errorLabel)}</span></td>
-      <td style="font-weight:500;color:var(--label);">${escapeHtml(personName)}</td>
+      <td style="font-weight:500;color:var(--label);">${nameCell}</td>
       <td>${escapeHtml(f.company||"—")}</td>
       <td style="color:var(--label4);">—</td>
       <td style="color:var(--label4);">—</td>
@@ -1655,7 +1706,7 @@ function renderLive(){
       <td style="color:var(--label4);">—</td>
       <td style="text-align:center;"><span class="cross-icon">—</span></td>
       <td style="text-align:center;"><span class="cross-icon">—</span></td>
-      <td style="text-align:right;font-size:11.5px;color:var(--label3);">Location blocked</td>
+      <td style="text-align:right;">${actionCell}</td>
     </tr>`;
   }).join("");
 
@@ -2713,24 +2764,27 @@ function setPreset(type){
       </div>
     </div>
 
-    <div class="ts-filter-bar">
-      <div class="field-stack">
-        <span class="field-label">Company</span>
-        <select id="tsCompanyFilter" onchange="renderTimesheetsModal()" style="width:160px;">
-          <option value="">All Companies</option>
-        </select>
-      </div>
-      <div class="field-stack">
-        <span class="field-label">Engineer</span>
-        <select id="tsPersonFilter" onchange="tsCurrentWeek=null;renderTimesheetsModal()" style="width:200px;">
-          <option value="">Select engineer...</option>
-        </select>
-      </div>
-    </div>
+```
+<div class="ts-filter-bar">
+  <div class="field-stack">
+    <span class="field-label">Company</span>
+    <select id="tsCompanyFilter" onchange="renderTimesheetsModal()" style="width:160px;">
+      <option value="">All Companies</option>
+    </select>
+  </div>
+  <div class="field-stack">
+    <span class="field-label">Engineer</span>
+    <select id="tsPersonFilter" onchange="tsCurrentWeek=null;renderTimesheetsModal()" style="width:200px;">
+      <option value="">Select engineer...</option>
+    </select>
+  </div>
+</div>
 
-    <div class="ts-body">
-      <div id="timesheetsBody"></div>
-    </div>
+<div class="ts-body">
+  <div id="timesheetsBody"></div>
+</div>
+```
+
   </div>
 </div>
 

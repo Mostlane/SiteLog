@@ -2170,6 +2170,7 @@ function dashSetState(state, siteName, visitId, checkInTime) {
   var onSiteSub = document.getElementById("dashOnSiteSub");
 
   if (locating) locating.style.display = "none";
+  dashHideLocating();
 
   dot.className   = "dash-status-dot";
   btnIn.style.display  = "none";
@@ -2349,13 +2350,31 @@ function dashTriggerScan() {
 // UI reflects the current state rather than the stale last state.
 
 function resetScanUI() {
-  document.getElementById("appTitle").textContent   = "Checking Location...";
-  document.getElementById("appStatus").textContent  = "Requesting GPS...";
+  var locating = document.getElementById("dashLocating");
+  if (locating) locating.style.display = "block";
+  var dot = document.getElementById("dashStatusDot");
+  if (dot) { dot.className = "dash-status-dot unknown"; }
+  var lbl = document.getElementById("dashStatusLabel");
+  if (lbl) lbl.textContent = "Locating...";
+  var site = document.getElementById("dashActionSite");
+  if (site) site.textContent = "";
+  var btnIn  = document.getElementById("dashBtnIn");
+  var btnOut = document.getElementById("dashBtnOut");
+  if (btnIn)  btnIn.style.display  = "none";
+  if (btnOut) btnOut.style.display = "none";
+  stopDurationTicker();
   document.getElementById("appNetworkError").style.display = "none";
   document.getElementById("appGpsError").style.display    = "none";
-  document.getElementById("appRegisterBox").style.display = "none";
-  document.getElementById("appNoticeBox").innerHTML =
-    "<strong>Site Notice:</strong> Report to site foreman";
+  document.getElementById("registerView") && (document.getElementById("registerView").style.display = "none");
+  document.getElementById("dashView") && (document.getElementById("dashView").style.display = "flex");
+}
+
+// dashSetState must also hide the locating indicator
+var _origDashSetState = null;
+// Wrap dashSetState to always hide locating div
+function dashHideLocating() {
+  var el = document.getElementById("dashLocating");
+  if (el) el.style.display = "none";
 }
 
 var lastVisibleAt = Date.now();

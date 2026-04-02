@@ -260,6 +260,8 @@
       cursor: default;
       user-select: none;
       -webkit-user-select: none;
+      touch-action: manipulation;
+      -webkit-touch-callout: none;
     }
 
     .scan-content {
@@ -1625,7 +1627,7 @@ function closeAdmin() {
 document.getElementById("adminTrigger").addEventListener("click", function() {
   adminTapCount++;
   clearTimeout(adminTapTimer);
-  adminTapTimer = setTimeout(function() { adminTapCount = 0; }, 600);
+  adminTapTimer = setTimeout(function() { adminTapCount = 0; }, 2000);
   if (adminTapCount >= 3) {
     adminTapCount = 0;
     showScreen("screen-pin");

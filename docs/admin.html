@@ -54,76 +54,104 @@
       padding: 0 0 60px 0;
     }
 
-    /* ── TOP NAV ── */
-    .topbar {
-      background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
-      border-bottom: 1px solid var(--border);
+    /* ── ADMIN HEADER ── */
+    .admin-header {
+      background: var(--blue);
       position: sticky;
       top: 0;
       z-index: 100;
-      padding: env(safe-area-inset-top, 0) 20px 0 20px;
-      min-height: 52px;
+      padding: env(safe-area-inset-top, 0) 0 0;
+      box-shadow: 0 2px 16px rgba(0,74,153,0.25);
+    }
+
+    .admin-header-inner {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      height: 56px;
+      padding: 0 20px;
+      gap: 16px;
     }
 
-    .topbar-inner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      width: 100%;
-      height: 52px;
-      gap: 12px;
-    }
-
-    .topbar-brand {
+    .admin-brand {
       display: flex;
       align-items: center;
       gap: 10px;
       flex-shrink: 0;
     }
 
-    .topbar-logo img {
-      height: 28px;
+    .admin-logo {
+      height: 30px;
       width: auto;
-      display: block;
-      border-radius: 5px;
-    }
-
-    .topbar-logo-fallback {
-      width: 28px;
-      height: 28px;
-      background: var(--label);
       border-radius: 7px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      flex-shrink: 0;
+      background: rgba(255,255,255,0.15);
     }
 
-    .topbar-title {
-      font-size: 15px;
-      font-weight: 600;
+    .admin-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
       letter-spacing: -0.2px;
-      color: var(--label);
+      line-height: 1;
     }
 
-    .topbar-subtitle {
-      font-size: 12px;
-      color: var(--label3);
-      font-weight: 400;
+    .admin-sub {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+      font-weight: 500;
+      margin-top: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
     }
 
-    .topbar-actions {
+    .admin-nav {
       display: flex;
       align-items: center;
       gap: 6px;
       flex-wrap: nowrap;
+    }
+
+    .nav-pill {
+      height: 32px;
+      padding: 0 12px;
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.9);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .nav-pill:hover {
+      background: rgba(255,255,255,0.22);
+      border-color: rgba(255,255,255,0.4);
+    }
+
+    .nav-pill:active { transform: scale(0.96); }
+
+    .nav-pill-primary {
+      background: #fff;
+      color: var(--blue);
+      border-color: #fff;
+      font-weight: 700;
+    }
+
+    .nav-pill-primary:hover {
+      background: rgba(255,255,255,0.92);
+    }
+
+    .nav-pill-icon {
+      width: 32px;
+      padding: 0;
+      justify-content: center;
+      font-size: 16px;
     }
 
     /* Mobile nav drawer */
@@ -131,9 +159,10 @@
       display: none;
       width: 36px;
       height: 36px;
-      border: 1px solid var(--border-heavy);
+      border: 1px solid rgba(255,255,255,0.25);
       border-radius: var(--radius-sm);
-      background: var(--surface);
+      background: rgba(255,255,255,0.12);
+      color: #fff;
       font-size: 18px;
       cursor: pointer;
       align-items: center;
@@ -144,7 +173,7 @@
     .nav-drawer {
       display: none;
       position: fixed;
-      top: calc(52px + env(safe-area-inset-top, 0px));
+      top: calc(56px + env(safe-area-inset-top, 0px));
       left: 0; right: 0;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
@@ -1019,9 +1048,9 @@
     @media (max-width: 768px) {
       .page { padding: 12px 10px 0; }
 
-      /* Topbar — hide desktop action buttons, show hamburger */
-      .topbar-actions { display: none; }
-      .topbar-subtitle { display: none; }
+      /* Header — hide desktop nav pills, show hamburger */
+      .admin-nav { display: none; }
+      .admin-sub { display: none; }
       .nav-menu-btn { display: flex; }
 
       /* Filter card */
@@ -1182,28 +1211,27 @@
 
 <!-- TOP BAR -->
 
-<div class="topbar">
-  <div class="topbar-inner">
-    <div class="topbar-brand">
-      <div class="topbar-logo">
-        <img src="Mostlane Logo.jpg" alt="Mostlane" onerror="this.parentElement.innerHTML='<div class=\'topbar-logo-fallback\'>📋</div>'" />
-      </div>
+<header class="admin-header">
+  <div class="admin-header-inner">
+    <div class="admin-brand">
+      <img src="Mostlane Logo.jpg" alt="Mostlane" class="admin-logo"
+           onerror="this.style.display='none'" />
       <div>
-        <div class="topbar-title">SiteLog</div>
-        <div class="topbar-subtitle">Admin Dashboard</div>
+        <div class="admin-title">Site Log</div>
+        <div class="admin-sub">Admin Dashboard</div>
       </div>
     </div>
-    <div class="topbar-actions">
-      <button class="btn-ghost btn-sm" onclick="openTimesheetsModal()">🧾 Timesheets</button>
-      <button class="btn-ghost btn-sm" onclick="openSitesModal()">🗂 Sites</button>
-      <button class="btn-ghost btn-sm" onclick="openEngineersModal()">👷 Engineers</button>
-      <button class="btn-ghost btn-sm" onclick="openCompaniesModal()">🏢 Companies</button>
-      <button class="btn-primary btn-sm" onclick="openExportModal()">↑ Export PDF</button>
-      <button class="btn-icon btn-ghost btn-sm" onclick="loadData()" title="Refresh">↺</button>
-    </div>
-    <button class="nav-menu-btn" onclick="toggleNavDrawer()" id="navMenuBtn">☰</button>
+    <nav class="admin-nav" id="adminNav">
+      <button class="nav-pill" onclick="openTimesheetsModal()">Timesheets</button>
+      <button class="nav-pill" onclick="openSitesModal()">Sites</button>
+      <button class="nav-pill" onclick="openEngineersModal()">Engineers</button>
+      <button class="nav-pill" onclick="openCompaniesModal()">Companies</button>
+      <button class="nav-pill nav-pill-primary" onclick="openExportModal()">Export PDF</button>
+      <button class="nav-pill nav-pill-icon" onclick="loadData()" title="Refresh">&#8635;</button>
+    </nav>
+    <button class="nav-menu-btn" onclick="toggleNavDrawer()" id="navMenuBtn">&#9776;</button>
   </div>
-</div>
+</header>
 
 <!-- MOBILE NAV DRAWER -->
 
@@ -1260,7 +1288,6 @@
         </div>
       </div>
 
-```
   <div class="filter-group" style="flex-direction:column;align-items:flex-start;gap:10px;">
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
       <div class="field-stack">
@@ -1281,7 +1308,6 @@
     </div>
   </div>
 </div>
-```
 
   </div>
 
@@ -2730,8 +2756,8 @@ function setPreset(type){
     </div>
     <div class="modal-body">
 
-```
   <!-- Stats preview grid -->
+
   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:6px;">
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;">
       <div style="font-size:22px;font-weight:700;color:var(--label);letter-spacing:-0.5px;" id="exportPreviewSessions">—</div>
@@ -2773,7 +2799,6 @@ function setPreset(type){
   <button class="btn-ghost" onclick="closeExportModal()">Cancel</button>
   <button class="btn-primary" onclick="generatePDF()">Generate PDF</button>
 </div>
-```
 
   </div>
 </div>
@@ -2792,8 +2817,8 @@ function setPreset(type){
     <div class="modal-body">
       <div class="modal-note">Archived sites are hidden from the Site dropdown and excluded from scan matching. Historical logs still reference archived site names.</div>
 
-```
   <!-- Add Site Form -->
+
   <div class="add-form">
     <div class="add-form-title">Add New Site</div>
     <div class="add-form-grid">
@@ -2821,7 +2846,6 @@ function setPreset(type){
 
   <div id="sitesAdminBody"></div>
 </div>
-```
 
   </div>
 </div>

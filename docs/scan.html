@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html>
 <head>
   <title>SiteLog Scan</title>
@@ -16,7 +15,6 @@
       padding: 40px 20px;
       text-align: center;
     }
-
     h1 {
       background: rgba(0, 74, 153, 0.7);
       color: white;
@@ -25,14 +23,12 @@
       max-width: 520px;
       margin: auto;
     }
-
     .logo {
       display: block;
       margin: 16px auto 10px;
       max-width: 220px;
       width: 100%;
     }
-
     #card {
       margin: 20px auto;
       max-width: 520px;
@@ -41,8 +37,6 @@
       border-radius: 12px;
       box-shadow: 0 6px 18px rgba(0,0,0,0.15);
     }
-
-    /* 🔒 MAP LOCKED */
     #map {
       height: 260px;
       border-radius: 10px;
@@ -50,8 +44,6 @@
       touch-action: none;
       pointer-events: none;
     }
-
-    /* ✅ iOS-centred, consistent inputs/selects/buttons */
     input, select, button {
       display: block;
       width: 100%;
@@ -68,21 +60,10 @@
       -webkit-appearance: none;
       appearance: none;
     }
-
-    /* Keep select arrow visible on iOS */
-    select {
-      -webkit-appearance: menulist;
-      appearance: menulist;
-    }
-
-    input::placeholder {
-      text-align: center;
-      color: #9aa3af;
-    }
-
+    select { -webkit-appearance: menulist; appearance: menulist; }
+    input::placeholder { text-align: center; color: #9aa3af; }
     select:invalid { color: #6b7280; }
     option { color: #0f172a; }
-
     button {
       background: #004a99;
       color: white;
@@ -91,7 +72,6 @@
       font-weight: bold;
       padding: 14px 14px;
     }
-
     .site-notice {
       margin: 12px auto 18px;
       padding: 14px 16px;
@@ -103,404 +83,167 @@
       font-size: 18px;
       text-align: center;
     }
-
-    .site-notice strong {
-      color: #003b82;
-    }
-
-    /* Make checkbox row look cleaner on mobile */
-    #registerBox label{
+    .site-notice strong { color: #003b82; }
+    #registerBox label {
       max-width: 480px;
       margin: 14px auto 0;
       text-align: left;
       display: flex;
       gap: 10px;
       align-items: flex-start;
-      color:#0f172a;
+      color: #0f172a;
       line-height: 1.25;
     }
-    #registerBox label input[type="checkbox"]{
-      width: 26px;
-      height: 26px;
-      margin: 0;
-      padding: 0;
-      border-radius: 6px;
-      -webkit-appearance: auto;
-      appearance: auto;
+    #registerBox label input[type="checkbox"] {
+      width: 26px; height: 26px; margin: 0; padding: 0;
+      border-radius: 6px; -webkit-appearance: auto; appearance: auto;
     }
-
-    /* ==============================
-       ✅ BIG SUCCESS OVERLAY
-    ============================== */
     #successOverlay {
-      position: fixed;
-      inset: 0;
+      position: fixed; inset: 0;
       background: rgba(0,0,0,0.72);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .25s ease;
-      z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity .25s ease; z-index: 9999;
     }
-    #successOverlay.active {
-      opacity: 1;
-      pointer-events: auto;
-    }
+    #successOverlay.active { opacity: 1; pointer-events: auto; }
     .successCard {
       background: rgba(255,255,255,0.98);
       width: min(520px, calc(100% - 40px));
-      border-radius: 26px;
-      padding: 44px 22px;
+      border-radius: 26px; padding: 44px 22px;
       box-shadow: 0 18px 50px rgba(0,0,0,0.28);
-      transform: scale(.90);
-      transition: transform .25s ease;
+      transform: scale(.90); transition: transform .25s ease;
     }
-    #successOverlay.active .successCard {
-      transform: scale(1);
-    }
-    .successIcon {
-      font-size: 76px;
-      line-height: 1;
-      margin-bottom: 12px;
-    }
-    .successTitle {
-      font-size: 30px;
-      font-weight: 800;
-      letter-spacing: .2px;
-      margin: 0;
-      color: #0f172a;
-    }
-    .successSub {
-      margin-top: 10px;
-      font-size: 16px;
-      color: #334155;
-    }
+    #successOverlay.active .successCard { transform: scale(1); }
+    .successIcon { font-size: 76px; line-height: 1; margin-bottom: 12px; }
+    .successTitle { font-size: 30px; font-weight: 800; margin: 0; color: #0f172a; }
+    .successSub { margin-top: 10px; font-size: 16px; color: #334155; }
     .successSite {
-      margin-top: 14px;
-      display: inline-block;
-      padding: 10px 14px;
-      border-radius: 999px;
-      background: rgba(0,59,130,0.08);
-      border: 1px solid rgba(0,59,130,0.14);
-      color: #003b82;
-      font-weight: 700;
+      margin-top: 14px; display: inline-block; padding: 10px 14px;
+      border-radius: 999px; background: rgba(0,59,130,0.08);
+      border: 1px solid rgba(0,59,130,0.14); color: #003b82; font-weight: 700;
     }
-
-    /* 🔒 Hide site label on overlay */
-    #successSite {
-      display: none !important;
-    }
-
-    /* ==============================
-       📡 NETWORK ERROR PANEL
-    ============================== */
+    #successSite { display: none !important; }
     #networkErrorPanel {
-      display: none;
-      margin: 0 auto 16px;
-      max-width: 520px;
-      background: rgba(255,255,255,0.97);
-      border: 2px solid #f59e0b;
-      border-radius: 14px;
-      padding: 20px 18px 18px;
-      text-align: left;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+      display: none; margin: 0 auto 16px; max-width: 520px;
+      background: rgba(255,255,255,0.97); border: 2px solid #f59e0b;
+      border-radius: 14px; padding: 20px 18px 18px;
+      text-align: left; box-shadow: 0 6px 18px rgba(0,0,0,0.12);
     }
-
-    #networkErrorPanel .net-title {
-      font-size: 17px;
-      font-weight: 800;
-      color: #b45309;
-      margin: 0 0 6px 0;
-    }
-
-    #networkErrorPanel .net-reason {
-      font-size: 14px;
-      color: #334155;
-      margin: 0 0 14px 0;
-      line-height: 1.5;
-    }
-
+    #networkErrorPanel .net-title { font-size: 17px; font-weight: 800; color: #b45309; margin: 0 0 6px 0; }
+    #networkErrorPanel .net-reason { font-size: 14px; color: #334155; margin: 0 0 14px 0; line-height: 1.5; }
     #networkErrorPanel .net-tips {
-      background: #fffbeb;
-      border: 1px solid #fde68a;
-      border-radius: 10px;
-      padding: 12px 14px;
-      margin-bottom: 14px;
-      font-size: 14px;
-      color: #1e293b;
-      line-height: 1.75;
+      background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px;
+      padding: 12px 14px; margin-bottom: 14px; font-size: 14px; color: #1e293b; line-height: 1.75;
     }
-
-    #networkErrorPanel .net-tips ol {
-      margin: 0;
-      padding-left: 18px;
-    }
-
+    #networkErrorPanel .net-tips ol { margin: 0; padding-left: 18px; }
     #networkErrorPanel .net-tips li { margin-bottom: 2px; }
-
     #networkErrorPanel .net-retry-btn {
-      display: block;
-      width: 100%;
-      max-width: 100%;
-      background: #004a99;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      padding: 14px;
-      font-size: 16px;
-      font-weight: 700;
-      cursor: pointer;
-      text-align: center;
-      margin: 0;
+      display: block; width: 100%; max-width: 100%; background: #004a99;
+      color: white; border: none; border-radius: 10px; padding: 14px;
+      font-size: 16px; font-weight: 700; cursor: pointer; text-align: center; margin: 0;
     }
-
     #networkErrorPanel .net-retry-btn:active { opacity: 0.85; }
-
-    /* ==============================
-       📍 GPS ERROR PANEL
-    ============================== */
     #gpsErrorPanel {
-      display: none;
-      margin: 0 auto;
-      max-width: 520px;
-      background: rgba(255,255,255,0.97);
-      border: 2px solid #f87171;
-      border-radius: 14px;
-      padding: 20px 18px 18px;
-      text-align: left;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+      display: none; margin: 0 auto; max-width: 520px;
+      background: rgba(255,255,255,0.97); border: 2px solid #f87171;
+      border-radius: 14px; padding: 20px 18px 18px;
+      text-align: left; box-shadow: 0 6px 18px rgba(0,0,0,0.12);
     }
-
-    #gpsErrorPanel .gps-title {
-      font-size: 17px;
-      font-weight: 800;
-      color: #dc2626;
-      margin: 0 0 6px 0;
-    }
-
-    #gpsErrorPanel .gps-reason {
-      font-size: 14px;
-      color: #334155;
-      margin: 0 0 14px 0;
-      line-height: 1.5;
-    }
-
-    /* Device toggle pill */
+    #gpsErrorPanel .gps-title { font-size: 17px; font-weight: 800; color: #dc2626; margin: 0 0 6px 0; }
+    #gpsErrorPanel .gps-reason { font-size: 14px; color: #334155; margin: 0 0 14px 0; line-height: 1.5; }
     .gps-device-toggle {
-      display: flex;
-      gap: 0;
-      background: #f1f5f9;
-      border: 1px solid #e2e8f0;
-      border-radius: 999px;
-      padding: 3px;
-      margin-bottom: 14px;
-      width: fit-content;
+      display: flex; gap: 0; background: #f1f5f9;
+      border: 1px solid #e2e8f0; border-radius: 999px;
+      padding: 3px; margin-bottom: 14px; width: fit-content;
     }
-
     .gps-device-toggle button {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 18px;
-      border-radius: 999px;
-      border: none;
-      background: transparent;
-      color: #64748b;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.18s, color 0.18s, box-shadow 0.18s;
-      width: auto;
-      max-width: none;
-      margin: 0;
-      line-height: 1;
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 18px; border-radius: 999px; border: none;
+      background: transparent; color: #64748b; font-size: 14px; font-weight: 600;
+      cursor: pointer; width: auto; max-width: none; margin: 0; line-height: 1;
     }
-
     .gps-device-toggle button.active {
-      background: #fff;
-      color: #004a99;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+      background: #fff; color: #004a99; box-shadow: 0 1px 4px rgba(0,0,0,0.12);
     }
-
-    .gps-device-toggle button:active {
-      opacity: 1;
-      transform: none;
-    }
-
-    /* Instruction panels */
-    .gps-instructions {
-      display: none;
-    }
-    .gps-instructions.visible {
-      display: block;
-    }
-
+    .gps-device-toggle button:active { opacity: 1; transform: none; }
+    .gps-instructions { display: none; }
+    .gps-instructions.visible { display: block; }
     .gps-steps {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      padding: 12px 14px;
-      margin-bottom: 10px;
+      background: #f8fafc; border: 1px solid #e2e8f0;
+      border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;
     }
-
     .gps-steps-title {
-      font-size: 12px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #64748b;
-      margin: 0 0 8px 0;
+      font-size: 12px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: #64748b; margin: 0 0 8px 0;
     }
-
-    .gps-steps ol {
-      margin: 0;
-      padding-left: 18px;
-      color: #1e293b;
-      font-size: 14px;
-      line-height: 1.75;
-    }
-
+    .gps-steps ol { margin: 0; padding-left: 18px; color: #1e293b; font-size: 14px; line-height: 1.75; }
     .gps-steps ol li { margin-bottom: 2px; }
-
     #gpsErrorPanel .gps-private-warning {
-      background: #fff7ed;
-      border: 1px solid #fed7aa;
-      border-radius: 10px;
-      padding: 10px 14px;
-      margin-bottom: 14px;
-      font-size: 13.5px;
-      color: #92400e;
-      line-height: 1.5;
+      background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px;
+      padding: 10px 14px; margin-bottom: 14px; font-size: 13.5px; color: #92400e; line-height: 1.5;
     }
-
-    #gpsErrorPanel .gps-private-warning strong {
-      display: block;
-      margin-bottom: 2px;
-    }
-
+    #gpsErrorPanel .gps-private-warning strong { display: block; margin-bottom: 2px; }
     #gpsErrorPanel .gps-retry-btn {
-      display: block;
-      width: 100%;
-      max-width: 100%;
-      background: #004a99;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      padding: 14px;
-      font-size: 16px;
-      font-weight: 700;
-      cursor: pointer;
-      text-align: center;
-      margin: 8px 0 0 0;
+      display: block; width: 100%; max-width: 100%; background: #004a99;
+      color: white; border: none; border-radius: 10px; padding: 14px;
+      font-size: 16px; font-weight: 700; cursor: pointer; text-align: center; margin: 8px 0 0 0;
     }
-
-    #gpsErrorPanel .gps-retry-btn:active {
-      opacity: 0.85;
-    }
-
-    /* 🔁 Subtle backup reset link */
-    .not-you{
-      margin: 8px auto 0;
-      max-width: 520px;
-      font-size: 12px;
-      color: rgba(15,23,42,0.45);
-      text-align: right;
-    }
-    .not-you a{
-      color: rgba(0,74,153,0.6);
-      font-weight: 600;
-      text-decoration: underline;
-    }
-    .not-you a:active{ opacity: 0.7; }
-
-    /* Confirm sign out modal */
-    #confirmSignOutModal,
-    #confirmSignInModal {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.55);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 10000;
+    #gpsErrorPanel .gps-retry-btn:active { opacity: 0.85; }
+    .not-you { margin: 8px auto 0; max-width: 520px; font-size: 12px; color: rgba(15,23,42,0.45); text-align: right; }
+    .not-you a { color: rgba(0,74,153,0.6); font-weight: 600; text-decoration: underline; }
+    .not-you a:active { opacity: 0.7; }
+    #confirmSignOutModal, #confirmSignInModal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+      display: none; align-items: center; justify-content: center; z-index: 10000;
     }
     .confirmCard {
-      background: #fff;
-      width: min(520px, calc(100% - 40px));
-      border-radius: 20px;
-      padding: 24px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
-      text-align: center;
+      background: #fff; width: min(520px, calc(100% - 40px));
+      border-radius: 20px; padding: 24px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35); text-align: center;
     }
-    .confirmTitle {
-      margin-top: 0;
-      color: #0f172a;
-    }
-    .confirmText {
-      color: #334155;
-      margin-bottom: 18px;
-    }
-    .secondaryBtn {
-      background: #ccc;
-      color: #333;
-    }
+    .confirmTitle { margin-top: 0; color: #0f172a; }
+    .confirmText { color: #334155; margin-bottom: 18px; }
+    .secondaryBtn { background: #ccc; color: #333; }
   </style>
-
 </head>
-
 <body>
 
-<h1 id="title">Checking Location…</h1>
-
+<h1 id="title">Checking Location...</h1>
 <img src="/SiteLog/Mostlane%20Logo.jpg" alt="Mostlane" class="logo"/>
 
 <div class="site-notice" id="noticeBox">
-  <strong>⚠️ Site Notice:</strong> Report to site foreman
+  <strong>Site Notice:</strong> Report to site foreman
 </div>
 
 <div id="card">
-  <div id="status">Requesting GPS…</div>
+  <div id="status">Requesting GPS...</div>
   <div id="map"></div>
-
   <div class="not-you" id="notYouRow" style="display:none;">
     Backup: <a href="#" onclick="resetDeviceAndRegister(); return false;">Reset device</a>
   </div>
-
   <div id="registerBox" style="display:none; text-align:center;">
     <h3>First Visit Registration</h3>
-
-```
-<input id="firstName" placeholder="First Name">
-<input id="lastName" placeholder="Last Name">
-
-<select id="purpose" required>
-  <option value="" disabled selected>Select from list</option>
-  <option value="Visiting">Visiting</option>
-  <option value="Contractor">Contractor</option>
-</select>
-
-<select id="company" required>
-  <option value="" disabled selected>Select from list</option>
-</select>
-
-<label>
-  <input type="checkbox" id="hsAck">
-  <span>I have read site rules and will report to site foreman</span>
-</label>
-
-<button onclick="register()">Confirm & Check In</button>
-```
-
+    <input id="firstName" placeholder="First Name">
+    <input id="lastName" placeholder="Last Name">
+    <select id="purpose" required>
+      <option value="" disabled selected>Select from list</option>
+      <option value="Visiting">Visiting</option>
+      <option value="Contractor">Contractor</option>
+    </select>
+    <select id="company" required>
+      <option value="" disabled selected>Select from list</option>
+    </select>
+    <label>
+      <input type="checkbox" id="hsAck">
+      <span>I have read site rules and will report to site foreman</span>
+    </label>
+    <button onclick="register()">Confirm &amp; Check In</button>
   </div>
 </div>
 
-<!-- NETWORK ERROR PANEL -->
-
 <div id="networkErrorPanel" role="alert">
-  <p class="net-title">📡 No Internet Connection</p>
-  <p class="net-reason" id="networkErrorReason">SiteLog could not reach the server. This is usually because your WiFi has no internet access.</p>
+  <p class="net-title">No Internet Connection</p>
+  <p class="net-reason" id="networkErrorReason">SiteLog could not reach the server.</p>
   <div class="net-tips">
     <ol>
       <li>Turn <strong>WiFi off</strong> and use mobile data instead</li>
@@ -508,58 +251,40 @@
       <li>Then tap <strong>Try Again</strong> below</li>
     </ol>
   </div>
-  <button class="net-retry-btn" onclick="retryAfterNetwork()">🔄 Try Again</button>
+  <button class="net-retry-btn" onclick="retryAfterNetwork()">Try Again</button>
 </div>
-
-<!-- GPS ERROR PANEL -->
 
 <div id="gpsErrorPanel" role="alert">
-  <p class="gps-title">📍 Location Access Required</p>
+  <p class="gps-title">Location Access Required</p>
   <p class="gps-reason" id="gpsErrorReason">GPS permission was denied or unavailable.</p>
-
-  <!-- Private browsing warning (shown instead of steps when detected) -->
-
   <div id="gpsPrivateWarning" class="gps-private-warning" style="display:none;">
-    <strong>⚠️ Private / Incognito Browser Detected</strong>
-    Location access is blocked in private browsing mode. Please open this link in your normal browser (Safari or Chrome) and try again.
+    <strong>Private / Incognito Browser Detected</strong>
+    Location access is blocked in private browsing mode. Please open this link in your normal browser and try again.
   </div>
-
-  <!-- Device toggle + per-device instructions -->
-
   <div id="gpsStepsBox">
-
-```
-<div class="gps-device-toggle" id="gpsDeviceToggle">
-  <button id="btnIphone" onclick="switchDevice('iphone')" class="active">🍎 iPhone</button>
-  <button id="btnAndroid" onclick="switchDevice('android')">🤖 Android</button>
-</div>
-
-<!-- iPhone instructions -->
-<div class="gps-instructions visible" id="instructionsIphone">
-  <div class="gps-steps" id="iphoneStepsBox">
-    <p class="gps-steps-title" id="iphoneStepsTitle">How to fix on iPhone</p>
-    <ol id="iphoneStepsList"></ol>
+    <div class="gps-device-toggle" id="gpsDeviceToggle">
+      <button id="btnIphone" onclick="switchDevice('iphone')" class="active">iPhone</button>
+      <button id="btnAndroid" onclick="switchDevice('android')">Android</button>
+    </div>
+    <div class="gps-instructions visible" id="instructionsIphone">
+      <div class="gps-steps">
+        <p class="gps-steps-title" id="iphoneStepsTitle">How to fix on iPhone</p>
+        <ol id="iphoneStepsList"></ol>
+      </div>
+    </div>
+    <div class="gps-instructions" id="instructionsAndroid">
+      <div class="gps-steps">
+        <p class="gps-steps-title" id="androidStepsTitle">How to fix on Android</p>
+        <ol id="androidStepsList"></ol>
+      </div>
+    </div>
   </div>
-</div>
-
-<!-- Android instructions -->
-<div class="gps-instructions" id="instructionsAndroid">
-  <div class="gps-steps" id="androidStepsBox">
-    <p class="gps-steps-title" id="androidStepsTitle">How to fix on Android</p>
-    <ol id="androidStepsList"></ol>
-  </div>
-</div>
-```
-
-  </div>
-
-<button class="gps-retry-btn" onclick="retryLocation()">🔄 Try Again</button>
-
+  <button class="gps-retry-btn" onclick="retryLocation()">Try Again</button>
 </div>
 
 <div id="successOverlay" aria-hidden="true">
   <div class="successCard" role="dialog" aria-modal="true">
-    <div id="successIcon" class="successIcon">✅</div>
+    <div id="successIcon" class="successIcon">&#x2705;</div>
     <h2 id="successTitle" class="successTitle">Checked In</h2>
     <div id="successSub" class="successSub">Recorded successfully</div>
     <div id="successSite" class="successSite" style="display:none;">Site</div>
@@ -570,12 +295,8 @@
   <div class="confirmCard">
     <h3 class="confirmTitle">Confirm Sign Out</h3>
     <p id="confirmSignOutText" class="confirmText"></p>
-
-```
-<button onclick="confirmSignOutYes()">Yes, Sign Me Out</button>
-<button class="secondaryBtn" onclick="confirmSignOutNo()">No, Stay Signed In</button>
-```
-
+    <button onclick="confirmSignOutYes()">Yes, Sign Me Out</button>
+    <button class="secondaryBtn" onclick="confirmSignOutNo()">No, Stay Signed In</button>
   </div>
 </div>
 
@@ -583,12 +304,8 @@
   <div class="confirmCard">
     <h3 class="confirmTitle">Confirm Check In</h3>
     <p id="confirmSignInText" class="confirmText"></p>
-
-```
-<button onclick="confirmSignInYes()">Yes, Check Me In</button>
-<button class="secondaryBtn" onclick="confirmSignInNo()">No</button>
-```
-
+    <button onclick="confirmSignInYes()">Yes, Check Me In</button>
+    <button class="secondaryBtn" onclick="confirmSignInNo()">No</button>
   </div>
 </div>
 
@@ -610,358 +327,264 @@ let pendingCheckinFirstName = "";
 let pendingCheckinCompany = "";
 let pendingCheckinSite = "";
 
-function resetDeviceAndRegister() {
-  const confirmReset = confirm(
-    "Backup action.\n\nThis will reset this device and return to first-time registration."
-  );
-  if (!confirmReset) return;
+// ============================================================
+// SILENT FAILED SCAN LOGGER - user never sees this fire
+// errorType: "denied" | "unavailable" | "timeout" | "private"
+// ============================================================
+function logFailedScan(errorType) {
+  try {
+    fetch(API + "/log-failed-scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceToken: deviceToken, errorType: errorType })
+    }).catch(function() {});
+  } catch(e) {}
+}
 
+function resetDeviceAndRegister() {
+  if (!confirm("Backup action.\n\nThis will reset this device and return to first-time registration.")) return;
   localStorage.removeItem("mostlane_device_id");
   localStorage.removeItem("mostlane_last_checkin");
   localStorage.removeItem("mostlane_profile");
-
   location.reload();
 }
 
-/* ==============================
-   ✅ BIG OVERLAY POPUP
-   type: "in" | "out" | "reg"
-============================== */
 function showSuccessOverlay(type, siteName, firstName, durationText) {
   const overlay = document.getElementById("successOverlay");
-  const icon = document.getElementById("successIcon");
-  const title = document.getElementById("successTitle");
-  const sub = document.getElementById("successSub");
-  const site = document.getElementById("successSite");
+  const icon    = document.getElementById("successIcon");
+  const title   = document.getElementById("successTitle");
+  const sub     = document.getElementById("successSub");
+  const site    = document.getElementById("successSite");
 
-  site.style.display = (siteName ? "inline-block" : "none");
-  site.textContent = siteName ? siteName : "";
+  site.style.display = siteName ? "inline-block" : "none";
+  site.textContent   = siteName || "";
 
   if (type === "in") {
-    icon.textContent = "✅";
-    title.textContent = firstName ? `Welcome ${firstName}` : "Checked In";
-    sub.textContent = siteName ? `Signed in at ${siteName}` : "You're signed in on site";
+    icon.textContent  = "✅";
+    title.textContent = firstName ? "Welcome " + firstName : "Checked In";
+    sub.textContent   = siteName  ? "Signed in at " + siteName : "You're signed in on site";
   } else if (type === "out") {
-    icon.textContent = "👋";
-    title.textContent = firstName ? `Goodbye ${firstName}` : "Checked Out";
-
-    if (siteName && durationText) {
-      sub.textContent = `Signed out from ${siteName} — ${durationText} on site`;
-    } else if (durationText) {
-      sub.textContent = `${durationText} on site`;
-    } else {
-      sub.textContent = "Visit completed";
-    }
+    icon.textContent  = "👋";
+    title.textContent = firstName ? "Goodbye " + firstName : "Checked Out";
+    sub.textContent   = (siteName && durationText) ? "Signed out from " + siteName + " - " + durationText + " on site"
+                      : durationText               ? durationText + " on site"
+                      : "Visit completed";
   } else {
-    icon.textContent = "✅";
+    icon.textContent  = "✅";
     title.textContent = "Registered";
-    sub.textContent = "Check-in confirmed";
+    sub.textContent   = "Check-in confirmed";
   }
 
   overlay.classList.add("active");
   overlay.setAttribute("aria-hidden", "false");
-
-  try { if (navigator.vibrate) navigator.vibrate(70); } catch(e){}
+  try { if (navigator.vibrate) navigator.vibrate(70); } catch(e) {}
 
   clearTimeout(window.__mlFadeT);
   clearTimeout(window.__mlCloseT);
-
-  window.__mlFadeT = setTimeout(() => {
+  window.__mlFadeT = setTimeout(function() {
     overlay.classList.remove("active");
     overlay.setAttribute("aria-hidden", "true");
   }, 2000);
-
-  window.__mlCloseT = setTimeout(() => {
-    window.close();
-  }, 10000);
+  window.__mlCloseT = setTimeout(function() { window.close(); }, 10000);
 }
 
 function openSignOutConfirm(visitId, siteName, firstName) {
-  pendingCheckoutVisitId = visitId;
+  pendingCheckoutVisitId   = visitId;
   pendingCheckoutFirstName = firstName || "";
-  pendingCheckoutSite = siteName || "";
-
+  pendingCheckoutSite      = siteName  || "";
   document.getElementById("confirmSignOutText").innerText =
-    firstName
-      ? `${firstName}, are you sure you want to sign out${siteName ? ` from ${siteName}` : ""}?`
-      : `Are you sure you want to sign out${siteName ? ` from ${siteName}` : ""}?`;
-
+    (firstName ? firstName + ", are you" : "Are you") +
+    " sure you want to sign out" + (siteName ? " from " + siteName : "") + "?";
   document.getElementById("confirmSignOutModal").style.display = "flex";
 }
 
 function closeSignOutConfirm() {
   document.getElementById("confirmSignOutModal").style.display = "none";
-  pendingCheckoutVisitId = null;
-  pendingCheckoutFirstName = "";
-  pendingCheckoutSite = "";
+  pendingCheckoutVisitId = null; pendingCheckoutFirstName = ""; pendingCheckoutSite = "";
 }
 
 async function confirmSignOutYes() {
   if (!pendingCheckoutVisitId) return;
-
   const firstName = pendingCheckoutFirstName;
-  const siteName = pendingCheckoutSite;
-
+  const siteName  = pendingCheckoutSite;
   let res, data;
   try {
     res  = await fetchWithTimeout(API + "/confirm-checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        visitId: pendingCheckoutVisitId
-      })
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visitId: pendingCheckoutVisitId })
     });
     data = await res.json();
-  } catch(err) {
-    showNetworkError("checkout");
-    return;
-  }
-
-  if (!res.ok || !data.ok) {
-    alert(data.error || "Failed to sign out.");
-    return;
-  }
+  } catch(err) { showNetworkError("checkout"); return; }
+  if (!res.ok || !data.ok) { alert(data.error || "Failed to sign out."); return; }
 
   const start = localStorage.getItem("mostlane_last_checkin");
   let durationText = "";
-
   if (start) {
     const mins = Math.round((Date.now() - start) / 60000);
-    const hrs = Math.floor(mins / 60);
-    const rem = mins % 60;
-    durationText = hrs > 0 ? `${hrs}h ${rem}m` : `${mins}m`;
+    const hrs  = Math.floor(mins / 60);
+    const rem  = mins % 60;
+    durationText = hrs > 0 ? hrs + "h " + rem + "m" : mins + "m";
     localStorage.removeItem("mostlane_last_checkin");
   }
-
-  document.getElementById("title").innerText = "👋 Checked Out";
-  document.getElementById("status").innerText =
-    firstName
-      ? `Goodbye ${firstName} — Total time on site: ${durationText || "Recorded"}`
-      : "Total time on site: " + (durationText || "Recorded");
-
-  document.getElementById("noticeBox").innerHTML =
-    "<strong>✅ Visit Complete:</strong> Thank you, you may now leave site.";
-
+  document.getElementById("title").innerText  = "Checked Out";
+  document.getElementById("status").innerText = firstName
+    ? "Goodbye " + firstName + " - Total time on site: " + (durationText || "Recorded")
+    : "Total time on site: " + (durationText || "Recorded");
+  document.getElementById("noticeBox").innerHTML = "<strong>Visit Complete:</strong> Thank you, you may now leave site.";
   closeSignOutConfirm();
   showSuccessOverlay("out", siteName, firstName, durationText);
 }
 
 function confirmSignOutNo() {
   closeSignOutConfirm();
-  document.getElementById("title").innerText = "✅ Still Checked In";
-  document.getElementById("status").innerText =
-    "Sign out cancelled. You are still signed in on site.";
+  document.getElementById("title").innerText  = "Still Checked In";
+  document.getElementById("status").innerText = "Sign out cancelled. You are still signed in on site.";
 }
 
 function openSignInConfirm(siteName, firstName, companyName) {
-  pendingCheckinFirstName = firstName || "";
-  pendingCheckinCompany = companyName || "";
-  pendingCheckinSite = siteName || "";
-
+  pendingCheckinFirstName = firstName   || "";
+  pendingCheckinCompany   = companyName || "";
+  pendingCheckinSite      = siteName    || "";
   document.getElementById("confirmSignInText").innerText =
     "I am aware of the site rules and will report to the site foreman.";
-
   document.getElementById("confirmSignInModal").style.display = "flex";
 }
 
 function closeSignInConfirm() {
   document.getElementById("confirmSignInModal").style.display = "none";
-  pendingCheckinFirstName = "";
-  pendingCheckinCompany = "";
-  pendingCheckinSite = "";
+  pendingCheckinFirstName = ""; pendingCheckinCompany = ""; pendingCheckinSite = "";
 }
 
 async function confirmSignInYes() {
   let res, data;
   try {
     res  = await fetchWithTimeout(API + "/confirm-checkin", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        deviceToken,
-        lat: lastLocation.lat,
-        lng: lastLocation.lng,
-        accuracy: lastLocation.accuracy,
+        deviceToken: deviceToken,
+        lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy,
         site: pendingCheckinSite
       })
     });
     data = await res.json();
-  } catch(err) {
-    showNetworkError("checkin");
-    return;
-  }
+  } catch(err) { showNetworkError("checkin"); return; }
+  if (!res.ok || !data.ok) { alert(data.error || "Failed to check in."); return; }
 
-  if (!res.ok || !data.ok) {
-    alert(data.error || "Failed to check in.");
-    return;
-  }
-
-  const firstName = data.firstName || pendingCheckinFirstName || "";
-  const companyName = data.company || pendingCheckinCompany || "";
-  const siteName = data.site || pendingCheckinSite || currentSite;
+  const firstName   = data.firstName || pendingCheckinFirstName || "";
+  const companyName = data.company   || pendingCheckinCompany   || "";
+  const siteName    = data.site      || pendingCheckinSite      || currentSite;
 
   document.getElementById("notYouRow").style.display = "block";
   localStorage.setItem("mostlane_last_checkin", Date.now());
-
-  document.getElementById("title").innerText = "✅ Checked In";
-  document.getElementById("status").innerText =
-    (firstName && companyName)
-      ? `Welcome Back ${firstName} from ${companyName}`
-      : "You are now on site: " + siteName;
-
-  document.getElementById("noticeBox").innerHTML =
-    "<strong>⚠️ Site Notice:</strong> Report to site foreman";
-
+  document.getElementById("title").innerText  = "Checked In";
+  document.getElementById("status").innerText = (firstName && companyName)
+    ? "Welcome Back " + firstName + " from " + companyName
+    : "You are now on site: " + siteName;
+  document.getElementById("noticeBox").innerHTML = "<strong>Site Notice:</strong> Report to site foreman";
   closeSignInConfirm();
   showSuccessOverlay("in", siteName, firstName);
 }
 
 function confirmSignInNo() {
   closeSignInConfirm();
-  document.getElementById("title").innerText = "❌ Check In Not Completed";
+  document.getElementById("title").innerText  = "Check In Not Completed";
   document.getElementById("status").innerText =
-    "You are unable to sign in without acknowledging site rules and reporting to site foreman. Please contact Mostlane office on 02380 262000";
-
+    "You are unable to sign in without acknowledging site rules. Please contact Mostlane office on 02380 262000";
   document.getElementById("noticeBox").innerHTML =
-    "<strong>⚠️ Check In Refused:</strong> Please contact Mostlane office on 02380 262000";
+    "<strong>Check In Refused:</strong> Please contact Mostlane office on 02380 262000";
 }
 
-/* 🔒 LOCKED MAP — uses Maps JS SDK (satellite, non-interactive) */
 function showMap(lat, lng) {
   const map = new google.maps.Map(document.getElementById("map"), {
-    center: { lat, lng },
-    zoom: 18,
-    mapTypeId: "hybrid",
-    disableDefaultUI: true,
-    draggable: false,
-    scrollwheel: false,
-    disableDoubleClickZoom: true,
-    keyboardShortcuts: false,
-    gestureHandling: "none"
+    center: { lat: lat, lng: lng }, zoom: 18, mapTypeId: "hybrid",
+    disableDefaultUI: true, draggable: false, scrollwheel: false,
+    disableDoubleClickZoom: true, keyboardShortcuts: false, gestureHandling: "none"
   });
-
-  new google.maps.Marker({ position: { lat, lng }, map });
+  new google.maps.Marker({ position: { lat: lat, lng: lng }, map: map });
 }
 
-/* ======================================
-   LOAD COMPANIES FOR SITE
-======================================*/
 async function loadCompaniesForSite(siteName) {
   try {
-    const res = await fetchWithTimeout(API + "/companies-for-site?site=" + encodeURIComponent(siteName));
+    const res  = await fetchWithTimeout(API + "/companies-for-site?site=" + encodeURIComponent(siteName));
     const data = await res.json();
-
-    const companySelect = document.getElementById("company");
-    companySelect.innerHTML = `<option value="" disabled selected>Select from list</option>`;
-
+    const sel  = document.getElementById("company");
+    sel.innerHTML = "<option value=\"\" disabled selected>Select from list</option>";
     if (data.companies && data.companies.length > 0) {
-      data.companies.forEach(c => {
-        const option = document.createElement("option");
-        option.value = c.name;
-        option.textContent = c.name;
-        companySelect.appendChild(option);
+      data.companies.forEach(function(c) {
+        const opt = document.createElement("option");
+        opt.value = c.name; opt.textContent = c.name;
+        sel.appendChild(opt);
       });
     }
-
-    const savedProfile = localStorage.getItem("mostlane_profile");
-    if (savedProfile) {
-      const profile = JSON.parse(savedProfile);
-      const savedCompany = (profile.company || "").trim();
-      if (savedCompany) {
-        const exists = [...companySelect.options].some(o => o.value === savedCompany);
-        if (exists) companySelect.value = savedCompany;
-      }
+    const saved = localStorage.getItem("mostlane_profile");
+    if (saved) {
+      const p = JSON.parse(saved);
+      const co = (p.company || "").trim();
+      if (co && Array.from(sel.options).some(function(o) { return o.value === co; })) sel.value = co;
     }
-
-  } catch (err) {
-    console.error("Company load failed:", err);
-  }
+  } catch(err) { console.error("Company load failed:", err); }
 }
 
 async function scan() {
   let res, data;
   try {
     res  = await fetchWithTimeout(API + "/scan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        deviceToken,
-        lat: lastLocation.lat,
-        lng: lastLocation.lng,
-        accuracy: lastLocation.accuracy
+        deviceToken: deviceToken,
+        lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy
       })
     });
     data = await res.json();
-  } catch(err) {
-    showNetworkError("scan");
-    return;
-  }
+  } catch(err) { showNetworkError("scan"); return; }
+
   const noticeBox = document.getElementById("noticeBox");
 
   if (data.status === "unknown_site") {
     document.getElementById("notYouRow").style.display = "none";
-    document.getElementById("title").innerText = "❌ Unknown Site";
-    document.getElementById("status").innerText =
-      "You are not within range of an active Mostlane job.";
+    document.getElementById("title").innerText  = "Unknown Site";
+    document.getElementById("status").innerText = "You are not within range of an active Mostlane job.";
     return;
   }
 
   currentSite = data.site;
-
   await loadCompaniesForSite(currentSite);
-
-  const firstName = data.firstName || "";
-  const companyName = data.company || "";
+  const firstName   = data.firstName || "";
+  const companyName = data.company   || "";
 
   if (data.status === "first_visit") {
     document.getElementById("notYouRow").style.display = "none";
-    document.getElementById("status").innerText =
-      "First visit at " + currentSite + " — please register.";
-
-    const savedProfile = localStorage.getItem("mostlane_profile");
-    if (savedProfile) {
-      const profile = JSON.parse(savedProfile);
-      document.getElementById("firstName").value = profile.firstName || "";
-      document.getElementById("lastName").value = profile.lastName || "";
-
-      const savedPurpose = (profile.purpose || "").trim();
-      if (savedPurpose === "Visiting" || savedPurpose === "Contractor") {
-        document.getElementById("purpose").value = savedPurpose;
-      } else {
-        document.getElementById("purpose").value = "";
-      }
+    document.getElementById("status").innerText = "First visit at " + currentSite + " - please register.";
+    const saved = localStorage.getItem("mostlane_profile");
+    if (saved) {
+      const p = JSON.parse(saved);
+      document.getElementById("firstName").value = p.firstName || "";
+      document.getElementById("lastName").value  = p.lastName  || "";
+      const sp = (p.purpose || "").trim();
+      document.getElementById("purpose").value = (sp === "Visiting" || sp === "Contractor") ? sp : "";
     }
-
     document.getElementById("registerBox").style.display = "block";
     return;
   }
 
   if (data.status === "confirm_sign_out") {
     document.getElementById("notYouRow").style.display = "block";
-    document.getElementById("title").innerText = "Confirm Sign Out";
-    document.getElementById("status").innerText =
-      firstName
-        ? `${firstName}, please confirm if you want to sign out.`
-        : "Please confirm if you want to sign out.";
-
-    noticeBox.innerHTML =
-      "<strong>⚠️ Confirmation Required:</strong> Please confirm before signing out.";
-
+    document.getElementById("title").innerText  = "Confirm Sign Out";
+    document.getElementById("status").innerText = firstName
+      ? firstName + ", please confirm if you want to sign out."
+      : "Please confirm if you want to sign out.";
+    noticeBox.innerHTML = "<strong>Confirmation Required:</strong> Please confirm before signing out.";
     openSignOutConfirm(data.visitId, currentSite, firstName);
     return;
   }
 
   if (data.status === "confirm_check_in") {
     document.getElementById("notYouRow").style.display = "block";
-    document.getElementById("title").innerText = "Confirm Check In";
-    document.getElementById("status").innerText =
-      firstName
-        ? `${firstName}, please confirm you are aware of the site rules and will report to the site foreman.`
-        : "Please confirm you are aware of the site rules and will report to the site foreman.";
-
-    noticeBox.innerHTML =
-      "<strong>⚠️ Site Rules:</strong> You must acknowledge site rules and report to site foreman before checking in.";
-
+    document.getElementById("title").innerText  = "Confirm Check In";
+    document.getElementById("status").innerText = firstName
+      ? firstName + ", please confirm you are aware of the site rules and will report to the site foreman."
+      : "Please confirm you are aware of the site rules and will report to the site foreman.";
+    noticeBox.innerHTML = "<strong>Site Rules:</strong> You must acknowledge site rules and report to site foreman before checking in.";
     openSignInConfirm(currentSite, firstName, companyName);
     return;
   }
@@ -969,16 +592,11 @@ async function scan() {
   if (data.status === "checked_in") {
     document.getElementById("notYouRow").style.display = "block";
     localStorage.setItem("mostlane_last_checkin", Date.now());
-
-    document.getElementById("title").innerText = "✅ Checked In";
-    document.getElementById("status").innerText =
-      (firstName && companyName)
-        ? `Welcome Back ${firstName} from ${companyName}`
-        : "You are now on site: " + currentSite;
-
-    noticeBox.innerHTML =
-      "<strong>⚠️ Site Notice:</strong> Report to site foreman";
-
+    document.getElementById("title").innerText  = "Checked In";
+    document.getElementById("status").innerText = (firstName && companyName)
+      ? "Welcome Back " + firstName + " from " + companyName
+      : "You are now on site: " + currentSite;
+    noticeBox.innerHTML = "<strong>Site Notice:</strong> Report to site foreman";
     showSuccessOverlay("in", currentSite, firstName);
     return;
   }
@@ -986,25 +604,19 @@ async function scan() {
   if (data.status === "checked_out") {
     document.getElementById("notYouRow").style.display = "block";
     const start = localStorage.getItem("mostlane_last_checkin");
-
     let durationText = "";
     if (start) {
       const mins = Math.round((Date.now() - start) / 60000);
-      const hrs = Math.floor(mins / 60);
-      const rem = mins % 60;
-      durationText = hrs > 0 ? `${hrs}h ${rem}m` : `${mins}m`;
+      const hrs  = Math.floor(mins / 60);
+      const rem  = mins % 60;
+      durationText = hrs > 0 ? hrs + "h " + rem + "m" : mins + "m";
       localStorage.removeItem("mostlane_last_checkin");
     }
-
-    document.getElementById("title").innerText = "👋 Checked Out";
-    document.getElementById("status").innerText =
-      firstName
-        ? `Goodbye ${firstName} — Total time on site: ${durationText || "Recorded"}`
-        : "Total time on site: " + (durationText || "Recorded");
-
-    noticeBox.innerHTML =
-      "<strong>✅ Visit Complete:</strong> Thank you, you may now leave site.";
-
+    document.getElementById("title").innerText  = "Checked Out";
+    document.getElementById("status").innerText = firstName
+      ? "Goodbye " + firstName + " - Total time on site: " + (durationText || "Recorded")
+      : "Total time on site: " + (durationText || "Recorded");
+    noticeBox.innerHTML = "<strong>Visit Complete:</strong> Thank you, you may now leave site.";
     showSuccessOverlay("out", currentSite, firstName, durationText);
     return;
   }
@@ -1012,87 +624,59 @@ async function scan() {
 
 async function register() {
   const firstName = document.getElementById("firstName").value.trim();
-  const lastName = document.getElementById("lastName").value.trim();
-  const purpose = document.getElementById("purpose").value;
-  const company = document.getElementById("company").value;
-  const hsAck = document.getElementById("hsAck").checked;
+  const lastName  = document.getElementById("lastName").value.trim();
+  const purpose   = document.getElementById("purpose").value;
+  const company   = document.getElementById("company").value;
+  const hsAck     = document.getElementById("hsAck").checked;
 
   if (!firstName || !lastName || !purpose || !company || !hsAck) {
     alert("Complete all fields and confirm site rules.");
     return;
   }
-
-  localStorage.setItem("mostlane_profile", JSON.stringify({
-    firstName,
-    lastName,
-    purpose,
-    company
-  }));
+  localStorage.setItem("mostlane_profile", JSON.stringify({ firstName: firstName, lastName: lastName, purpose: purpose, company: company }));
 
   let res, data;
   try {
     res  = await fetchWithTimeout(API + "/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        deviceToken,
-        firstName,
-        lastName,
-        purpose,
-        company,
-        siteCode: currentSite,
-        lat: lastLocation.lat,
-        lng: lastLocation.lng,
-        accuracy: lastLocation.accuracy
+        deviceToken: deviceToken, firstName: firstName, lastName: lastName,
+        purpose: purpose, company: company, siteCode: currentSite,
+        lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy
       })
     });
     data = await res.json();
-  } catch(err) {
-    showNetworkError("register");
-    return;
-  }
+  } catch(err) { showNetworkError("register"); return; }
 
-  if (!data.ok) {
-    alert("Registration failed");
-    return;
-  }
-
+  if (!data.ok) { alert("Registration failed"); return; }
   document.getElementById("registerBox").style.display = "none";
-
   await scan();
-
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-/* ============================================================
-   NETWORK HELPERS — timeout wrapper, error display, retry.
-============================================================ */
-
-// Wraps fetch with a 12-second timeout so a dead connection never
-// leaves the user staring at a spinner indefinitely.
-function fetchWithTimeout(url, options, ms = 12000) {
+// ============================================================
+// NETWORK HELPERS
+// ============================================================
+function fetchWithTimeout(url, options, ms) {
+  if (!ms) ms = 12000;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  return fetch(url, { ...options, signal: controller.signal })
-    .finally(() => clearTimeout(timer));
+  const timer = setTimeout(function() { controller.abort(); }, ms);
+  return fetch(url, Object.assign({}, options, { signal: controller.signal }))
+    .finally(function() { clearTimeout(timer); });
 }
 
-// What were we trying to do when the network failed — used for
-// the retry button so it can resume the right action.
 let pendingNetworkAction = null;
 
 function showNetworkError(action) {
   pendingNetworkAction = action;
-
-  document.getElementById("card").style.display = "none";
+  document.getElementById("card").style.display              = "none";
   document.getElementById("networkErrorPanel").style.display = "block";
-  document.getElementById("title").innerText = "📡 No Connection";
-
+  document.getElementById("title").innerText                 = "No Connection";
   const reasons = {
     scan:     "Could not reach the SiteLog server to check your location.",
-    checkin:  "Your check-in could not be recorded — the server was unreachable.",
-    checkout: "Your sign-out could not be recorded — the server was unreachable.",
-    register: "Your registration could not be saved — the server was unreachable."
+    checkin:  "Your check-in could not be recorded - the server was unreachable.",
+    checkout: "Your sign-out could not be recorded - the server was unreachable.",
+    register: "Your registration could not be saved - the server was unreachable."
   };
   document.getElementById("networkErrorReason").innerText =
     (reasons[action] || "Could not reach the SiteLog server.") +
@@ -1101,71 +685,51 @@ function showNetworkError(action) {
 
 function hideNetworkError() {
   document.getElementById("networkErrorPanel").style.display = "none";
-  document.getElementById("card").style.display = "block";
+  document.getElementById("card").style.display              = "block";
 }
 
 async function retryAfterNetwork() {
   hideNetworkError();
-  document.getElementById("title").innerText = "Retrying…";
-  document.getElementById("status").innerText = "Connecting…";
-
+  document.getElementById("title").innerText  = "Retrying...";
+  document.getElementById("status").innerText = "Connecting...";
   const action = pendingNetworkAction;
   pendingNetworkAction = null;
-
-  if (action === "scan") {
-    await scan();
-  } else if (action === "checkin") {
-    await confirmSignInYes();
-  } else if (action === "checkout") {
-    await confirmSignOutYes();
-  } else if (action === "register") {
-    await register();
-  } else {
-    // Fallback — restart from GPS
-    startLocation();
-  }
+  if      (action === "scan")     { await scan(); }
+  else if (action === "checkin")  { await confirmSignInYes(); }
+  else if (action === "checkout") { await confirmSignOutYes(); }
+  else if (action === "register") { await register(); }
+  else                            { startLocation(); }
 }
 
-/* ============================================================
-   GPS HANDLING — clear errors, iPhone/Android toggle,
-   private browsing detection, and retry.
-============================================================ */
-
+// ============================================================
+// GPS HELPERS
+// ============================================================
 function isLikelyPrivateBrowsing() {
   try {
-    const test = "__ml_test__";
-    localStorage.setItem(test, "1");
-    localStorage.removeItem(test);
+    const t = "__ml_t__";
+    localStorage.setItem(t, "1");
+    localStorage.removeItem(t);
     return false;
-  } catch(e) {
-    return true;
-  }
+  } catch(e) { return true; }
 }
 
 function detectDevice() {
   const ua = navigator.userAgent;
-  return {
-    isIOS:     /iphone|ipad|ipod/i.test(ua),
-    isAndroid: /android/i.test(ua),
-    isSafari:  /safari/i.test(ua) && !/chrome/i.test(ua),
-    isChrome:  /chrome/i.test(ua),
-    isFirefox: /firefox/i.test(ua)
-  };
+  return { isAndroid: /android/i.test(ua) };
 }
 
-// All step sets keyed by [device][errorCode]
 const GPS_STEPS = {
   iphone: {
     1: {
-      title: "Enable Location on iPhone — Safari",
+      title: "Enable Location on iPhone - Safari",
       steps: [
         "Open the <strong>Settings</strong> app on your iPhone",
         "Scroll down and tap <strong>Safari</strong>",
         "Tap <strong>Location</strong> and choose <strong>Ask</strong> or <strong>Allow</strong>",
-        "Return here and tap <strong>Try Again</strong> — then tap <strong>Allow</strong> when Safari asks"
+        "Return here and tap <strong>Try Again</strong> then tap <strong>Allow</strong> when prompted"
       ],
       alt: {
-        title: "Using Chrome on iPhone instead?",
+        title: "Using Chrome on iPhone?",
         steps: [
           "Open <strong>Settings</strong> and scroll down to <strong>Chrome</strong>",
           "Tap <strong>Location</strong> and choose <strong>While Using the App</strong>",
@@ -1174,165 +738,149 @@ const GPS_STEPS = {
       }
     },
     2: {
-      title: "GPS Signal Unavailable — iPhone",
+      title: "GPS Signal Unavailable - iPhone",
       steps: [
-        "Go to <strong>Settings → Privacy & Security → Location Services</strong>",
+        "Go to <strong>Settings - Privacy and Security - Location Services</strong>",
         "Make sure <strong>Location Services</strong> is switched <strong>ON</strong>",
-        "Step outside or move away from thick walls for a better signal",
+        "Step outside or move away from thick walls",
         "Wait a few seconds then tap <strong>Try Again</strong>"
       ]
     },
     3: {
-      title: "GPS Timed Out — iPhone",
+      title: "GPS Timed Out - iPhone",
       steps: [
-        "Go to <strong>Settings → Privacy & Security → Location Services</strong> and confirm it is <strong>ON</strong>",
-        "Move slightly — sometimes a small position change helps the GPS lock",
-        "Tap <strong>Try Again</strong>"
+        "Go to <strong>Settings - Privacy and Security - Location Services</strong> and confirm it is <strong>ON</strong>",
+        "Move slightly then tap <strong>Try Again</strong>"
       ]
     }
   },
   android: {
     1: {
-      title: "Enable Location on Android — Chrome",
+      title: "Enable Location on Android - Chrome",
       steps: [
-        "Tap the <strong>lock icon</strong> or <strong>ⓘ</strong> in the address bar at the top",
-        "Tap <strong>Permissions</strong> then <strong>Location</strong> and set it to <strong>Allow</strong>",
+        "Tap the <strong>lock icon</strong> in the address bar",
+        "Tap <strong>Permissions</strong> then <strong>Location</strong> and set to <strong>Allow</strong>",
         "Tap <strong>Try Again</strong> below",
-        "Still blocked? Go to <strong>Settings → Apps → Chrome → Permissions → Location → Allow</strong>"
+        "Still blocked? Go to <strong>Settings - Apps - Chrome - Permissions - Location - Allow</strong>"
       ],
       alt: {
-        title: "Using a different Android browser?",
+        title: "Using a different browser?",
         steps: [
-          "Tap the <strong>⋮ menu</strong> or <strong>lock icon</strong> in your browser",
-          "Find <strong>Site Settings</strong> or <strong>Permissions → Location</strong>",
+          "Tap the menu or lock icon in your browser",
+          "Find <strong>Site Settings</strong> or <strong>Permissions - Location</strong>",
           "Set location to <strong>Allow</strong> and tap <strong>Try Again</strong>"
         ]
       }
     },
     2: {
-      title: "GPS Signal Unavailable — Android",
+      title: "GPS Signal Unavailable - Android",
       steps: [
-        "Swipe down and make sure <strong>Location</strong> is toggled <strong>on</strong> in Quick Settings",
-        "Go to <strong>Settings → Location</strong> and ensure it is enabled",
-        "Step outside or move for a clearer view of the sky",
-        "Tap <strong>Try Again</strong>"
+        "Swipe down and make sure <strong>Location</strong> is toggled <strong>on</strong>",
+        "Go to <strong>Settings - Location</strong> and ensure it is enabled",
+        "Step outside and tap <strong>Try Again</strong>"
       ]
     },
     3: {
-      title: "GPS Timed Out — Android",
+      title: "GPS Timed Out - Android",
       steps: [
-        "Swipe down and check that <strong>Location</strong> is on in Quick Settings",
-        "Move slightly then tap <strong>Try Again</strong>",
-        "If the problem continues, toggle Location off and back on in Settings"
+        "Swipe down and check <strong>Location</strong> is on",
+        "Move slightly then tap <strong>Try Again</strong>"
       ]
     }
   }
 };
 
-// Which device tab is currently showing
 let currentDevice = "iphone";
 
 function switchDevice(device) {
   currentDevice = device;
-
-  // Toggle button active state
-  document.getElementById("btnIphone").classList.toggle("active",  device === "iphone");
-  document.getElementById("btnAndroid").classList.toggle("active", device === "android");
-
-  // Show/hide instruction panels
+  document.getElementById("btnIphone").classList.toggle("active",   device === "iphone");
+  document.getElementById("btnAndroid").classList.toggle("active",  device === "android");
   document.getElementById("instructionsIphone").classList.toggle("visible",  device === "iphone");
   document.getElementById("instructionsAndroid").classList.toggle("visible", device === "android");
 }
 
 function renderStepsForDevice(device, errorCode) {
-  const set  = (GPS_STEPS[device] && GPS_STEPS[device][errorCode]) || GPS_STEPS[device][1];
+  const set     = (GPS_STEPS[device] && GPS_STEPS[device][errorCode]) || GPS_STEPS[device][1];
   const titleEl = document.getElementById(device + "StepsTitle");
   const listEl  = document.getElementById(device + "StepsList");
-  const boxEl   = document.getElementById(device + "StepsBox");
-
   titleEl.textContent = set.title;
-  listEl.innerHTML = set.steps.map(s => "<li>" + s + "</li>").join("");
-
-  // Append alternative browser tip if present
+  listEl.innerHTML    = set.steps.map(function(s) { return "<li>" + s + "</li>"; }).join("");
   if (set.alt) {
     listEl.innerHTML +=
       "</ol><p style='font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin:10px 0 6px 0;'>" +
-      set.alt.title + "</p><ol style='margin:0;padding-left:18px;color:#1e293b;font-size:14px;line-height:1.75;'>" +
-      set.alt.steps.map(s => "<li>" + s + "</li>").join("");
+      set.alt.title +
+      "</p><ol style='margin:0;padding-left:18px;color:#1e293b;font-size:14px;line-height:1.75;'>" +
+      set.alt.steps.map(function(s) { return "<li>" + s + "</li>"; }).join("");
   }
 }
 
-function showGpsError(errorCode, errorMessage) {
-  document.getElementById("card").style.display = "none";
-  document.getElementById("gpsErrorPanel").style.display = "block";
-  document.getElementById("title").innerText = "📍 Location Required";
+const GPS_ERROR_TYPES = { 1: "denied", 2: "unavailable", 3: "timeout" };
 
-  const isPrivate = isLikelyPrivateBrowsing();
-  const privateWarning = document.getElementById("gpsPrivateWarning");
-  const stepsBox       = document.getElementById("gpsStepsBox");
+function showGpsError(errorCode, errorMessage) {
+  // Silently log in background - no UI feedback to user
+  logFailedScan(isLikelyPrivateBrowsing() ? "private" : (GPS_ERROR_TYPES[errorCode] || "unknown"));
+
+  document.getElementById("card").style.display          = "none";
+  document.getElementById("gpsErrorPanel").style.display = "block";
+  document.getElementById("title").innerText             = "Location Required";
+
+  const isPrivate    = isLikelyPrivateBrowsing();
+  const privWarn     = document.getElementById("gpsPrivateWarning");
+  const stepsBox     = document.getElementById("gpsStepsBox");
 
   if (isPrivate) {
-    privateWarning.style.display = "block";
-    stepsBox.style.display = "none";
+    privWarn.style.display  = "block";
+    stepsBox.style.display  = "none";
     document.getElementById("gpsErrorReason").innerText =
       "You appear to be using a private or incognito browser window, which blocks location access.";
     return;
   }
 
-  privateWarning.style.display = "none";
+  privWarn.style.display = "none";
   stepsBox.style.display = "block";
 
   const reasons = {
-    1: "Location permission was denied. SiteLog needs your GPS to verify you are on site — this cannot be bypassed.",
+    1: "Location permission was denied. SiteLog needs your GPS to verify you are on site - this cannot be bypassed.",
     2: "Your device could not get a GPS signal. This is usually a settings or signal issue.",
     3: "Your device took too long to get a GPS fix."
   };
   document.getElementById("gpsErrorReason").innerText =
     reasons[errorCode] || ("Location error: " + errorMessage);
 
-  // Render steps for both devices so toggling is instant with no re-render
   renderStepsForDevice("iphone",  errorCode);
   renderStepsForDevice("android", errorCode);
-
-  // Auto-select the tab that matches the user's actual device
-  const { isAndroid } = detectDevice();
-  switchDevice(isAndroid ? "android" : "iphone");
+  switchDevice(detectDevice().isAndroid ? "android" : "iphone");
 }
 
 function retryLocation() {
   document.getElementById("gpsErrorPanel").style.display = "none";
-  document.getElementById("card").style.display = "block";
-  document.getElementById("title").innerText = "Checking Location…";
-  document.getElementById("status").innerText = "Requesting GPS…";
+  document.getElementById("card").style.display          = "block";
+  document.getElementById("title").innerText             = "Checking Location...";
+  document.getElementById("status").innerText            = "Requesting GPS...";
   startLocation();
 }
 
 function startLocation() {
   navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      lastLocation = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracy: pos.coords.accuracy
-      };
+    function(pos) {
+      lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
       showMap(lastLocation.lat, lastLocation.lng);
       scan();
     },
-    (err) => {
-      showGpsError(err.code, err.message);
-    },
+    function(err) { showGpsError(err.code, err.message); },
     { enableHighAccuracy: true, timeout: 20000 }
   );
 }
 
 if (navigator.permissions && navigator.permissions.query) {
-  navigator.permissions.query({ name: "geolocation" }).then((result) => {
+  navigator.permissions.query({ name: "geolocation" }).then(function(result) {
     if (result.state === "denied") {
       showGpsError(1, "Permission denied");
     } else {
       startLocation();
     }
-  }).catch(() => startLocation());
+  }).catch(function() { startLocation(); });
 } else {
   startLocation();
 }

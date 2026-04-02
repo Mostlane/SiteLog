@@ -344,7 +344,13 @@ function fmtDur(mins) {
 
 function fmtTime(ts) {
   if (!ts) return "—";
-  return new Date(ts.replace(" ","T")+"Z").toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+  try {
+    var clean = String(ts).replace(" ","T");
+    if (!clean.endsWith("Z") && !clean.includes("+")) clean += "Z";
+    var d = new Date(clean);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+  } catch(e) { return "—"; }
 }
 
 function showSuccess(icon, title, sub, dur) {
@@ -469,7 +475,7 @@ function openOutModal(visitId, siteName, firstName) {
   try {
     var start = localStorage.getItem("mostlane_last_checkin") || checkInTime;
     if (start) {
-      var mins = Math.round((Date.now() - start) / 60000);
+      var mins = Math.max(0, Math.round((Date.now() - Number(start)) / 60000));
       durStr = fmtDur(mins);
     }
   } catch(e) {}
@@ -507,7 +513,7 @@ async function confirmOutYes() {
   try {
     var start = localStorage.getItem("mostlane_last_checkin") || checkInTime;
     if (start) {
-      var mins = Math.round((Date.now() - start) / 60000);
+      var mins = Math.max(0, Math.round((Date.now() - Number(start)) / 60000));
       durStr = fmtDur(mins);
       localStorage.removeItem("mostlane_last_checkin");
     }

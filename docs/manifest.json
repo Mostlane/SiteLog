@@ -1,6 +1,6 @@
 {
-  "name": "SiteLog \u2014 Mostlane",
-  "short_name": "SiteLog",
+  "name": "Site Log \u2014 Mostlane",
+  "short_name": "Site Log",
   "description": "Mostlane site attendance check-in",
   "start_url": "/SiteLog/app.html",
   "scope": "/SiteLog/",

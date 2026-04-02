@@ -1063,7 +1063,7 @@
   <button class="dash-action-btn dash-btn-in"  id="dashBtnIn"  onclick="dashTriggerScan()" style="display:none;">
     Check In
   </button>
-  <button class="dash-action-btn dash-btn-out" id="dashBtnOut" onclick="dashTriggerScan()" style="display:none;">
+  <button class="dash-action-btn dash-btn-out" id="dashBtnOut" onclick="dashTriggerSignOut()" style="display:none;">
     Sign Out
   </button>
   <div id="dashDuration" style="display:none;font-size:13px;color:var(--muted);margin-top:8px;text-align:center;"></div>
@@ -1245,7 +1245,7 @@
 const API = "https://sitelog-api.jamie-def.workers.dev";
 
 // ── SET YOUR ADMIN PIN HERE ──────────────────────────
-const ADMIN_PIN = "1234";
+const ADMIN_PIN = "5847";
 // ────────────────────────────────────────────────────
 
 // ── DEVICE TOKEN — IndexedDB (survives private mode in standalone PWA) ──
@@ -1788,8 +1788,8 @@ async function appScan() {
 
   if (data.status === "confirm_check_in") {
     document.getElementById("appNotYouRow").style.display = "block";
+    // Just show the dashboard state — user taps Check In to trigger modal
     dashSetState("ready", currentSite, null, null);
-    openSignInModal(currentSite, firstName, company);
     return;
   }
 
@@ -2181,6 +2181,7 @@ function dashSetState(state, siteName, visitId, checkInTime) {
     dot.classList.add("live");
     label.textContent    = "Signed In";
     site.textContent     = siteName || "";
+    btnIn.style.display  = "none";
     btnOut.style.display = "block";
     dashCheckedIn        = true;
     dashCurrentSite      = siteName;
@@ -2191,19 +2192,35 @@ function dashSetState(state, siteName, visitId, checkInTime) {
     loadOnSiteCount(siteName);
   } else if (state === "ready") {
     dot.classList.add("ready");
-    label.textContent   = "On Site — Ready";
-    site.textContent    = siteName || "Tap to check in";
-    btnIn.style.display = "block";
-    dashCheckedIn       = false;
-    dashCurrentSite     = siteName;
+    label.textContent   = "Site found";
+    site.textContent    = siteName || "";
+    btnIn.style.display  = "block";
+    btnOut.style.display = "none";
+    dashCheckedIn        = false;
+    dashCurrentSite      = siteName;
     if (onSiteSub) onSiteSub.textContent = siteName || "View";
     loadOnSiteCount(siteName);
+  } else if (state === "signed-out-elsewhere") {
+    // Signed out but GPS not at a known site — show sign out only
+    dot.classList.add("live");
+    dot.style.background = "#f59e0b";
+    label.textContent    = "Signed In";
+    site.textContent     = siteName || "Location not recognised";
+    btnIn.style.display  = "none";
+    btnOut.style.display = "block";
+    dashCheckedIn        = true;
+    dashCurrentSite      = siteName;
+    dashOpenVisitId      = visitId || null;
+    dashCheckInTime      = checkInTime || null;
+    if (dashCheckInTime) startDurationTicker(dashCheckInTime);
   } else {
     dot.classList.add("unknown");
     label.textContent = "Not on site";
     site.textContent  = "No active site nearby";
-    dashCheckedIn     = false;
-    dashCurrentSite   = null;
+    btnIn.style.display  = "none";
+    btnOut.style.display = "none";
+    dashCheckedIn        = false;
+    dashCurrentSite      = null;
     if (onSiteSub) onSiteSub.textContent = "—";
   }
 }
@@ -2284,42 +2301,133 @@ async function loadOnSiteList() {
   }
 }
 
+function histFmtDay(dateStr) {
+  var d = new Date(dateStr + "T00:00:00");
+  var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return days[d.getDay()] + " " + d.getDate() + " " + months[d.getMonth()] + " " + String(d.getFullYear()).slice(2);
+}
+
+function histFmtTime(ts) {
+  if (!ts) return "—";
+  return new Date(ts.replace(" ","T")+"Z").toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+}
+
+function histDur(mins) {
+  var h = Math.floor(mins/60), m = mins%60;
+  return h > 0 ? h+"h "+m+"m" : m+"m";
+}
+
 async function loadHistoryList() {
   var el = document.getElementById("historyList");
   if (!el) return;
   el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:14px;">Loading...</div>';
   try {
-    var res  = await fetchWithTimeout(API + "/my-visits?deviceToken=" + encodeURIComponent(deviceToken) + "&limit=30");
-    var data = await res.json();
+    var res   = await fetchWithTimeout(API + "/my-visits?deviceToken=" + encodeURIComponent(deviceToken) + "&limit=60");
+    var data  = await res.json();
     var visits = data.visits || [];
     if (!visits.length) {
       el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:14px;">No visit history yet.</div>';
       return;
     }
-    el.innerHTML = visits.map(function(v) {
-      var inTime  = v.check_in_at  ? new Date(v.check_in_at.replace(" ","T")+"Z")  : null;
-      var outTime = v.check_out_at ? new Date(v.check_out_at.replace(" ","T")+"Z") : null;
-      var inStr   = inTime  ? inTime.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"}) + " " +
-                              inTime.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "—";
-      var outStr  = outTime ? outTime.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "Still on site";
-      var durStr  = "";
-      if (inTime && outTime) {
-        var mins = Math.round((outTime - inTime) / 60000);
-        var hrs  = Math.floor(mins / 60); var rem = mins % 60;
-        durStr = hrs > 0 ? hrs + "h " + rem + "m" : mins + "m";
+
+    // Group by day
+    var byDay = {};
+    visits.forEach(function(v) {
+      var day = (v.check_in_at || "").slice(0,10);
+      if (!day) return;
+      if (!byDay[day]) byDay[day] = [];
+      byDay[day].push(v);
+    });
+
+    var days = Object.keys(byDay).sort(function(a,b){ return b.localeCompare(a); });
+    var todayISO = new Date().toISOString().slice(0,10);
+
+    var html = days.map(function(day) {
+      var sessions = byDay[day].sort(function(a,b){ return (a.check_in_at||"").localeCompare(b.check_in_at||""); });
+      var isToday  = day === todayISO;
+
+      // Day totals
+      var firstIn  = sessions[0].check_in_at;
+      var lastOut  = sessions.map(function(s){ return s.check_out_at; }).filter(Boolean).sort().pop() || null;
+      var dayMins  = 0;
+      if (firstIn && lastOut) {
+        dayMins = Math.round((new Date(lastOut.replace(" ","T")+"Z") - new Date(firstIn.replace(" ","T")+"Z")) / 60000);
       }
-      var isSoft = !v.sign_in_confirmed;
-      return '<div class="history-row">' +
-        '<div class="history-site">' + (v.site_code || "Unknown site") + '</div>' +
-        '<div class="history-times">' +
-          '<span>' + inStr + '</span>' +
-          '<span>&#8594;</span>' +
-          '<span>' + outStr + '</span>' +
-          (durStr ? '<span class="history-dur">' + durStr + '</span>' : '') +
-          (isSoft ? '<span class="history-soft">unconfirmed</span>' : '') +
+      var isOngoing = !lastOut;
+      var startStr  = histFmtTime(firstIn);
+      var endStr    = lastOut ? histFmtTime(lastOut) : "Ongoing";
+      var durStr    = dayMins > 0 ? histDur(dayMins) : (isOngoing ? "Ongoing" : "—");
+      var dayHrs    = dayMins > 0 ? (dayMins/60).toFixed(2) + "h" : "";
+
+      // Session rows
+      var sessionRows = sessions.map(function(s, i) {
+        var sIn   = histFmtTime(s.check_in_at);
+        var sOut  = s.check_out_at ? histFmtTime(s.check_out_at) : "Ongoing";
+        var sMins = (s.check_in_at && s.check_out_at)
+          ? Math.round((new Date(s.check_out_at.replace(" ","T")+"Z") - new Date(s.check_in_at.replace(" ","T")+"Z")) / 60000)
+          : 0;
+        var sDur  = sMins > 0 ? histDur(sMins) : (s.check_out_at ? "—" : "Ongoing");
+        var sHrs  = sMins > 0 ? (sMins/60).toFixed(2)+"h" : "—";
+        var soft  = !s.sign_in_confirmed;
+        var site  = s.site_code || "—";
+        var autoC = s.auto_checkout;
+
+        return '<tr style="border-bottom:1px solid var(--surface3);">' +
+          '<td style="padding:7px 10px;font-size:12px;color:var(--muted);">' + (i+1) + '</td>' +
+          '<td style="padding:7px 10px;font-size:12.5px;font-weight:600;color:var(--text);">' + site + '</td>' +
+          '<td style="padding:7px 10px;font-size:12px;font-family:monospace;">' + sIn + '</td>' +
+          '<td style="padding:7px 10px;font-size:12px;font-family:monospace;">' + sOut + '</td>' +
+          '<td style="padding:7px 10px;font-size:12.5px;">' + sDur + '</td>' +
+          '<td style="padding:7px 10px;font-size:12.5px;font-weight:600;color:var(--blue);">' + sHrs + '</td>' +
+          '<td style="padding:7px 10px;">' +
+            (autoC ? '<span style="font-size:10px;font-weight:600;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;padding:1px 6px;border-radius:4px;">auto</span>' : '') +
+            (soft  ? '<span style="font-size:10px;font-weight:600;color:#92400e;background:#fffbeb;border:1px solid #fde68a;padding:1px 6px;border-radius:4px;margin-left:2px;">unconfirmed</span>' : '') +
+          '</td>' +
+        '</tr>';
+      }).join("");
+
+      var footerRow = sessions.length > 1
+        ? '<tfoot><tr>' +
+            '<td colspan="4" style="padding:7px 10px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;background:var(--surface2);">Day total (first in to last out)</td>' +
+            '<td style="padding:7px 10px;font-size:13px;font-weight:700;color:var(--text);background:var(--surface2);">' + durStr + '</td>' +
+            '<td style="padding:7px 10px;font-size:13px;font-weight:700;color:var(--blue);background:var(--surface2);">' + dayHrs + '</td>' +
+            '<td style="background:var(--surface2);"></td>' +
+          '</tr></tfoot>'
+        : '';
+
+      return '<div style="background:var(--white);border:1px solid var(--surface3);border-radius:16px;overflow:hidden;margin-bottom:12px;">' +
+        // Day header
+        '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:12px 14px;background:var(--surface2);border-bottom:1px solid var(--surface3);">' +
+          '<span style="font-size:14px;font-weight:700;color:' + (isToday?"var(--blue)":"var(--text)") + ';">' + histFmtDay(day) + '</span>' +
+          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+            '<span style="font-size:12.5px;font-weight:600;color:var(--text);font-family:monospace;">' + startStr + ' &mdash; ' + endStr + '</span>' +
+            '<span style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;background:' +
+              (isOngoing ? 'rgba(52,199,89,0.12)' : 'rgba(0,113,227,0.10)') + ';color:' +
+              (isOngoing ? '#1a7f3c' : 'var(--blue)') + ';">' + durStr + '</span>' +
+            (dayHrs ? '<span style="font-size:13px;font-weight:700;color:var(--text);">' + dayHrs + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+        // Session table
+        '<div style="overflow-x:auto;">' +
+          '<table style="width:100%;border-collapse:collapse;min-width:400px;">' +
+            '<thead><tr style="background:var(--surface2);">' +
+              '<th style="padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);text-align:left;">#</th>' +
+              '<th style="padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);text-align:left;">Site</th>' +
+              '<th style="padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);text-align:left;">Start</th>' +
+              '<th style="padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);text-align:left;">Finish</th>' +
+              '<th style="padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);text-align:left;">Duration</th>' +
+              '<th style="padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);text-align:left;">Hours</th>' +
+              '<th></th>' +
+            '</tr></thead>' +
+            '<tbody>' + sessionRows + '</tbody>' +
+            footerRow +
+          '</table>' +
         '</div>' +
       '</div>';
     }).join("");
+
+    el.innerHTML = html;
   } catch(e) {
     el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);">Could not load history.</div>';
   }
@@ -2327,18 +2435,48 @@ async function loadHistoryList() {
 
 // ── TRIGGER SCAN FROM DASHBOARD ────────────────────
 function dashTriggerScan() {
-  // Re-acquire GPS and run scan
-  document.getElementById("appTitle") && (document.getElementById("appTitle").textContent = "Checking...");
+  // If already checked in, re-scan to get the sign-out flow
+  // If ready (at site, not checked in), open the sign-in modal directly
+  if (dashCheckedIn) {
+    // Re-acquire GPS and scan for sign-out
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+        dbSet("gps_granted", true);
+        showMap(lastLocation.lat, lastLocation.lng);
+        appScan();
+      },
+      function(err) {
+        if (err.code === 1) { dbDel("gps_granted"); showScreen("screen-permission"); showPermissionError(err.code, err.message); }
+        else { document.getElementById("appGpsError").style.display = "block"; }
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
+    );
+  } else {
+    // At a recognised site — open check-in modal directly
+    if (dashCurrentSite) {
+      openSignInModal(dashCurrentSite, "", "");
+    }
+  }
+}
+
+function dashTriggerSignOut() {
+  // User is signed in — scan to confirm sign out
+  // But if GPS fails or site not recognised, still allow sign out
   navigator.geolocation.getCurrentPosition(
     function(pos) {
       lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
       dbSet("gps_granted", true);
-      showMap(lastLocation.lat, lastLocation.lng);
       appScan();
     },
     function(err) {
-      if (err.code === 1) { dbDel("gps_granted"); showScreen("screen-permission"); showPermissionError(err.code, err.message); }
-      else { document.getElementById("appGpsError").style.display = "block"; }
+      // GPS failed but they want to sign out — allow it with a manual sign out flow
+      if (dashOpenVisitId) {
+        openSignOutModal(dashOpenVisitId, dashCurrentSite || "Unknown site", "");
+      } else {
+        if (err.code === 1) { dbDel("gps_granted"); showScreen("screen-permission"); showPermissionError(err.code, err.message); }
+        else { document.getElementById("appGpsError").style.display = "block"; }
+      }
     },
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
   );

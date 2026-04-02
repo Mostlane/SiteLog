@@ -515,6 +515,10 @@
     .pill-active::before { background: var(--blue); }
     .pill-arch    { background: var(--surface3); color: var(--label3); }
     .pill-arch::before { background: var(--label4); }
+    .pill-pending { background: var(--amber-soft); color: #b45309; }
+    .pill-pending::before { background: var(--amber); }
+    .pill-gps    { background: var(--red-soft); color: #c0392b; }
+    .pill-gps::before { background: var(--red); }
 
     .check-icon { color: var(--green); font-size: 15px; }
     .cross-icon { color: var(--label4); font-size: 13px; }
@@ -1182,7 +1186,7 @@
   <!-- LIVE TABLE -->
 
   <div class="section-header">
-    <span class="section-label">🟢 Live on site</span>
+    <span class="section-label" id="liveTableLabel">Today's Activity</span>
   </div>
   <div class="card" style="margin-bottom:32px;">
     <div class="table-wrap">
@@ -1501,23 +1505,40 @@ function updateFilterSummary(){
 
 function renderLive(){
   const tbody = document.getElementById("liveRows");
-  const live  = allVisits.filter(v => !v.check_out_at).filter(passFilters);
 
-  // Apply date filter to failed scans too
+  // Split open visits into confirmed live vs unconfirmed/pending
+  const openVisits = allVisits.filter(v => !v.check_out_at).filter(passFilters);
+  const confirmedLive = openVisits.filter(v => Number(v.sign_in_confirmed||0) === 1);
+  const pendingVisits = openVisits.filter(v => Number(v.sign_in_confirmed||0) === 0);
+
+  // Apply date filter to failed scans
   const from = document.getElementById("fromDate").value;
   const to   = document.getElementById("toDate").value;
+  const todayISO = new Date().toISOString().slice(0,10);
+
   const visibleFailed = failedScans.filter(f => {
-    if(!from || !to) return true;
     const day = (f.attempted_at||"").slice(0,10);
-    return day >= from && day <= to;
+    if(from && to) return day >= from && day <= to;
+    return day === todayISO;
   });
 
-  if(!live.length && !visibleFailed.length){
-    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📍</div><p>No one currently on site.</p></div></td></tr>`;
+  // Update section label with counts
+  const lbl = document.getElementById("liveTableLabel");
+  if(lbl){
+    const parts = [];
+    if(confirmedLive.length) parts.push(confirmedLive.length + " live");
+    if(pendingVisits.length) parts.push(pendingVisits.length + " pending");
+    if(visibleFailed.length) parts.push(visibleFailed.length + " GPS failed");
+    lbl.textContent = "Today's Activity" + (parts.length ? " — " + parts.join(", ") : "");
+  }
+
+  if(!openVisits.length && !visibleFailed.length){
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📍</div><p>No activity to show for this period.</p></div></td></tr>`;
     return;
   }
 
-  const liveRows = live.map(v => `
+  // ── Confirmed live rows ──────────────────────────────────────
+  const confirmedRows = confirmedLive.map(v => `
     <tr>
       <td><span class="pill pill-live">Live</span></td>
       <td style="font-weight:500;color:var(--label);">
@@ -1529,7 +1550,7 @@ function renderLive(){
       <td>${escapeHtml(v.purpose||"—")}</td>
       <td><span style="font-size:12px;background:var(--surface3);padding:2px 8px;border-radius:4px;">${escapeHtml(v.site_code||"—")}</span></td>
       <td style="color:var(--label3);font-size:12.5px;">${escapeHtml(toLocal(v.check_in_at))}</td>
-      <td style="font-weight:500;">${escapeHtml(fmtDuration(minutesBetween(v.check_in_at,v.check_out_at)))}</td>
+      <td style="font-weight:500;">${escapeHtml(fmtDuration(minutesBetween(v.check_in_at,null)))}</td>
       <td style="text-align:center;">${v.device_token ? `<span class="check-icon">✓</span>` : `<span class="cross-icon">—</span>`}</td>
       <td style="text-align:center;">${(v.lat!=null&&v.lng!=null) ? `<span class="check-icon">✓</span>` : `<span class="cross-icon">—</span>`}</td>
       <td style="text-align:right;">
@@ -1538,29 +1559,56 @@ function renderLive(){
     </tr>
   `).join("");
 
-  const GPS_ERROR_LABELS = { denied: "GPS Denied", unavailable: "GPS Unavailable", timeout: "GPS Timeout", private: "Private Browser", unknown: "GPS Failed" };
+  // ── Pending rows (scanned, never confirmed) ──────────────────
+  const pendingRows = pendingVisits.map(v => `
+    <tr style="background:rgba(255,159,10,0.04);">
+      <td><span class="pill pill-pending" title="Scanned but did not confirm check-in">Pending</span></td>
+      <td style="font-weight:500;color:var(--label);">
+        <span class="name-link" onclick="openTimesheetForPerson('${escapeHtml(nameOf(v))}','${escapeHtml(v.company||"")}')">
+          ${escapeHtml(nameOf(v))}
+        </span>
+      </td>
+      <td>${escapeHtml(v.company||"—")}</td>
+      <td>${escapeHtml(v.purpose||"—")}</td>
+      <td><span style="font-size:12px;background:var(--surface3);padding:2px 8px;border-radius:4px;">${escapeHtml(v.site_code||"—")}</span></td>
+      <td style="color:var(--label3);font-size:12.5px;">${escapeHtml(toLocal(v.check_in_at))}</td>
+      <td style="color:var(--label4);">—</td>
+      <td style="text-align:center;">${v.device_token ? `<span class="check-icon">✓</span>` : `<span class="cross-icon">—</span>`}</td>
+      <td style="text-align:center;">${(v.lat!=null&&v.lng!=null) ? `<span class="check-icon">✓</span>` : `<span class="cross-icon">—</span>`}</td>
+      <td style="text-align:right;font-size:11.5px;color:var(--label3);">Unconfirmed</td>
+    </tr>
+  `).join("");
+
+  // ── GPS failed rows ──────────────────────────────────────────
+  const GPS_ERROR_LABELS = {
+    denied:      "GPS Denied",
+    unavailable: "GPS Unavailable",
+    timeout:     "GPS Timeout",
+    private:     "Private Browser",
+    unknown:     "GPS Failed"
+  };
 
   const failedRows = visibleFailed.map(f => {
-    const personName = (f.first_name || f.last_name)
+    const personName = (f.first_name||f.last_name)
       ? ((f.first_name||"") + " " + (f.last_name||"")).trim()
       : "Unknown Device";
     const errorLabel = GPS_ERROR_LABELS[f.error_type] || "GPS Failed";
     return `
     <tr style="background:rgba(255,59,48,0.04);">
-      <td><span class="pill pill-auto" title="${escapeHtml(errorLabel)}">${escapeHtml(errorLabel)}</span></td>
-      <td style="font-weight:500;color:var(--red);">${escapeHtml(personName)}</td>
+      <td><span class="pill pill-gps" title="${escapeHtml(errorLabel)}">${escapeHtml(errorLabel)}</span></td>
+      <td style="font-weight:500;color:var(--label);">${escapeHtml(personName)}</td>
       <td>${escapeHtml(f.company||"—")}</td>
-      <td style="color:var(--label4);font-size:12px;">—</td>
-      <td style="color:var(--label4);font-size:12px;">—</td>
+      <td style="color:var(--label4);">—</td>
+      <td style="color:var(--label4);">—</td>
       <td style="color:var(--label3);font-size:12.5px;">${escapeHtml(toLocal(f.attempted_at))}</td>
       <td style="color:var(--label4);">—</td>
       <td style="text-align:center;"><span class="cross-icon">—</span></td>
       <td style="text-align:center;"><span class="cross-icon">—</span></td>
-      <td style="text-align:right;color:var(--label4);font-size:12px;">No action</td>
+      <td style="text-align:right;font-size:11.5px;color:var(--label3);">Location blocked</td>
     </tr>`;
   }).join("");
 
-  tbody.innerHTML = liveRows + failedRows;
+  tbody.innerHTML = confirmedRows + pendingRows + failedRows;
 }
 
 function openTimesheetForPerson(personName, company){

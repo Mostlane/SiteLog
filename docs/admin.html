@@ -894,6 +894,104 @@
       font-family: 'SF Mono', monospace;
     }
 
+    /* ── DAY CARDS ── */
+    .ts-day-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .ts-day-absent-card {
+      opacity: 0.6;
+    }
+
+    .ts-day-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ts-day-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--label);
+      min-width: 130px;
+    }
+
+    .ts-today { color: var(--blue); }
+
+    .ts-day-summary {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .ts-day-time {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--label2);
+      font-family: 'SF Mono', monospace;
+    }
+
+    .ts-day-tag {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 999px;
+    }
+
+    .ts-tag-total   { background: var(--blue-soft); color: var(--blue); }
+    .ts-tag-ongoing { background: var(--green-soft); color: #1a7f3c; }
+    .ts-tag-absent  { background: var(--surface3);  color: var(--label4); font-weight: 500; }
+
+    .ts-day-hrs {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--label);
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .ts-session-table-wrap {
+      overflow-x: auto;
+    }
+
+    .ts-session-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 500px;
+    }
+
+    .ts-session-table th {
+      background: var(--surface2);
+      color: var(--label3);
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 7px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ts-session-table tfoot td {
+      background: var(--surface2);
+      border-top: 2px solid var(--border-heavy);
+    }
+
+    .ts-session-row:last-child td { border-bottom: none; }
+    .ts-session-row td { border-bottom: 1px solid var(--border); }
+    .ts-session-row:hover td { background: var(--surface2); }
+
     /* ── MANUAL CHECKOUT MODAL ── */
     .checkout-modal .modal-content {
       width: min(420px, 100%);
@@ -2045,85 +2143,115 @@ function tsPersonVisits(){
   });
 }
 
+function metersToMiles(m){ return (m / 1609.344).toFixed(1); }
+
 function tsBuildWeekGrid(visits, mondayStr){
-  // Group visits by day
   const byDay = {};
-  const DAYS  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
   for(let i=0;i<7;i++){
     const iso = addDays(mondayStr, i);
     byDay[iso] = [];
   }
-
   visits.forEach(v => {
     const day = (v.check_in_at||"").slice(0,10);
     if(byDay[day] !== undefined) byDay[day].push(v);
   });
-
-  // Sort sessions within each day by check_in_at
   Object.keys(byDay).forEach(day => {
     byDay[day].sort((a,b) => (a.check_in_at||"").localeCompare(b.check_in_at||""));
   });
 
-  // Compute total week hours (first-in to last-out per day, summed)
   let weekTotalMins = 0;
-
   const todayISO = new Date().toISOString().slice(0,10);
 
-  const rows = Object.keys(byDay).map(day => {
+  // Build one card per day that has attendance
+  const dayCards = Object.keys(byDay).map(day => {
     const sessions = byDay[day];
     const dayLabel = fmtTSDay(day);
     const isToday  = day === todayISO;
+    const isWeekend = [5,6].includes(new Date(day+"T00:00:00").getDay()); // Sat=6 Sun=0
 
     if(!sessions.length){
-      return `<tr>
-        <td class="ts-day-label${isToday?" today":""}">${escapeHtml(dayLabel)}</td>
-        <td colspan="3"><span class="ts-day-absent">No attendance</span></td>
-      </tr>`;
+      // Skip weekends with no attendance — less clutter
+      if(isWeekend) return "";
+      return `<div class="ts-day-card ts-day-absent-card">
+        <div class="ts-day-header">
+          <span class="ts-day-name${isToday?" ts-today":""}">${escapeHtml(dayLabel)}</span>
+          <span class="ts-day-tag ts-tag-absent">No attendance</span>
+        </div>
+      </div>`;
     }
 
-    // Day span: earliest check-in to latest check-out (or now if still open)
-    const firstIn  = sessions[0].check_in_at;
-    const lastSession = sessions[sessions.length-1];
-    const lastOut  = sessions.map(s=>s.check_out_at).filter(Boolean).sort().pop() || null;
-
-    const dayMins  = minutesBetween(firstIn, lastOut);
+    // Day totals: first check-in to last check-out
+    const firstIn = sessions[0].check_in_at;
+    const lastOut = sessions.map(s=>s.check_out_at).filter(Boolean).sort().pop() || null;
+    const dayMins = minutesBetween(firstIn, lastOut);
     if(lastOut) weekTotalMins += dayMins;
+    const dayHrs = (dayMins/60).toFixed(2);
+    const isOngoing = !lastOut;
 
-    const timeRange = lastOut
-      ? formatTimeOnly(firstIn) + " - " + formatTimeOnly(lastOut)
-      : formatTimeOnly(firstIn) + " - ongoing";
+    const startStr = formatTimeOnly(firstIn);
+    const endStr   = lastOut ? formatTimeOnly(lastOut) : "Ongoing";
 
-    const durText = lastOut ? fmtDuration(dayMins) : "ongoing";
-
-    // Build session sub-rows
-    const sessionLines = sessions.map(s => {
-      const sIn  = formatTimeOnly(s.check_in_at);
-      const sOut = s.check_out_at ? formatTimeOnly(s.check_out_at) : "ongoing";
-      const sMins = minutesBetween(s.check_in_at, s.check_out_at);
-      const sDur  = s.check_out_at ? fmtDuration(sMins) : "ongoing";
+    // Session rows inside the day
+    const sessionRows = sessions.map((s,i) => {
+      const sIn    = formatTimeOnly(s.check_in_at);
+      const sOut   = s.check_out_at ? formatTimeOnly(s.check_out_at) : "Ongoing";
+      const sMins  = minutesBetween(s.check_in_at, s.check_out_at);
+      const sDur   = s.check_out_at ? fmtDuration(sMins) : "—";
+      const sHrs   = s.check_out_at ? (sMins/60).toFixed(2) : "—";
       const isSoft = !s.sign_in_confirmed || !s.sign_out_confirmed;
-      const site   = s.site_code || "";
-      return `<div class="ts-session">
-        <span>${escapeHtml(sIn)} - ${escapeHtml(sOut)}</span>
-        <span style="color:var(--label4);">(${escapeHtml(sDur)})</span>
-        ${site ? `<span class="ts-session-site">${escapeHtml(site)}</span>` : ""}
-        ${isSoft ? `<span class="ts-soft-badge">unconfirmed</span>` : ""}
-      </div>`;
+      const site   = s.site_code || "—";
+      return `<tr class="ts-session-row">
+        <td style="padding:6px 12px;font-size:12px;color:var(--label3);">${i+1}</td>
+        <td style="padding:6px 12px;font-size:12.5px;">${escapeHtml(site)}</td>
+        <td style="padding:6px 12px;font-size:12.5px;font-family:monospace;">${escapeHtml(sIn)}</td>
+        <td style="padding:6px 12px;font-size:12.5px;font-family:monospace;">${escapeHtml(sOut)}</td>
+        <td style="padding:6px 12px;font-size:12.5px;">${escapeHtml(sDur)}</td>
+        <td style="padding:6px 12px;font-size:12.5px;font-weight:600;">${escapeHtml(sHrs)}h</td>
+        <td style="padding:6px 12px;">
+          ${isSoft ? `<span style="font-size:10.5px;font-weight:600;color:#92400e;background:#fffbeb;border:1px solid #fde68a;padding:1px 6px;border-radius:4px;">unconfirmed</span>` : ""}
+        </td>
+      </tr>`;
     }).join("");
 
-    return `<tr>
-      <td class="ts-day-label${isToday?" today":""}">${escapeHtml(dayLabel)}</td>
-      <td class="ts-time-range">${escapeHtml(timeRange)}</td>
-      <td><span class="ts-duration">${escapeHtml(durText)}</span></td>
-      <td>
-        <div class="ts-session-list">${sessionLines}</div>
-      </td>
-    </tr>`;
+    return `<div class="ts-day-card">
+      <div class="ts-day-header">
+        <span class="ts-day-name${isToday?" ts-today":""}">${escapeHtml(dayLabel)}</span>
+        <div class="ts-day-summary">
+          <span class="ts-day-time">${escapeHtml(startStr)} &#8212; ${escapeHtml(endStr)}</span>
+          <span class="ts-day-tag ${isOngoing?"ts-tag-ongoing":"ts-tag-total"}">${isOngoing ? "Ongoing" : fmtDuration(dayMins)}</span>
+          <span class="ts-day-hrs">${isOngoing?"":""+dayHrs+"h"}</span>
+        </div>
+      </div>
+      <div class="ts-session-table-wrap">
+        <table class="ts-session-table">
+          <thead>
+            <tr>
+              <th style="width:28px;">#</th>
+              <th>Site</th>
+              <th>Start</th>
+              <th>Finish</th>
+              <th>Duration</th>
+              <th>Hours</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>${sessionRows}</tbody>
+          ${sessions.length > 1 ? `<tfoot><tr>
+            <td colspan="4" style="padding:6px 12px;font-size:12px;font-weight:700;color:var(--label3);text-transform:uppercase;letter-spacing:0.4px;">Day total (first in to last out)</td>
+            <td style="padding:6px 12px;font-size:13px;font-weight:700;color:var(--label);">${isOngoing?"Ongoing":fmtDuration(dayMins)}</td>
+            <td style="padding:6px 12px;font-size:13px;font-weight:700;color:var(--blue);">${isOngoing?"":dayHrs+"h"}</td>
+            <td></td>
+          </tr></tfoot>` : ""}
+        </table>
+      </div>
+    </div>`;
   }).join("");
 
-  const weekTotal = weekTotalMins > 0 ? fmtDuration(weekTotalMins) : "0m";
+  const weekTotal    = weekTotalMins > 0 ? fmtDuration(weekTotalMins) : "0m";
+  const weekHrs      = (weekTotalMins/60).toFixed(2);
+  const daysWorked   = Object.values(byDay).filter(s=>s.length>0).length;
 
-  return { html: rows, weekTotal: weekTotal, weekTotalMins: weekTotalMins };
+  return { html: dayCards, weekTotal: weekTotal, weekHrs: weekHrs, weekTotalMins: weekTotalMins, daysWorked: daysWorked };
 }
 
 function renderTimesheetsModal(){
@@ -2186,45 +2314,52 @@ function renderTimesheetsModal(){
 
   const personName = personSel.value;
 
+  const daysStr = grid.daysWorked + " day" + (grid.daysWorked!==1?"s":"");
+
   wrap.innerHTML = `
-    <div class="ts-engineer-name">${escapeHtml(personName)}</div>
-    <div style="font-size:12px;color:var(--label3);padding:2px 16px 12px;">
-      ${escapeHtml(allWeeks.length)} week${allWeeks.length!==1?"s":""} with attendance
+    <div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
+      <div class="ts-engineer-name" style="padding:0;">${escapeHtml(personName)}</div>
+      <div style="font-size:12px;color:var(--label3);">${escapeHtml(allWeeks.length)} week${allWeeks.length!==1?"s":""} with attendance</div>
     </div>
-    <div class="ts-week-card">
+
+    <!-- Week navigation bar -->
+    <div class="ts-week-card" style="margin-bottom:14px;">
       <div class="ts-week-nav">
-        <button class="btn-ghost btn-sm ts-nav-btn" onclick="tsNavWeek(-1)" ${hasPrev?"":"disabled"} title="Previous week">&#8592;</button>
-        <div style="display:flex;align-items:center;gap:12px;flex:1;justify-content:center;flex-wrap:wrap;text-align:center;">
-          <span class="ts-week-title">Week: ${escapeHtml(fmtWeekRange(tsCurrentWeek))}</span>
-          <span class="ts-week-total">${escapeHtml(grid.weekTotal)} total</span>
+        <button class="btn-ghost btn-sm ts-nav-btn" onclick="tsNavWeek(-1)" ${hasPrev?"":"disabled"}>&#8592;</button>
+        <div style="display:flex;align-items:center;gap:10px;flex:1;justify-content:center;flex-wrap:wrap;text-align:center;">
+          <span class="ts-week-title">w/c ${escapeHtml(fmtWeekRange(tsCurrentWeek))}</span>
+          <span class="ts-week-total">${escapeHtml(grid.weekTotal)} &nbsp;&#183;&nbsp; ${escapeHtml(grid.weekHrs)}h &nbsp;&#183;&nbsp; ${escapeHtml(daysStr)}</span>
         </div>
-        <button class="btn-ghost btn-sm ts-nav-btn" onclick="tsNavWeek(1)" ${hasNext?"":"disabled"} title="Next week">&#8594;</button>
-      </div>
-      <div class="ts-grid-wrap">
-        <table class="ts-grid">
-          <thead>
-            <tr>
-              <th style="width:160px;">Day</th>
-              <th style="width:150px;">Time on site</th>
-              <th style="width:100px;">Day total</th>
-              <th>Sessions</th>
-            </tr>
-          </thead>
-          <tbody>${grid.html}</tbody>
-          <tfoot>
-            <tr>
-              <td colspan="2" style="font-weight:700;">Week total</td>
-              <td><span class="ts-duration" style="font-size:13px;">${escapeHtml(grid.weekTotal)}</span></td>
-              <td style="color:var(--label3);font-size:12px;">${escapeHtml(weekVisits.length)} session${weekVisits.length!==1?"s":""} across ${escapeHtml(String(new Set(weekVisits.map(v=>(v.check_in_at||"").slice(0,10))).size))} day${new Set(weekVisits.map(v=>(v.check_in_at||"").slice(0,10))).size!==1?"s":""}</td>
-            </tr>
-          </tfoot>
-        </table>
+        <button class="btn-ghost btn-sm ts-nav-btn" onclick="tsNavWeek(1)" ${hasNext?"":"disabled"}>&#8594;</button>
       </div>
     </div>
 
-    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 2px 4px;">
-      <span style="font-size:12px;color:var(--label3);">Jump to week:</span>
-      ${allWeeks.map((w,i) => `<button class="chip${w===tsCurrentWeek?" btn-primary":""}" onclick="tsJumpWeek('${w}')" style="${w===tsCurrentWeek?"background:var(--blue);color:#fff;border-color:var(--blue);":""}">${escapeHtml(fmtWeekRange(w))}</button>`).join("")}
+    <!-- Day cards -->
+    <div id="tsDayCards">${grid.html}</div>
+
+    <!-- Week total summary -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <span style="font-size:13px;font-weight:700;color:var(--label3);text-transform:uppercase;letter-spacing:0.5px;">Week Total</span>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="font-size:20px;font-weight:800;color:var(--blue);letter-spacing:-0.5px;">${escapeHtml(grid.weekTotal)}</div>
+          <div style="font-size:10px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.4px;margin-top:2px;">Hours</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:20px;font-weight:800;color:var(--label);letter-spacing:-0.5px;">${escapeHtml(grid.weekHrs)}h</div>
+          <div style="font-size:10px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.4px;margin-top:2px;">Decimal</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:20px;font-weight:800;color:var(--label);letter-spacing:-0.5px;">${escapeHtml(daysStr)}</div>
+          <div style="font-size:10px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.4px;margin-top:2px;">On site</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Jump to week chips -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;padding:12px 0 2px;">
+      <span style="font-size:11px;color:var(--label3);align-self:center;">Jump:</span>
+      ${allWeeks.map((w) => `<button class="chip${w===tsCurrentWeek?" btn-primary":""}" onclick="tsJumpWeek('${w}')" style="${w===tsCurrentWeek?"background:var(--blue);color:#fff;border-color:var(--blue);font-size:11px;":"font-size:11px;"}">${escapeHtml(fmtWeekRange(w))}</button>`).join("")}
     </div>`;
 }
 

@@ -1,0 +1,21 @@
+{
+  "name": "SiteLog — Mostlane",
+  "short_name": "SiteLog",
+  "description": "Mostlane site attendance check-in",
+  "start_url": "/SiteLog/app.html",
+  "scope": "/SiteLog/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#004a99",
+  "theme_color": "#004a99",
+  "icons": [
+    {
+      "src": "Mostlane Logo.jpg",
+      "sizes": "any",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "utilities"],
+  "lang": "en-GB"
+}

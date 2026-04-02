@@ -1,5 +1,5 @@
 {
-  "name": "SiteLog — Mostlane",
+  "name": "SiteLog \u2014 Mostlane",
   "short_name": "SiteLog",
   "description": "Mostlane site attendance check-in",
   "start_url": "/SiteLog/app.html",
@@ -10,12 +10,27 @@
   "theme_color": "#004a99",
   "icons": [
     {
-      "src": "Mostlane_Icon.jpg",
-      "sizes": "any",
-      "type": "image/jpeg",
+      "src": "Mostlane_Icon_192.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "Mostlane_Icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "Mostlane_Icon_180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
-  "categories": ["business", "utilities"],
+  "categories": [
+    "business",
+    "utilities"
+  ],
   "lang": "en-GB"
 }

@@ -1400,21 +1400,35 @@ async function confirmManualCheckout(){
   loadData();
 }
 
+function safeParse(ts){
+  if(!ts) return null;
+  try {
+    var clean = String(ts).replace(" ","T");
+    if(!clean.endsWith("Z") && !clean.includes("+")) clean += "Z";
+    var d = new Date(clean);
+    return isNaN(d.getTime()) ? null : d;
+  } catch(e){ return null; }
+}
+
 function toLocal(ts){
   if(!ts) return "-";
-  return new Date(ts.replace(" ","T")+"Z").toLocaleString();
+  var d = safeParse(ts);
+  return d ? d.toLocaleString() : "-";
 }
 
 function formatTimeOnly(ts){
   if(!ts) return "—";
-  return new Date(ts.replace(" ","T")+"Z").toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+  var d = safeParse(ts);
+  return d ? d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "—";
 }
 
 function minutesBetween(a,b){
   if(!a) return 0;
-  const start=new Date(a.replace(" ","T")+"Z");
-  const end=b?new Date(b.replace(" ","T")+"Z"):new Date();
-  return Math.max(0,Math.round((end-start)/60000));
+  var start = safeParse(a);
+  if(!start) return 0;
+  var end = b ? safeParse(b) : new Date();
+  if(!end) end = new Date();
+  return Math.max(0, Math.round((end - start) / 60000));
 }
 
 function fmtDuration(mins){

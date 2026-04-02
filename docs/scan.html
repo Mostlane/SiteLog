@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html>
 <head>
   <title>SiteLog Scan</title>
@@ -205,6 +206,7 @@
     .confirmText { color: #334155; margin-bottom: 18px; }
     .secondaryBtn { background: #ccc; color: #333; }
   </style>
+
 </head>
 <body>
 
@@ -312,11 +314,23 @@
 <script>
 const API = "https://sitelog-api.jamie-def.workers.dev";
 
-let deviceToken = localStorage.getItem("mostlane_device_id");
+// Device token: cookie first (survives more browsers), then localStorage fallback
+function readTokenCookie() {
+  var c = document.cookie.split(";").map(function(x){return x.trim();})
+    .find(function(x){return x.startsWith("ml_did=");});
+  return c ? c.split("=")[1] : null;
+}
+function writeTokenCookie(tok) {
+  document.cookie = "ml_did=" + tok + "; max-age=63072000; path=/; SameSite=Lax";
+}
+
+let deviceToken = null;
+try { deviceToken = readTokenCookie() || localStorage.getItem("mostlane_device_id"); } catch(e) {}
 if (!deviceToken) {
   deviceToken = crypto.randomUUID();
-  localStorage.setItem("mostlane_device_id", deviceToken);
 }
+try { writeTokenCookie(deviceToken); } catch(e) {}
+try { localStorage.setItem("mostlane_device_id", deviceToken); } catch(e) {}
 
 let lastLocation = null;
 let currentSite = null;

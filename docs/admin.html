@@ -662,7 +662,7 @@
 
     /* ── TIMESHEET MODAL ── */
     .ts-modal-content {
-      width: min(1300px, 96vw);
+      width: min(1100px, 96vw);
       max-height: 90vh;
       overflow: auto;
       background: var(--surface);
@@ -676,82 +676,184 @@
       gap: 12px;
       flex-wrap: wrap;
       align-items: flex-end;
-      padding: 16px 24px;
+      padding: 14px 24px;
       background: var(--surface2);
       border-bottom: 1px solid var(--border);
     }
 
     .ts-body { padding: 20px 24px 28px; }
 
-    .ts-meta {
-      font-size: 12.5px;
+    .ts-empty {
+      padding: 40px 20px;
+      text-align: center;
+      background: var(--surface2);
+      border: 1px dashed var(--border-heavy);
+      border-radius: var(--radius-md);
       color: var(--label3);
-      margin-bottom: 14px;
+      font-size: 13.5px;
     }
 
-    .ts-company-section { margin-top: 20px; }
-
-    .ts-company-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--label3);
-      text-transform: uppercase;
-      letter-spacing: 0.7px;
-      padding: 10px 0 8px;
-      border-bottom: 2px solid var(--label);
-      margin-bottom: 16px;
-    }
-
-    .ts-engineer-block {
+    /* Week grid */
+    .ts-week-card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       overflow: hidden;
-      margin-bottom: 16px;
+      margin-bottom: 24px;
     }
 
-    .ts-engineer-header {
-      padding: 14px 16px 12px;
+    .ts-week-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
       background: var(--surface2);
       border-bottom: 1px solid var(--border);
+      gap: 12px;
     }
 
-    .ts-engineer-title {
+    .ts-week-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--label);
+      letter-spacing: -0.2px;
+    }
+
+    .ts-week-total {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--blue);
+      background: var(--blue-soft);
+      padding: 4px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,113,227,0.15);
+    }
+
+    .ts-nav-btn {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      justify-content: center;
+      font-size: 15px;
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
+    }
+
+    .ts-engineer-name {
       font-size: 16px;
+      font-weight: 700;
+      color: var(--label);
+      padding: 14px 16px 0;
+      letter-spacing: -0.3px;
+    }
+
+    /* Day grid table */
+    .ts-grid-wrap {
+      overflow-x: auto;
+    }
+
+    .ts-grid {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 640px;
+    }
+
+    .ts-grid th {
+      background: var(--surface2);
+      color: var(--label3);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .ts-grid td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      color: var(--label2);
+    }
+
+    .ts-grid tr:last-child td { border-bottom: none; }
+    .ts-grid tbody tr:hover td { background: var(--surface2); }
+
+    .ts-grid tfoot td {
+      background: var(--surface2);
       font-weight: 600;
       color: var(--label);
-      margin-bottom: 10px;
+      border-top: 2px solid var(--border-heavy);
     }
 
-    .ts-engineer-admin {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 8px;
+    .ts-day-label {
+      font-weight: 600;
+      color: var(--label);
+      white-space: nowrap;
     }
 
-    .ts-engineer-admin .full { grid-column: 1 / -1; }
+    .ts-day-label.today {
+      color: var(--blue);
+    }
 
-    .ts-engineer-admin-btns {
+    .ts-day-absent {
+      color: var(--label4);
+      font-size: 12px;
+    }
+
+    .ts-time-range {
+      font-weight: 600;
+      color: var(--label);
+      white-space: nowrap;
+    }
+
+    .ts-duration {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--blue);
+      background: var(--blue-soft);
+      padding: 2px 8px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    .ts-session-list {
+      margin-top: 4px;
       display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .ts-session {
+      font-size: 11.5px;
+      color: var(--label3);
+      display: flex;
+      align-items: center;
       gap: 6px;
       flex-wrap: wrap;
     }
 
-    .ts-week-block { padding: 16px; }
-
-    .ts-week-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 10px;
+    .ts-session-site {
+      font-size: 11px;
+      background: var(--surface3);
+      padding: 1px 7px;
+      border-radius: 4px;
+      color: var(--label3);
+      border: 1px solid var(--border-heavy);
     }
 
-    .ts-week-text {
-      font-size: 13px;
+    .ts-soft-badge {
+      font-size: 10px;
       font-weight: 600;
-      color: var(--label2);
+      color: #92400e;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      padding: 1px 6px;
+      border-radius: 4px;
     }
 
     .ts-pill {
@@ -767,103 +869,21 @@
       color: var(--label2);
     }
 
-    .ts-table-wrap {
-      overflow-x: auto;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-    }
-
-    .ts-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12.5px;
-      min-width: 1180px;
-    }
-
-    .ts-table th {
-      background: var(--surface2);
-      color: var(--label3);
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      padding: 8px 12px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap;
-    }
-
-    .ts-table td {
-      padding: 9px 12px;
-      border-bottom: 1px solid var(--border);
-      color: var(--label2);
-      vertical-align: middle;
-    }
-
-    .ts-table tfoot td {
-      background: var(--surface2);
-      font-weight: 600;
-      color: var(--label);
-      border-top: 1px solid var(--border-heavy);
-      border-bottom: none;
-    }
-
-    .ts-table tbody tr:last-child td { border-bottom: none; }
-    .ts-table tbody tr:hover td { background: var(--surface2); }
-
-    .ts-cell-center { text-align: center; white-space: nowrap; }
-    .ts-map-link { color: var(--blue); text-decoration: none; font-size: 14px; margin-left: 4px; }
-    .ts-ok { color: var(--green); font-weight: 600; }
-    .ts-bad { color: var(--red); font-weight: 600; }
-    .ts-note-bad { color: var(--red); font-weight: 600; font-size: 12px; line-height: 1.35; }
-
-    .ts-summary {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      padding: 12px 16px;
-      border-top: 1px solid var(--border);
-      background: var(--surface2);
-    }
-
     .ts-visit-edit {
       display: flex;
       gap: 4px;
       flex-wrap: wrap;
       align-items: center;
-      min-width: 240px;
     }
 
     .ts-visit-edit input {
-      min-width: 148px;
+      min-width: 140px;
       height: 28px;
       padding: 0 8px;
       font-size: 12px;
       border: 1px solid var(--border-heavy);
       border-radius: 6px;
       font-family: 'SF Mono', monospace;
-    }
-
-    .ts-empty {
-      padding: 32px 20px;
-      text-align: center;
-      background: var(--surface2);
-      border: 1px dashed var(--border-heavy);
-      border-radius: var(--radius-md);
-      color: var(--label3);
-      font-size: 13.5px;
-    }
-
-    .soft-attempt {
-      display: inline-block;
-      margin-top: 3px;
-      font-size: 11px;
-      line-height: 1.3;
-      color: #92400e;
-      background: #fffbeb;
-      border: 1px solid #fde68a;
-      border-radius: 6px;
-      padding: 3px 6px;
     }
 
     /* ── MANUAL CHECKOUT MODAL ── */
@@ -1544,14 +1564,7 @@ function renderLive(){
 }
 
 function openTimesheetForPerson(personName, company){
-  // Open timesheets modal filtered to this person
-  openTimesheetsModal();
-  // After render, set the person filter
-  setTimeout(()=>{
-    const sel = document.getElementById("tsPersonFilter");
-    const opt = [...sel.options].find(o => o.value === personName);
-    if(opt){ opt.selected = true; renderTimesheetsModal(); }
-  }, 100);
+  openTimesheetsModal(personName);
 }
 
 function renderAll(){
@@ -1785,339 +1798,299 @@ function generatePDF(){
 
 /* -------------------- TIMESHEETS -------------------- */
 
-function getMainFilteredVisits(){ return filteredVisits.filter(passFilters); }
-function getTimesheetBaseVisits(){ return getMainFilteredVisits(); }
-
-function populateTimesheetFilters(baseVisits){
-  const companySel=document.getElementById("tsCompanyFilter");
-  const personSel=document.getElementById("tsPersonFilter");
-  const siteSel=document.getElementById("tsSiteFilter");
-  const currentCompany=companySel.value;
-  const currentPerson=personSel.value;
-  const currentSite=siteSel.value;
-  const companies=[...new Set(baseVisits.map(v=>(v.company||"").trim()).filter(Boolean))].sort((a,b)=>companySortKey(a).localeCompare(companySortKey(b)));
-  const people=[...new Set(baseVisits.map(v=>nameOf(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const sites=[...new Set(baseVisits.map(v=>(v.site_code||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  companySel.innerHTML=`<option value="">All Companies</option>`+companies.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
-  personSel.innerHTML=`<option value="">All Engineers</option>`+people.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
-  siteSel.innerHTML=`<option value="">All Sites</option>`+sites.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
-  if([...companySel.options].some(o=>o.value===currentCompany)) companySel.value=currentCompany;
-  if([...personSel.options].some(o=>o.value===currentPerson)) personSel.value=currentPerson;
-  if([...siteSel.options].some(o=>o.value===currentSite)) siteSel.value=currentSite;
+// Returns Monday ISO date string for a given date string YYYY-MM-DD
+function mondayOf(dayStr){
+  const d = new Date(dayStr + "T00:00:00");
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1 - day);
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0,10);
 }
 
-function getTimesheetFilteredVisits(){
-  const company=document.getElementById("tsCompanyFilter").value;
-  const person=document.getElementById("tsPersonFilter").value;
-  const site=document.getElementById("tsSiteFilter").value;
-  const from=document.getElementById("tsFromDate").value;
-  const to=document.getElementById("tsToDate").value;
-  return getTimesheetBaseVisits().filter(v=>{
-    const day=(v.check_in_at||"").slice(0,10);
-    if(company&&(v.company||"")!==company) return false;
-    if(person&&nameOf(v)!==person) return false;
-    if(site&&(v.site_code||"")!==site) return false;
-    if(from&&day<from) return false;
-    if(to&&day>to) return false;
+// Add N days to an ISO date string
+function addDays(isoDate, n){
+  const d = new Date(isoDate + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0,10);
+}
+
+// Format a date string as "Mon 31st Mar 25"
+function fmtTSDay(isoDate){
+  const d = new Date(isoDate + "T00:00:00");
+  const wday = d.toLocaleDateString("en-GB",{weekday:"short"});
+  const mon  = d.toLocaleDateString("en-GB",{month:"short"});
+  const n    = d.getDate();
+  const yr   = d.getFullYear().toString().slice(2);
+  const sfx  = (n%10===1&&n%100!==11)?"st":(n%10===2&&n%100!==12)?"nd":(n%10===3&&n%100!==13)?"rd":"th";
+  return wday + " " + n + sfx + " " + mon + " " + yr;
+}
+
+// Format a week range "Mon 31st Mar - Sun 6th Apr 25"
+function fmtWeekRange(mondayStr){
+  const sunday = addDays(mondayStr, 6);
+  const d1 = new Date(mondayStr + "T00:00:00");
+  const d2 = new Date(sunday    + "T00:00:00");
+  const fmt = d => {
+    const n = d.getDate();
+    const sfx = (n%10===1&&n%100!==11)?"st":(n%10===2&&n%100!==12)?"nd":(n%10===3&&n%100!==13)?"rd":"th";
+    return n + sfx + " " + d.toLocaleDateString("en-GB",{month:"short"});
+  };
+  return fmt(d1) + " - " + fmt(d2) + " " + d2.getFullYear().toString().slice(2);
+}
+
+// Current week being displayed (Monday ISO string)
+let tsCurrentWeek   = null;
+let tsCurrentPerson = null;
+
+function tsGetAllWeeks(visits){
+  const weeks = new Set();
+  visits.forEach(v => {
+    const day = (v.check_in_at||"").slice(0,10);
+    if(day) weeks.add(mondayOf(day));
+  });
+  return [...weeks].sort((a,b) => a.localeCompare(b));
+}
+
+function tsPersonVisits(){
+  const person  = document.getElementById("tsPersonFilter").value;
+  const company = document.getElementById("tsCompanyFilter").value;
+  if(!person) return [];
+  return allVisits.filter(v => {
+    const nm = nameOf(v);
+    if(nm !== person) return false;
+    if(company && (v.company||"") !== company) return false;
     return true;
   });
 }
 
-function buildEngineerAdminPanel(engineer,engineerName,companyName,personId){
-  const record=engineer||{id:personId||"",first_name:engineerName.split(" ")[0]||"",last_name:engineerName.split(" ").slice(1).join(" ")||"",company:companyName||"",purpose:"",hourly_rate:""};
-  const id=record.id||personId||"";
-  return `
-    <div class="ts-engineer-admin">
-      <input data-ts-eng-first="${escapeHtml(id)}" value="${escapeHtml(record.first_name||"")}" placeholder="First name">
-      <input data-ts-eng-last="${escapeHtml(id)}" value="${escapeHtml(record.last_name||"")}" placeholder="Last name">
-      <input data-ts-eng-company="${escapeHtml(id)}" value="${escapeHtml(record.company||"")}" placeholder="Company">
-      <input data-ts-eng-purpose="${escapeHtml(id)}" value="${escapeHtml(record.purpose||"")}" placeholder="Purpose">
-      <input data-ts-eng-rate="${escapeHtml(id)}" type="number" step="0.01" min="0" value="${escapeHtml(record.hourly_rate??"")}'" placeholder="Rate £/hr">
-      <div class="ts-engineer-admin-btns full">
-        <button class="btn-ghost btn-sm" type="button" onclick="saveTimesheetEngineer('${escapeHtml(id)}')">💾 Save</button>
-        <button class="btn-ghost btn-sm" type="button" onclick="toggleTimesheetEngineer('${escapeHtml(id)}')">🗃 Archive</button>
-        <button class="btn-ghost btn-sm" type="button" onclick="resetEngineerDevice('${escapeHtml(id)}','${escapeHtml(engineerName)}')">📱 Reset Device</button>
-        <button class="btn-danger btn-sm" type="button" onclick="deleteEngineerFromTimesheets('${escapeHtml(id)}','${escapeHtml(engineerName)}')">🗑 Delete</button>
-      </div>
-    </div>
-  `;
-}
+function tsBuildWeekGrid(visits, mondayStr){
+  // Group visits by day
+  const byDay = {};
+  const DAYS  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  for(let i=0;i<7;i++){
+    const iso = addDays(mondayStr, i);
+    byDay[iso] = [];
+  }
 
-// Builds just one week's table rows — no engineer header (that's rendered once per engineer in renderTimesheetsModal)
-function buildTimesheetTableForWeek(visits, engineerName, companyName, weekKey){
-  const sorted = visits.slice().sort((a,b)=>(a.check_in_at||"").localeCompare(b.check_in_at||""));
-  let totTotal=0, totStd=0, totOT=0;
+  visits.forEach(v => {
+    const day = (v.check_in_at||"").slice(0,10);
+    if(byDay[day] !== undefined) byDay[day].push(v);
+  });
 
-  const rows = sorted.map(v=>{
-    const dayStr = (v.check_in_at||"").slice(0,10);
-    const totalMins  = minutesBetween(v.check_in_at, v.check_out_at);
-    const totalHours = totalMins / 60;
-    const stdHours   = Math.min(totalHours, 10);
-    const otHours    = Math.max(totalHours - 10, 0);
-    totTotal += totalHours; totStd += stdHours; totOT += otHours;
-    const noteText = getTimesheetNoteText(v);
-    const noteHtml = noteText === "—"
-      ? `<span style="color:var(--label4);">—</span>`
-      : `<span class="ts-note-bad">${escapeHtml(noteText)}</span>`;
-    return `
-      <tr>
-        <td>${escapeHtml(formatTSDate(dayStr))}</td>
-        <td>${escapeHtml(v.site_code||"—")}</td>
-        <td>${escapeHtml(formatTimeOnly(v.check_in_at))}</td>
-        <td>${escapeHtml(v.check_out_at ? formatTimeOnly(v.check_out_at) : "—")}</td>
-        <td>${escapeHtml(totalHours.toFixed(2))}</td>
-        <td>${escapeHtml(stdHours.toFixed(2))}</td>
-        <td>${escapeHtml(otHours.toFixed(2))}</td>
-        <td class="ts-cell-center">${escapeHtml(getTimesheetDeviceMark(v))}</td>
-        <td class="ts-cell-center">${getTimesheetLocationMark(v)} ${mapPinHtml(v)}</td>
-        <td>${noteHtml}</td>
-        <td>
-          <div class="ts-visit-edit">
-            <input data-visit-in="${escapeHtml(v.visit_id)}" value="${escapeHtml(sqlShort(v.check_in_at))}" placeholder="YYYY-MM-DD HH:MM">
-            <input data-visit-out="${escapeHtml(v.visit_id)}" value="${escapeHtml(sqlShort(v.check_out_at))}" placeholder="YYYY-MM-DD HH:MM">
-            <button class="btn-ghost btn-sm" type="button" onclick="saveVisitTimes('${escapeHtml(v.visit_id)}')">Save</button>
-            <button class="btn-danger btn-sm" type="button" onclick="openDeleteModal('${escapeHtml(v.visit_id)}','${escapeHtml(engineerName)}','${escapeHtml(v.site_code||"—")}')">Delete</button>
-          </div>
-        </td>
+  // Sort sessions within each day by check_in_at
+  Object.keys(byDay).forEach(day => {
+    byDay[day].sort((a,b) => (a.check_in_at||"").localeCompare(b.check_in_at||""));
+  });
+
+  // Compute total week hours (first-in to last-out per day, summed)
+  let weekTotalMins = 0;
+
+  const todayISO = new Date().toISOString().slice(0,10);
+
+  const rows = Object.keys(byDay).map(day => {
+    const sessions = byDay[day];
+    const dayLabel = fmtTSDay(day);
+    const isToday  = day === todayISO;
+
+    if(!sessions.length){
+      return `<tr>
+        <td class="ts-day-label${isToday?" today":""}">${escapeHtml(dayLabel)}</td>
+        <td colspan="3"><span class="ts-day-absent">No attendance</span></td>
       </tr>`;
+    }
+
+    // Day span: earliest check-in to latest check-out (or now if still open)
+    const firstIn  = sessions[0].check_in_at;
+    const lastSession = sessions[sessions.length-1];
+    const lastOut  = sessions.map(s=>s.check_out_at).filter(Boolean).sort().pop() || null;
+
+    const dayMins  = minutesBetween(firstIn, lastOut);
+    if(lastOut) weekTotalMins += dayMins;
+
+    const timeRange = lastOut
+      ? formatTimeOnly(firstIn) + " - " + formatTimeOnly(lastOut)
+      : formatTimeOnly(firstIn) + " - ongoing";
+
+    const durText = lastOut ? fmtDuration(dayMins) : "ongoing";
+
+    // Build session sub-rows
+    const sessionLines = sessions.map(s => {
+      const sIn  = formatTimeOnly(s.check_in_at);
+      const sOut = s.check_out_at ? formatTimeOnly(s.check_out_at) : "ongoing";
+      const sMins = minutesBetween(s.check_in_at, s.check_out_at);
+      const sDur  = s.check_out_at ? fmtDuration(sMins) : "ongoing";
+      const isSoft = !s.sign_in_confirmed || !s.sign_out_confirmed;
+      const site   = s.site_code || "";
+      return `<div class="ts-session">
+        <span>${escapeHtml(sIn)} - ${escapeHtml(sOut)}</span>
+        <span style="color:var(--label4);">(${escapeHtml(sDur)})</span>
+        ${site ? `<span class="ts-session-site">${escapeHtml(site)}</span>` : ""}
+        ${isSoft ? `<span class="ts-soft-badge">unconfirmed</span>` : ""}
+      </div>`;
+    }).join("");
+
+    return `<tr>
+      <td class="ts-day-label${isToday?" today":""}">${escapeHtml(dayLabel)}</td>
+      <td class="ts-time-range">${escapeHtml(timeRange)}</td>
+      <td><span class="ts-duration">${escapeHtml(durText)}</span></td>
+      <td>
+        <div class="ts-session-list">${sessionLines}</div>
+      </td>
+    </tr>`;
   }).join("");
 
-  return `
-    <div class="ts-week-block">
-      <div class="ts-week-header">
-        <span class="ts-week-text">Week commencing: ${escapeHtml(formatWeekCommencing(weekKey))}</span>
-        <span class="ts-pill">Company: ${escapeHtml(companyName)}</span>
+  const weekTotal = weekTotalMins > 0 ? fmtDuration(weekTotalMins) : "0m";
+
+  return { html: rows, weekTotal: weekTotal, weekTotalMins: weekTotalMins };
+}
+
+function renderTimesheetsModal(){
+  // Populate engineer filter
+  const personSel  = document.getElementById("tsPersonFilter");
+  const companySel = document.getElementById("tsCompanyFilter");
+
+  const currentPerson  = personSel.value;
+  const currentCompany = companySel.value;
+
+  // Build company list from all visits
+  const companies = [...new Set(allVisits.map(v=>(v.company||"").trim()).filter(Boolean))].sort((a,b)=>companySortKey(a).localeCompare(companySortKey(b)));
+  companySel.innerHTML = `<option value="">All Companies</option>` +
+    companies.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  if([...companySel.options].some(o=>o.value===currentCompany)) companySel.value=currentCompany;
+
+  // Build engineer list filtered by company
+  const companyFilter = companySel.value;
+  const engineers = [...new Set(
+    allVisits
+      .filter(v => !companyFilter || (v.company||"")=== companyFilter)
+      .map(v => nameOf(v))
+      .filter(Boolean)
+  )].sort((a,b)=>a.localeCompare(b));
+
+  personSel.innerHTML = `<option value="">Select engineer...</option>` +
+    engineers.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
+  if([...personSel.options].some(o=>o.value===currentPerson)) personSel.value=currentPerson;
+
+  const wrap = document.getElementById("timesheetsBody");
+
+  if(!personSel.value){
+    wrap.innerHTML = `<div class="ts-empty">Select an engineer above to view their weekly timesheet.</div>`;
+    return;
+  }
+
+  const visits  = tsPersonVisits();
+  const allWeeks = tsGetAllWeeks(visits);
+
+  if(!allWeeks.length){
+    wrap.innerHTML = `<div class="ts-empty">No attendance records found for this engineer.</div>`;
+    return;
+  }
+
+  // Default to most recent week if not set
+  if(!tsCurrentWeek || !allWeeks.includes(tsCurrentWeek)){
+    tsCurrentWeek = allWeeks[allWeeks.length - 1];
+  }
+
+  const weekIdx   = allWeeks.indexOf(tsCurrentWeek);
+  const hasPrev   = weekIdx > 0;
+  const hasNext   = weekIdx < allWeeks.length - 1;
+
+  const weekVisits = visits.filter(v => {
+    const day = (v.check_in_at||"").slice(0,10);
+    return mondayOf(day) === tsCurrentWeek;
+  });
+
+  const grid = tsBuildWeekGrid(weekVisits, tsCurrentWeek);
+
+  const personName = personSel.value;
+
+  wrap.innerHTML = `
+    <div class="ts-engineer-name">${escapeHtml(personName)}</div>
+    <div style="font-size:12px;color:var(--label3);padding:2px 16px 12px;">
+      ${escapeHtml(allWeeks.length)} week${allWeeks.length!==1?"s":""} with attendance
+    </div>
+    <div class="ts-week-card">
+      <div class="ts-week-nav">
+        <button class="btn-ghost btn-sm ts-nav-btn" onclick="tsNavWeek(-1)" ${hasPrev?"":"disabled"} title="Previous week">&#8592;</button>
+        <div style="display:flex;align-items:center;gap:12px;flex:1;justify-content:center;flex-wrap:wrap;text-align:center;">
+          <span class="ts-week-title">Week: ${escapeHtml(fmtWeekRange(tsCurrentWeek))}</span>
+          <span class="ts-week-total">${escapeHtml(grid.weekTotal)} total</span>
+        </div>
+        <button class="btn-ghost btn-sm ts-nav-btn" onclick="tsNavWeek(1)" ${hasNext?"":"disabled"} title="Next week">&#8594;</button>
       </div>
-      <div class="ts-table-wrap">
-        <table class="ts-table">
-          <thead><tr>
-            <th style="width:150px;">Date</th>
-            <th>Site</th>
-            <th style="width:80px;">Start</th>
-            <th style="width:80px;">Finish</th>
-            <th style="width:100px;">Total hrs</th>
-            <th style="width:100px;">Std hrs</th>
-            <th style="width:100px;">OT hrs</th>
-            <th style="width:90px;">Device</th>
-            <th style="width:90px;">Location</th>
-            <th style="width:160px;">Notes</th>
-            <th style="width:300px;">Admin</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
+      <div class="ts-grid-wrap">
+        <table class="ts-grid">
+          <thead>
+            <tr>
+              <th style="width:160px;">Day</th>
+              <th style="width:150px;">Time on site</th>
+              <th style="width:100px;">Day total</th>
+              <th>Sessions</th>
+            </tr>
+          </thead>
+          <tbody>${grid.html}</tbody>
           <tfoot>
             <tr>
-              <td colspan="4">Weekly totals</td>
-              <td>${escapeHtml(totTotal.toFixed(2))}</td>
-              <td>${escapeHtml(totStd.toFixed(2))}</td>
-              <td>${escapeHtml(totOT.toFixed(2))}</td>
-              <td colspan="4" style="color:var(--label3);font-size:12px;">Engineer total for this week</td>
+              <td colspan="2" style="font-weight:700;">Week total</td>
+              <td><span class="ts-duration" style="font-size:13px;">${escapeHtml(grid.weekTotal)}</span></td>
+              <td style="color:var(--label3);font-size:12px;">${escapeHtml(weekVisits.length)} session${weekVisits.length!==1?"s":""} across ${escapeHtml(String(new Set(weekVisits.map(v=>(v.check_in_at||"").slice(0,10))).size))} day${new Set(weekVisits.map(v=>(v.check_in_at||"").slice(0,10))).size!==1?"s":""}</td>
             </tr>
           </tfoot>
         </table>
       </div>
-      <div class="ts-summary">
-        <span class="ts-pill">Standard: ${escapeHtml(totStd.toFixed(2))} h</span>
-        <span class="ts-pill">Overtime: ${escapeHtml(totOT.toFixed(2))} h</span>
-        <span class="ts-pill">Total: ${escapeHtml(totTotal.toFixed(2))} h</span>
-      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 2px 4px;">
+      <span style="font-size:12px;color:var(--label3);">Jump to week:</span>
+      ${allWeeks.map((w,i) => `<button class="chip${w===tsCurrentWeek?" btn-primary":""}" onclick="tsJumpWeek('${w}')" style="${w===tsCurrentWeek?"background:var(--blue);color:#fff;border-color:var(--blue);":""}">${escapeHtml(fmtWeekRange(w))}</button>`).join("")}
     </div>`;
 }
 
-function renderTimesheetsModal(){
-  const baseVisits = getTimesheetBaseVisits();
-  populateTimesheetFilters(baseVisits);
-
-  const visits = getTimesheetFilteredVisits();
-  const wrap   = document.getElementById("timesheetsBody");
-  const info   = document.getElementById("timesheetsMeta");
-
-  const from = document.getElementById("tsFromDate").value || "All";
-  const to   = document.getElementById("tsToDate").value   || "All";
-  info.innerHTML = `<strong>Date range:</strong> ${escapeHtml(from)} → ${escapeHtml(to)} &nbsp;·&nbsp; <strong>Sessions:</strong> ${escapeHtml(String(visits.length))}`;
-
-  if(!visits.length){
-    wrap.innerHTML = `<div class="ts-empty">No timesheets found for the current filters.</div>`;
-    return;
+function tsNavWeek(dir){
+  const visits   = tsPersonVisits();
+  const allWeeks = tsGetAllWeeks(visits);
+  const idx      = allWeeks.indexOf(tsCurrentWeek);
+  const newIdx   = idx + dir;
+  if(newIdx >= 0 && newIdx < allWeeks.length){
+    tsCurrentWeek = allWeeks[newIdx];
+    renderTimesheetsModal();
   }
-
-  // Group: company → person → weekKey → visits[]
-  const grouped = {};
-  visits.forEach(v=>{
-    const company = (v.company||"No Company").trim() || "No Company";
-    const person  = nameOf(v) || "Unknown";
-    const personId = v.person_id || "";
-    const day     = (v.check_in_at||"").slice(0,10) || "";
-    const weekKey = startOfWeekMondayFromDayStr(day);
-    if(!grouped[company]) grouped[company] = {};
-    if(!grouped[company][person]) grouped[company][person] = { personId, weeks:{} };
-    if(!grouped[company][person].weeks[weekKey]) grouped[company][person].weeks[weekKey] = [];
-    grouped[company][person].weeks[weekKey].push(v);
-  });
-
-  const companies = Object.keys(grouped).sort((a,b)=>companySortKey(a).localeCompare(companySortKey(b)));
-  let html = "";
-
-  companies.forEach(company=>{
-    html += `<div class="ts-company-section">`;
-    html += `<div class="ts-company-title">${escapeHtml(company)}</div>`;
-
-    const people = Object.keys(grouped[company]).sort((a,b)=>a.localeCompare(b));
-    people.forEach(person=>{
-      const personId  = grouped[company][person].personId || "";
-      const engineer  = findEngineerRecord(personId, person, company);
-      const engineerId = engineer?.id || personId || "";
-
-      // Compute stats for this engineer across all their visits
-      const allEngVisits = Object.values(grouped[company][person].weeks).flat();
-      const closedVis = allEngVisits.filter(v => v.check_out_at);
-      const durations = closedVis.map(v => minutesBetween(v.check_in_at, v.check_out_at)).filter(m => m > 0);
-      const totalHrs  = durations.reduce((a,b)=>a+b,0) / 60;
-      const avgMins   = durations.length ? Math.round(durations.reduce((a,b)=>a+b,0) / durations.length) : 0;
-      const missed    = allEngVisits.filter(v => Number(v.auto_checkout||0)===1).length;
-      const longestM  = durations.length ? Math.max(...durations) : 0;
-      const daysWorked= new Set(allEngVisits.map(v=>(v.check_in_at||"").slice(0,10))).size;
-
-      const statsHtml = `
-        <div class="eng-stats">
-          <div class="eng-stat">
-            <span class="eng-stat-val">${daysWorked}</span>
-            <span class="eng-stat-label">Days on site</span>
-          </div>
-          <div class="eng-stat">
-            <span class="eng-stat-val">${totalHrs.toFixed(1)}h</span>
-            <span class="eng-stat-label">Total hours</span>
-          </div>
-          <div class="eng-stat">
-            <span class="eng-stat-val">${avgMins ? fmtDuration(avgMins) : "—"}</span>
-            <span class="eng-stat-label">Avg session</span>
-          </div>
-          <div class="eng-stat">
-            <span class="eng-stat-val">${longestM ? fmtDuration(longestM) : "—"}</span>
-            <span class="eng-stat-label">Longest day</span>
-          </div>
-          <div class="eng-stat">
-            <span class="eng-stat-val ${missed > 0 ? 'warn' : 'good'}">${missed}</span>
-            <span class="eng-stat-label">Missed sign-outs</span>
-          </div>
-        </div>`;
-
-      // Engineer block: header (name + admin panel) then stats then week tables
-      html += `<div class="ts-engineer-block">`;
-      html += `<div class="ts-engineer-header">`;
-      html += `<div class="ts-engineer-title">${escapeHtml(person)}</div>`;
-      html += buildEngineerAdminPanel(engineer, person, company, engineerId);
-      html += `</div>`; // close ts-engineer-header
-      html += statsHtml;
-
-      // Week tables sit outside the header, inside the block
-      const weeks = Object.keys(grouped[company][person].weeks).sort((a,b)=>a.localeCompare(b));
-      weeks.forEach(weekKey=>{
-        html += buildTimesheetTableForWeek(grouped[company][person].weeks[weekKey], person, company, weekKey);
-      });
-
-      html += `</div>`; // close ts-engineer-block
-    });
-
-    html += `</div>`; // close ts-company-section
-  });
-
-  wrap.innerHTML = html;
 }
 
-function openTimesheetsModal(){
-  document.getElementById("timesheetsModal").style.display="flex";
-  document.getElementById("tsFromDate").value=document.getElementById("fromDate").value||"";
-  document.getElementById("tsToDate").value=document.getElementById("toDate").value||"";
+function tsJumpWeek(mondayStr){
+  tsCurrentWeek = mondayStr;
+  renderTimesheetsModal();
+}
+
+function openTimesheetsModal(initialPerson){
+  document.getElementById("timesheetsModal").style.display = "flex";
+  if(initialPerson){
+    tsCurrentPerson = initialPerson;
+    document.getElementById("tsPersonFilter").value = initialPerson;
+  }
+  tsCurrentWeek = null;
   renderTimesheetsModal();
 }
 
 function closeTimesheetsModal(){
-  document.getElementById("timesheetsModal").style.display="none";
-}
-
-function clearTimesheetFilters(){
-  document.getElementById("tsCompanyFilter").value="";
-  document.getElementById("tsPersonFilter").value="";
-  document.getElementById("tsSiteFilter").value="";
-  document.getElementById("tsFromDate").value=document.getElementById("fromDate").value||"";
-  document.getElementById("tsToDate").value=document.getElementById("toDate").value||"";
-  renderTimesheetsModal();
+  document.getElementById("timesheetsModal").style.display = "none";
 }
 
 function exportTimesheetsPdf(){
   const el = document.getElementById("timesheetsPdfRoot");
-
-  // Temporarily expand the modal to show all content for capture
-  const origMaxH = el.style.maxHeight;
+  const origMaxH     = el.style.maxHeight;
   const origOverflow = el.style.overflow;
   el.style.maxHeight = "none";
-  el.style.overflow = "visible";
-
-  const origBodyScroll = el.style.overflowY;
-
+  el.style.overflow  = "visible";
   html2pdf().set({
     margin: 0.2,
-    filename: "SiteLog_Timesheets.pdf",
+    filename: "SiteLog_Timesheet.pdf",
     jsPDF: { unit:"in", format:"a4", orientation:"landscape" },
     html2canvas: { scale:2, useCORS:true, scrollY:0, windowWidth: el.scrollWidth }
   }).from(el).save().then(()=>{
     el.style.maxHeight = origMaxH;
     el.style.overflow  = origOverflow;
   });
-}
-
-async function saveTimesheetEngineer(id){
-  if(!id){ alert("Engineer id not found."); return; }
-  const firstName=(document.querySelector(`input[data-ts-eng-first="${CSS.escape(id)}"]`)?.value||"").trim();
-  const lastName=(document.querySelector(`input[data-ts-eng-last="${CSS.escape(id)}"]`)?.value||"").trim();
-  const company=(document.querySelector(`input[data-ts-eng-company="${CSS.escape(id)}"]`)?.value||"").trim();
-  const purpose=(document.querySelector(`input[data-ts-eng-purpose="${CSS.escape(id)}"]`)?.value||"").trim();
-  const rateRaw=(document.querySelector(`input[data-ts-eng-rate="${CSS.escape(id)}"]`)?.value||"").trim();
-  const hourlyRate=rateRaw===""?null:Number(rateRaw);
-  if(!firstName&&!lastName){ alert("Engineer must have at least a first or last name."); return; }
-  const res=await fetch(`${API_BASE}/update-engineer`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,firstName,lastName,company,purpose,hourlyRate})});
-  const data=await res.json();
-  if(!res.ok||!data.ok){ alert(data.error||"Failed to save engineer."); return; }
-  await loadData(); renderTimesheetsModal();
-}
-
-async function toggleTimesheetEngineer(id){
-  if(!id){ alert("Engineer id not found."); return; }
-  const res=await fetch(`${API_BASE}/toggle-engineer`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
-  const data=await res.json();
-  if(!res.ok||!data.ok){ alert(data.error||"Failed to archive / unarchive engineer."); return; }
-  await loadData(); renderTimesheetsModal();
-}
-
-async function deleteEngineerFromTimesheets(id,name){
-  if(!id){ alert("Engineer id not found."); return; }
-  if(!confirm(`Delete engineer ${name}? If visit history exists they will be archived and device links removed instead.`)) return;
-  const res=await fetch(`${API_BASE}/delete-engineer`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
-  const data=await res.json();
-  if(!res.ok||!data.ok){ alert(data.error||"Failed to delete engineer."); return; }
-  alert(data.message||"Engineer updated.");
-  await loadData(); renderTimesheetsModal();
-}
-
-async function resetEngineerDevice(id,name){
-  if(!id){ alert("Engineer id not found."); return; }
-  if(!confirm(`Reset device for ${name}? They will need to register this device again on next scan.`)) return;
-  const res=await fetch(`${API_BASE}/reset-device`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({personId:id})});
-  const data=await res.json();
-  if(!res.ok||!data.ok){ alert(data.error||"Failed to reset device."); return; }
-  alert(`Removed ${data.removedDevices||0} device link(s).`); await loadData(); renderTimesheetsModal();
-}
-
-async function saveVisitTimes(visitId){
-  const inEl=document.querySelector(`input[data-visit-in="${CSS.escape(visitId)}"]`);
-  const outEl=document.querySelector(`input[data-visit-out="${CSS.escape(visitId)}"]`);
-  const checkInAt=(inEl?.value||"").trim();
-  const checkOutAt=(outEl?.value||"").trim();
-  if(!checkInAt){ alert("Check-in time is required."); return; }
-  const res=await fetch(`${API_BASE}/update-visit-times`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({visitId,checkInAt,checkOutAt:checkOutAt||null})});
-  const data=await res.json();
-  if(!res.ok||!data.ok){ alert(data.error||"Failed to update visit times."); return; }
-  await loadData(); renderTimesheetsModal();
 }
 
 /* -------------------- SITES MODAL -------------------- */
@@ -2604,50 +2577,29 @@ function setPreset(type){
         <div class="modal-title">Weekly Timesheets</div>
       </div>
       <div style="display:flex;gap:8px;">
-        <button class="btn-ghost btn-sm" onclick="exportTimesheetsPdf()">↑ Export PDF</button>
+        <button class="btn-ghost btn-sm" onclick="exportTimesheetsPdf()">Export PDF</button>
         <button class="btn-ghost btn-sm" onclick="closeTimesheetsModal()">Close</button>
       </div>
     </div>
 
-```
-<div class="ts-filter-bar">
-  <div class="field-stack">
-    <span class="field-label">Company</span>
-    <select id="tsCompanyFilter" onchange="renderTimesheetsModal()" style="width:160px;">
-      <option value="">All Companies</option>
-    </select>
-  </div>
-  <div class="field-stack">
-    <span class="field-label">Engineer</span>
-    <select id="tsPersonFilter" onchange="renderTimesheetsModal()" style="width:160px;">
-      <option value="">All Engineers</option>
-    </select>
-  </div>
-  <div class="field-stack">
-    <span class="field-label">Site</span>
-    <select id="tsSiteFilter" onchange="renderTimesheetsModal()" style="width:140px;">
-      <option value="">All Sites</option>
-    </select>
-  </div>
-  <div class="field-stack">
-    <span class="field-label">From</span>
-    <input type="date" id="tsFromDate" onchange="renderTimesheetsModal()" style="width:148px;">
-  </div>
-  <div class="field-stack">
-    <span class="field-label">To</span>
-    <input type="date" id="tsToDate" onchange="renderTimesheetsModal()" style="width:148px;">
-  </div>
-  <div style="display:flex;align-items:flex-end;">
-    <button class="btn-ghost btn-sm" onclick="clearTimesheetFilters()">Reset</button>
-  </div>
-</div>
+    <div class="ts-filter-bar">
+      <div class="field-stack">
+        <span class="field-label">Company</span>
+        <select id="tsCompanyFilter" onchange="renderTimesheetsModal()" style="width:160px;">
+          <option value="">All Companies</option>
+        </select>
+      </div>
+      <div class="field-stack">
+        <span class="field-label">Engineer</span>
+        <select id="tsPersonFilter" onchange="tsCurrentWeek=null;renderTimesheetsModal()" style="width:200px;">
+          <option value="">Select engineer...</option>
+        </select>
+      </div>
+    </div>
 
-<div class="ts-body">
-  <div class="ts-meta" id="timesheetsMeta"></div>
-  <div id="timesheetsBody"></div>
-</div>
-```
-
+    <div class="ts-body">
+      <div id="timesheetsBody"></div>
+    </div>
   </div>
 </div>
 

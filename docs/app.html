@@ -1661,10 +1661,13 @@ async function appConfirmSignOutYes() {
   var start = await dbGet("last_checkin");
   var durText = "";
   if (start) {
-    var mins = Math.round((Date.now() - start) / 60000);
-    var hrs  = Math.floor(mins / 60);
-    var rem  = mins % 60;
-    durText = hrs > 0 ? hrs + "h " + rem + "m" : mins + "m";
+    var startNum = Number(start);
+    if (!isNaN(startNum) && startNum > 0) {
+      var mins = Math.max(0, Math.round((Date.now() - startNum) / 60000));
+      var hrs  = Math.floor(mins / 60);
+      var rem  = mins % 60;
+      durText = hrs > 0 ? hrs + "h " + rem + "m" : mins + "m";
+    }
     await dbDel("last_checkin");
   }
 
@@ -2140,9 +2143,11 @@ async function getOfficeCoords() {
 function startDurationTicker(checkInTime) {
   stopDurationTicker();
   var el = document.getElementById("dashDuration");
+  // Ensure numeric — may come from IndexedDB as string
+  var tickStart = Number(checkInTime);
   function tick() {
-    if (!checkInTime) return;
-    var mins = Math.round((Date.now() - checkInTime) / 60000);
+    if (!tickStart || isNaN(tickStart)) return;
+    var mins = Math.max(0, Math.round((Date.now() - tickStart) / 60000));
     var hrs  = Math.floor(mins / 60);
     var rem  = mins % 60;
     var str  = hrs > 0 ? hrs + "h " + rem + "m on site" : mins + "m on site";
@@ -2284,7 +2289,11 @@ async function loadOnSiteList() {
     el.innerHTML = occ.map(function(o) {
       var name    = ((o.first_name || "") + " " + (o.last_name || "")).trim() || "Unknown";
       var initials = name.split(" ").map(function(w) { return w[0]; }).slice(0,2).join("").toUpperCase();
-      var mins    = Math.round((Date.now() - new Date(o.check_in_at.replace(" ","T")+"Z").getTime()) / 60000);
+      var mins = 0;
+      try {
+        var od = new Date(String(o.check_in_at).replace(" ","T")+"Z");
+        if (!isNaN(od.getTime())) mins = Math.max(0, Math.round((Date.now() - od.getTime()) / 60000));
+      } catch(e) {}
       var hrs     = Math.floor(mins / 60);
       var rem     = mins % 60;
       var durStr  = hrs > 0 ? hrs + "h " + rem + "m" : mins + "m";
@@ -2302,15 +2311,25 @@ async function loadOnSiteList() {
 }
 
 function histFmtDay(dateStr) {
-  var d = new Date(dateStr + "T00:00:00");
-  var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return days[d.getDay()] + " " + d.getDate() + " " + months[d.getMonth()] + " " + String(d.getFullYear()).slice(2);
+  if (!dateStr) return "—";
+  try {
+    var d = new Date(dateStr + "T00:00:00");
+    if (isNaN(d.getTime())) return dateStr;
+    var days   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return days[d.getDay()] + " " + d.getDate() + " " + months[d.getMonth()] + " " + String(d.getFullYear()).slice(2);
+  } catch(e) { return dateStr; }
 }
 
 function histFmtTime(ts) {
   if (!ts) return "—";
-  return new Date(ts.replace(" ","T")+"Z").toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+  try {
+    var clean = String(ts).replace(" ","T");
+    if (!clean.endsWith("Z") && !clean.includes("+")) clean += "Z";
+    var d = new Date(clean);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+  } catch(e) { return "—"; }
 }
 
 function histDur(mins) {
@@ -2350,9 +2369,15 @@ async function loadHistoryList() {
       // Day totals
       var firstIn  = sessions[0].check_in_at;
       var lastOut  = sessions.map(function(s){ return s.check_out_at; }).filter(Boolean).sort().pop() || null;
-      var dayMins  = 0;
+      var dayMins = 0;
       if (firstIn && lastOut) {
-        dayMins = Math.round((new Date(lastOut.replace(" ","T")+"Z") - new Date(firstIn.replace(" ","T")+"Z")) / 60000);
+        try {
+          var d1 = new Date(firstIn.replace(" ","T")+"Z");
+          var d2 = new Date(lastOut.replace(" ","T")+"Z");
+          if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+            dayMins = Math.max(0, Math.round((d2 - d1) / 60000));
+          }
+        } catch(e) {}
       }
       var isOngoing = !lastOut;
       var startStr  = histFmtTime(firstIn);
@@ -2364,9 +2389,16 @@ async function loadHistoryList() {
       var sessionRows = sessions.map(function(s, i) {
         var sIn   = histFmtTime(s.check_in_at);
         var sOut  = s.check_out_at ? histFmtTime(s.check_out_at) : "Ongoing";
-        var sMins = (s.check_in_at && s.check_out_at)
-          ? Math.round((new Date(s.check_out_at.replace(" ","T")+"Z") - new Date(s.check_in_at.replace(" ","T")+"Z")) / 60000)
-          : 0;
+        var sMins = 0;
+        if (s.check_in_at && s.check_out_at) {
+          try {
+            var sd1 = new Date(s.check_in_at.replace(" ","T")+"Z");
+            var sd2 = new Date(s.check_out_at.replace(" ","T")+"Z");
+            if (!isNaN(sd1.getTime()) && !isNaN(sd2.getTime())) {
+              sMins = Math.max(0, Math.round((sd2 - sd1) / 60000));
+            }
+          } catch(e) {}
+        }
         var sDur  = sMins > 0 ? histDur(sMins) : (s.check_out_at ? "—" : "Ongoing");
         var sHrs  = sMins > 0 ? (sMins/60).toFixed(2)+"h" : "—";
         var soft  = !s.sign_in_confirmed;

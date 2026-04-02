@@ -1766,6 +1766,94 @@ async function init() {
   showScreen("screen-permission");
 }
 
+// ── FOREGROUND RESUME HANDLER ─────────────────────
+// When the PWA is brought back to foreground (user switches back
+// to the app after it was backgrounded), re-run the scan so the
+// UI reflects the current state rather than the stale last state.
+
+function resetScanUI() {
+  document.getElementById("appTitle").textContent   = "Checking Location...";
+  document.getElementById("appStatus").textContent  = "Requesting GPS...";
+  document.getElementById("appNetworkError").style.display = "none";
+  document.getElementById("appGpsError").style.display    = "none";
+  document.getElementById("appRegisterBox").style.display = "none";
+  document.getElementById("appNoticeBox").innerHTML =
+    "<strong>Site Notice:</strong> Report to site foreman";
+}
+
+var lastVisibleAt = Date.now();
+
+document.addEventListener("visibilitychange", function() {
+  if (document.visibilityState === "hidden") {
+    lastVisibleAt = Date.now();
+    return;
+  }
+
+  // Page became visible — only re-scan if we were backgrounded
+  // for more than 30 seconds (avoids re-scanning on tiny interruptions)
+  var awayMs = Date.now() - lastVisibleAt;
+  if (awayMs < 30000) return;
+
+  // Only re-scan if we're on the scan screen and not mid-flow
+  var scanScreen = document.getElementById("screen-scan");
+  if (!scanScreen || !scanScreen.classList.contains("active")) return;
+
+  // Don't re-scan if a modal is open
+  if (document.getElementById("modalSignOut").classList.contains("open")) return;
+  if (document.getElementById("modalSignIn").classList.contains("open")) return;
+
+  resetScanUI();
+
+  // Re-acquire GPS and re-run scan
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      lastLocation = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy
+      };
+      showMap(lastLocation.lat, lastLocation.lng);
+      appScan();
+    },
+    function(err) {
+      if (err.code === 1) {
+        dbDel("gps_granted");
+        showScreen("screen-permission");
+        showPermissionError(err.code, err.message);
+      } else {
+        showGpsErrorInScan(err.code, err.message);
+      }
+    },
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
+  );
+});
+
+// pageshow fires on iOS when restoring from bfcache (back/forward cache)
+// persisted=true means it was a cached restore, not a fresh load
+window.addEventListener("pageshow", function(e) {
+  if (e.persisted) {
+    var scanScreen = document.getElementById("screen-scan");
+    if (scanScreen && scanScreen.classList.contains("active")) {
+      resetScanUI();
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          lastLocation = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy
+          };
+          showMap(lastLocation.lat, lastLocation.lng);
+          appScan();
+        },
+        function(err) {
+          if (err.code !== 1) showGpsErrorInScan(err.code, err.message);
+        },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
+      );
+    }
+  }
+});
+
 init();
 
 // Show iOS install banner after a short delay (not during splash)

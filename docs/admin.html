@@ -519,6 +519,8 @@
     .pill-pending::before { background: var(--amber); }
     .pill-gps    { background: var(--red-soft); color: #c0392b; }
     .pill-gps::before { background: var(--red); }
+    .pill-unreg  { background: rgba(124,58,237,0.10); color: #5b21b6; }
+    .pill-unreg::before { background: #7c3aed; }
 
     .check-icon { color: var(--green); font-size: 15px; }
     .cross-icon { color: var(--label4); font-size: 13px; }
@@ -1426,6 +1428,7 @@ function buildCompanyFilter(){
 /* -------------------- FETCH -------------------- */
 
 let failedScans = [];
+let unregisteredAttempts = [];
 
 async function fetchAll(){
   const res=await fetch(`${API_BASE}/admin`);
@@ -1441,6 +1444,18 @@ async function fetchRange(from,to){
   const data=await res.json();
   failedScans=data.failedScans||[];
   return data.visits||[];
+}
+
+async function fetchUnregistered(){
+  try{
+    const from=document.getElementById("fromDate").value;
+    const to=document.getElementById("toDate").value;
+    const qs=new URLSearchParams();
+    if(from&&to){qs.set("from",from);qs.set("to",to);}
+    const res=await fetch(`${API_BASE}/unregistered-attempts?${qs.toString()}`);
+    const data=await res.json();
+    unregisteredAttempts=data.attempts||[];
+  }catch(e){ unregisteredAttempts=[]; }
 }
 
 async function fetchSites(){
@@ -1503,6 +1518,26 @@ function updateFilterSummary(){
 
 /* -------------------- RENDER -------------------- */
 
+async function assignDevice(deviceToken){
+  const first = (document.getElementById("assign-first-"+CSS.escape(deviceToken))||{}).value||"";
+  const last  = (document.getElementById("assign-last-"+CSS.escape(deviceToken))||{}).value||"";
+  const co    = (document.getElementById("assign-company-"+CSS.escape(deviceToken))||{}).value||"";
+  if(!first.trim()&&!last.trim()){ alert("Please enter at least a first or last name."); return; }
+  const btn = document.getElementById("assign-btn-"+CSS.escape(deviceToken));
+  if(btn){ btn.textContent="Saving..."; btn.disabled=true; }
+  try{
+    const res=await fetch(API_BASE+"/assign-device",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({deviceToken,firstName:first.trim(),lastName:last.trim(),company:co.trim()})
+    });
+    const data=await res.json();
+    if(!res.ok||!data.ok){ alert(data.error||"Failed to assign."); return; }
+    await loadData();
+  }catch(e){ alert("Network error."); }
+  if(btn){ btn.textContent="Assign"; btn.disabled=false; }
+}
+
 function renderLive(){
   const tbody = document.getElementById("liveRows");
 
@@ -1525,14 +1560,30 @@ function renderLive(){
   // Update section label with counts
   const lbl = document.getElementById("liveTableLabel");
   if(lbl){
-    const parts = [];
-    if(confirmedLive.length) parts.push(confirmedLive.length + " live");
-    if(pendingVisits.length) parts.push(pendingVisits.length + " pending");
-    if(visibleFailed.length) parts.push(visibleFailed.length + " GPS failed");
-    lbl.textContent = "Today's Activity" + (parts.length ? " — " + parts.join(", ") : "");
+    const _labelParts = [];
+    if(confirmedLive.length) _labelParts.push(confirmedLive.length + " live");
+    if(pendingVisits.length) _labelParts.push(pendingVisits.length + " pending");
+    if(visibleFailed.length) _labelParts.push(visibleFailed.length + " GPS failed");
+    const _todayISO3 = new Date().toISOString().slice(0,10);
+    const _unregCount = unregisteredAttempts.filter(u=>{
+      const day=(u.last_seen||"").slice(0,10);
+      const fromV=document.getElementById("fromDate").value;
+      const toV=document.getElementById("toDate").value;
+      if(fromV&&toV) return day>=fromV&&day<=toV;
+      return day===_todayISO3;
+    }).length;
+    if(_unregCount) _labelParts.push(_unregCount + " unregistered");
+    lbl.textContent = "Today's Activity" + (_labelParts.length ? " — " + _labelParts.join(", ") : "");
   }
 
-  if(!openVisits.length && !visibleFailed.length){
+  const todayISO2 = new Date().toISOString().slice(0,10);
+  const visibleUnreg = unregisteredAttempts.filter(u => {
+    const day = (u.last_seen||"").slice(0,10);
+    if(from && to) return day >= from && day <= to;
+    return day === todayISO2;
+  });
+
+  if(!openVisits.length && !visibleFailed.length && !visibleUnreg.length){
     tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📍</div><p>No activity to show for this period.</p></div></td></tr>`;
     return;
   }
@@ -1608,7 +1659,39 @@ function renderLive(){
     </tr>`;
   }).join("");
 
-  tbody.innerHTML = confirmedRows + pendingRows + failedRows;
+  // ── Unregistered device rows ──────────────────────────────
+  const unregRows = visibleUnreg.map(u => {
+    const tok     = u.device_token || "";
+    const tokShort = tok.slice(0,8) + "...";
+    const attempts = u.attempts || 1;
+    const mapsLink = (u.lat!=null&&u.lng!=null)
+      ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(u.lat)},${encodeURIComponent(u.lng)}" target="_blank" style="color:var(--blue);font-size:12px;">📍 View</a>`
+      : `<span style="color:var(--label4);">No GPS</span>`;
+    return `
+    <tr style="background:rgba(255,159,10,0.06);">
+      <td><span class="pill pill-unreg" title="Unregistered device — no account created yet">Unregistered</span></td>
+      <td style="color:var(--label2);">
+        <span style="font-size:11.5px;font-family:monospace;color:var(--label3);" title="${escapeHtml(tok)}">${escapeHtml(tokShort)}</span>
+        ${attempts>1?`<span style="margin-left:6px;font-size:11px;background:var(--amber-soft);color:#b45309;padding:1px 6px;border-radius:4px;">${attempts}x</span>`:""}
+      </td>
+      <td colspan="2">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          <input id="assign-first-${escapeHtml(tok)}" placeholder="First name" style="height:28px;width:100px;padding:0 8px;font-size:12px;border:1px solid var(--border-heavy);border-radius:6px;background:var(--surface);" />
+          <input id="assign-last-${escapeHtml(tok)}"  placeholder="Last name"  style="height:28px;width:100px;padding:0 8px;font-size:12px;border:1px solid var(--border-heavy);border-radius:6px;background:var(--surface);" />
+          <input id="assign-company-${escapeHtml(tok)}" placeholder="Company (optional)" style="height:28px;width:130px;padding:0 8px;font-size:12px;border:1px solid var(--border-heavy);border-radius:6px;background:var(--surface);" />
+          <button id="assign-btn-${escapeHtml(tok)}" class="btn-primary btn-sm" onclick="assignDevice('${escapeHtml(tok)}')">Assign</button>
+        </div>
+      </td>
+      <td>${mapsLink}</td>
+      <td style="color:var(--label3);font-size:12.5px;">${escapeHtml(toLocal(u.last_seen))}</td>
+      <td style="color:var(--label4);">—</td>
+      <td style="text-align:center;"><span class="cross-icon">—</span></td>
+      <td style="text-align:center;">${(u.lat!=null&&u.lng!=null)?`<span class="check-icon">✓</span>`:`<span class="cross-icon">—</span>`}</td>
+      <td style="text-align:right;font-size:11.5px;color:var(--label3);">No account</td>
+    </tr>`;
+  }).join("");
+
+  tbody.innerHTML = confirmedRows + pendingRows + failedRows + unregRows;
 }
 
 function openTimesheetForPerson(personName, company){
@@ -1626,7 +1709,7 @@ function renderAll(){
 /* -------------------- LOAD -------------------- */
 
 async function loadData(){
-  await Promise.all([fetchSites(),fetchEngineers()]);
+  await Promise.all([fetchSites(),fetchEngineers(),fetchUnregistered()]);
   allVisits=await fetchAll();
   const from=document.getElementById("fromDate").value;
   const to=document.getElementById("toDate").value;

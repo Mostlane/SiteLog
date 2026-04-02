@@ -1258,12 +1258,17 @@ function showSuccess(type, siteName, firstName, duration) {
     sub.textContent   = "Check-in confirmed";
   }
 
+  // Block the visibilitychange reset while overlay is showing
+  window.__scanJustCompleted = true;
+
   overlay.classList.add("active");
   try { if (navigator.vibrate) navigator.vibrate(80); } catch(e) {}
 
   clearTimeout(window.__fadT);
   window.__fadT = setTimeout(function() {
     overlay.classList.remove("active");
+    // Allow rescan again 3 seconds after overlay fades
+    setTimeout(function() { window.__scanJustCompleted = false; }, 3000);
   }, 2200);
 }
 
@@ -1790,9 +1795,12 @@ document.addEventListener("visibilitychange", function() {
   }
 
   // Page became visible — only re-scan if we were backgrounded
-  // for more than 30 seconds (avoids re-scanning on tiny interruptions)
+  // for more than 60 seconds (avoids re-scanning on tiny interruptions)
   var awayMs = Date.now() - lastVisibleAt;
-  if (awayMs < 30000) return;
+  if (awayMs < 60000) return;
+
+  // Never reset if a scan just completed (success overlay may still be showing)
+  if (window.__scanJustCompleted) return;
 
   // Only re-scan if we're on the scan screen and not mid-flow
   var scanScreen = document.getElementById("screen-scan");

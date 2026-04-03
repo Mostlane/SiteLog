@@ -1244,6 +1244,9 @@
 <script>
 const API = "https://sitelog-api.jamie-def.workers.dev";
 
+// Mark this device as having the PWA, so scan.html can redirect here
+try { document.cookie = "ml_pwa=1; max-age=63072000; path=/; SameSite=Lax"; } catch(e) {}
+
 // ── SET YOUR ADMIN PIN HERE ──────────────────────────
 const ADMIN_PIN = "5847";
 // ────────────────────────────────────────────────────

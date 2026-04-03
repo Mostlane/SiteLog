@@ -1884,11 +1884,29 @@ function renderLive(){
       <td style="color:var(--label4);">—</td>
       <td style="text-align:center;"><span class="cross-icon">—</span></td>
       <td style="text-align:center;">${(u.lat!=null&&u.lng!=null)?`<span class="check-icon">✓</span>`:`<span class="cross-icon">—</span>`}</td>
-      <td style="text-align:right;font-size:11.5px;color:var(--label3);">No account</td>
+      <td style="text-align:right;">
+        <button class="btn-ghost btn-sm" style="color:var(--red);border-color:rgba(255,59,48,0.25);" onclick="deleteUnregistered('${escapeHtml(tok)}')">Delete</button>
+      </td>
     </tr>`;
   }).join("");
 
   tbody.innerHTML = confirmedRows + pendingRows + failedRows + unregRows;
+}
+
+async function deleteUnregistered(deviceToken) {
+  if (!confirm("Delete this unregistered scan attempt? This cannot be undone.")) return;
+  try {
+    const res  = await fetch(API_BASE + "/delete-unregistered", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceToken })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { alert(data.error || "Failed to delete."); return; }
+    await loadData();
+  } catch(e) {
+    alert("Network error. Please try again.");
+  }
 }
 
 function openTimesheetForPerson(personName, company){

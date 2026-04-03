@@ -141,16 +141,35 @@
 .fix-steps { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
 .fix-steps ol { margin: 0; padding-left: 18px; font-size: 13px; color: #0a1628; line-height: 1.75; }
 .device-toggle {
-  display: flex; background: #f1f5f9; border: 1px solid #e2e8f0;
-  border-radius: 999px; padding: 3px; margin-bottom: 12px; width: fit-content;
+  display: inline-flex;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 3px;
+  margin-bottom: 14px;
 }
 .device-toggle button {
-  display: inline-flex; padding: 7px 16px; border-radius: 999px;
-  border: none; background: transparent; color: #64748b;
-  font-size: 13px; font-weight: 600; cursor: pointer;
-  width: auto; max-width: none; margin: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 20px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  text-align: center;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
 }
-.device-toggle button.active { background: #fff; color: #004a99; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+.device-toggle button.active {
+  background: #fff;
+  color: #004a99;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.12);
+}
 
 /* Confirm modals */
 .modal-overlay {
@@ -301,6 +320,25 @@
 
 <script>
 const API = "https://sitelog-api.jamie-def.workers.dev";
+
+// ── PWA REDIRECT ─────────────────────────────────────────────────────────
+// If the user has the PWA installed and opens a QR code link (scan.html),
+// redirect them into the PWA app.html so they get the full experience.
+// We detect the PWA via display-mode: standalone OR a cookie set by app.html.
+(function() {
+  try {
+    var isStandalone = window.matchMedia("(display-mode: standalone)").matches
+                    || window.navigator.standalone === true;
+    var hasPWACookie = document.cookie.split(";").some(function(c) {
+      return c.trim().startsWith("ml_pwa=1");
+    });
+    if (isStandalone || hasPWACookie) {
+      // Pass the current URL params to app.html so it can act on them
+      var dest = "/SiteLog/app.html" + window.location.search;
+      window.location.replace(dest);
+    }
+  } catch(e) {}
+})();
 
 // ── DEVICE TOKEN ─────────────────────────────────
 function readCookieTok() {
@@ -561,52 +599,108 @@ function retryNetwork() {
 // ── GPS ERROR ────────────────────────────────────
 var GPS_STEPS = {
   ios: {
-    1: ["Open <strong>Settings</strong> on your iPhone","Scroll to <strong>Safari</strong> &rarr; <strong>Location</strong> &rarr; <strong>Allow</strong>","Return here and tap <strong>Try Again</strong>"],
-    2: ["Go to <strong>Settings &rarr; Privacy &rarr; Location Services</strong> and ensure it is ON","Step outside for a clearer signal","Tap <strong>Try Again</strong>"],
-    3: ["Check <strong>Settings &rarr; Privacy &rarr; Location Services</strong> is ON","Move slightly then tap <strong>Try Again</strong>"]
+    1: [
+      "Open <strong>Settings</strong> on your iPhone",
+      "Scroll down and tap <strong>Privacy &amp; Security</strong>",
+      "Tap <strong>Location Services</strong> and make sure it is turned <strong>ON</strong>",
+      "Scroll down to <strong>Safari</strong> (or your browser) and set Location to <strong>While Using</strong>",
+      "Come back here and tap <strong>Try Again</strong>"
+    ],
+    2: [
+      "Go to <strong>Settings &rarr; Privacy &amp; Security &rarr; Location Services</strong>",
+      "Make sure Location Services is <strong>ON</strong>",
+      "Try stepping outside or moving to a window for a better signal",
+      "Tap <strong>Try Again</strong>"
+    ],
+    3: [
+      "Your GPS signal timed out &mdash; this can happen indoors",
+      "Try moving closer to a window or stepping outside briefly",
+      "Tap <strong>Try Again</strong>"
+    ]
   },
   android: {
-    1: ["Tap the <strong>lock icon</strong> in Chrome's address bar","Tap <strong>Permissions &rarr; Location &rarr; Allow</strong>","Tap <strong>Try Again</strong>"],
-    2: ["Swipe down and ensure <strong>Location</strong> is on","Go to <strong>Settings &rarr; Location</strong> and enable","Tap <strong>Try Again</strong>"],
-    3: ["Check <strong>Location</strong> is on in Quick Settings","Move slightly then tap <strong>Try Again</strong>"]
+    1: [
+      "Tap the <strong>lock icon</strong> or <strong>info icon</strong> in your browser address bar",
+      "Tap <strong>Permissions</strong> then <strong>Location</strong>",
+      "Set it to <strong>Allow</strong>",
+      "Tap <strong>Try Again</strong>"
+    ],
+    2: [
+      "Swipe down from the top of your screen",
+      "Make sure <strong>Location</strong> is turned <strong>ON</strong> in Quick Settings",
+      "If it is on, try moving outside for a stronger signal",
+      "Tap <strong>Try Again</strong>"
+    ],
+    3: [
+      "Your GPS signal timed out &mdash; this can happen indoors",
+      "Try moving closer to a window or stepping outside",
+      "Tap <strong>Try Again</strong>"
+    ]
   }
 };
+
 var gpsDevice = /android/i.test(navigator.userAgent) ? "android" : "ios";
 
 function switchGpsDevice(d) {
   gpsDevice = d;
-  document.getElementById("btnIOS").classList.toggle("active", d==="ios");
-  document.getElementById("btnAndroid").classList.toggle("active", d==="android");
-  document.getElementById("iosSteps").style.display   = d==="ios"     ? "block" : "none";
-  document.getElementById("droidSteps").style.display = d==="android" ? "block" : "none";
+  document.getElementById("btnIOS").classList.toggle("active", d === "ios");
+  document.getElementById("btnAndroid").classList.toggle("active", d === "android");
+  document.getElementById("iosSteps").style.display   = d === "ios"     ? "block" : "none";
+  document.getElementById("droidSteps").style.display = d === "android" ? "block" : "none";
+  // Re-populate steps for the selected device
+  populateSteps(d, window.__lastGpsCode || 1);
+}
+
+function populateSteps(device, code) {
+  var steps = GPS_STEPS[device][code] || GPS_STEPS[device][1];
+  var html  = steps.map(function(s) { return "<li>" + s + "</li>"; }).join("");
+  if (device === "ios") {
+    document.getElementById("iosStepsList").innerHTML = html;
+  } else {
+    document.getElementById("droidStepsList").innerHTML = html;
+  }
 }
 
 function showGpsErr(code, msg) {
-  logFailedScan(code===1?"denied":code===2?"unavailable":"timeout");
-  document.getElementById("mainCard").style.display  = "none";
-  document.getElementById("registerBox").style.display = "none";
-  document.getElementById("gpsError").style.display  = "block";
+  window.__lastGpsCode = code;
+  logFailedScan(code === 1 ? "denied" : code === 2 ? "unavailable" : "timeout");
 
+  document.getElementById("mainCard").style.display    = "none";
+  document.getElementById("registerBox").style.display = "none";
+  document.getElementById("gpsError").style.display    = "block";
+
+  // Check for private browsing
   var isPrivate = false;
-  try { localStorage.setItem("__t","1"); localStorage.removeItem("__t"); } catch(e) { isPrivate = true; }
+  try { localStorage.setItem("__t", "1"); localStorage.removeItem("__t"); } catch(e) { isPrivate = true; }
 
   if (isPrivate) {
     document.getElementById("gpsPrivate").style.display   = "block";
     document.getElementById("gpsStepsWrap").style.display = "none";
-    document.getElementById("gpsErrorMsg").textContent    = "Private browser detected — location blocked.";
+    document.getElementById("gpsErrorMsg").textContent    = "Private browsing detected. Open this page in your normal browser to allow location access.";
     return;
   }
 
-  var msgs = {1:"Location permission was denied. SiteLog needs GPS to verify you are on site.",2:"GPS signal unavailable.",3:"GPS timed out."};
-  document.getElementById("gpsErrorMsg").textContent = msgs[code] || msg;
+  var msgs = {
+    1: "Location permission was denied. Site Log needs your GPS to verify you are on site.",
+    2: "GPS signal could not be obtained.",
+    3: "GPS request timed out — this can happen indoors."
+  };
+  document.getElementById("gpsErrorMsg").textContent    = msgs[code] || msg;
   document.getElementById("gpsPrivate").style.display   = "none";
   document.getElementById("gpsStepsWrap").style.display = "block";
 
+  // Detect device and show correct steps
   var ua = /android/i.test(navigator.userAgent) ? "android" : "ios";
+
+  // Pre-populate both lists so switching tabs works without re-calling
+  GPS_STEPS.ios[code]     = GPS_STEPS.ios[code]     || GPS_STEPS.ios[1];
+  GPS_STEPS.android[code] = GPS_STEPS.android[code] || GPS_STEPS.android[1];
+  document.getElementById("iosStepsList").innerHTML =
+    GPS_STEPS.ios[code].map(function(s){ return "<li>" + s + "</li>"; }).join("");
+  document.getElementById("droidStepsList").innerHTML =
+    GPS_STEPS.android[code].map(function(s){ return "<li>" + s + "</li>"; }).join("");
+
   switchGpsDevice(ua);
-  var steps = (GPS_STEPS[ua][code] || GPS_STEPS[ua][1]);
-  document.getElementById("iosStepsList").innerHTML   = steps.map(function(s){return "<li>"+s+"</li>";}).join("");
-  document.getElementById("droidStepsList").innerHTML = steps.map(function(s){return "<li>"+s+"</li>";}).join("");
 }
 
 function retryGps() {

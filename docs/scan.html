@@ -322,22 +322,33 @@
 const API = "https://sitelog-api.jamie-def.workers.dev";
 
 // ── PWA REDIRECT ─────────────────────────────────────────────────────────
-// If the user has the PWA installed and opens a QR code link (scan.html),
-// redirect them into the PWA app.html so they get the full experience.
-// We detect the PWA via display-mode: standalone OR a cookie set by app.html.
+// If the user has opened app.html before (cookie ml_pwa=1 is set),
+// redirect to app.html. On iOS this will open inside the installed PWA
+// because iOS routes same-origin navigations into the PWA when installed.
+// We do this immediately, before any other JS runs.
 (function() {
   try {
-    var isStandalone = window.matchMedia("(display-mode: standalone)").matches
-                    || window.navigator.standalone === true;
     var hasPWACookie = document.cookie.split(";").some(function(c) {
       return c.trim().startsWith("ml_pwa=1");
     });
-    if (isStandalone || hasPWACookie) {
-      // Pass the current URL params to app.html so it can act on them
-      var dest = "/SiteLog/app.html" + window.location.search;
-      window.location.replace(dest);
+    // Also check localStorage as a fallback
+    var hasPWAStorage = false;
+    try { hasPWAStorage = !!localStorage.getItem("ml_pwa"); } catch(e) {}
+
+    if (hasPWACookie || hasPWAStorage) {
+      // Build the full absolute URL to app.html with current query string
+      // iOS will open this in the PWA context if the PWA is installed
+      var origin = window.location.origin;
+      var dest   = origin + "/SiteLog/app.html" + window.location.search;
+      window.location.href = dest;
+      // Belt-and-braces: stop further execution
+      throw new Error("redirecting");
     }
-  } catch(e) {}
+  } catch(e) {
+    // If it's our redirect throw, rethrow to stop execution
+    if (e.message === "redirecting") { throw e; }
+    // Otherwise swallow and continue normally
+  }
 })();
 
 // ── DEVICE TOKEN ─────────────────────────────────
@@ -645,20 +656,19 @@ function switchGpsDevice(d) {
   gpsDevice = d;
   document.getElementById("btnIOS").classList.toggle("active", d === "ios");
   document.getElementById("btnAndroid").classList.toggle("active", d === "android");
+  // Both lists are already populated — just show/hide
   document.getElementById("iosSteps").style.display   = d === "ios"     ? "block" : "none";
   document.getElementById("droidSteps").style.display = d === "android" ? "block" : "none";
-  // Re-populate steps for the selected device
-  populateSteps(d, window.__lastGpsCode || 1);
 }
 
-function populateSteps(device, code) {
-  var steps = GPS_STEPS[device][code] || GPS_STEPS[device][1];
-  var html  = steps.map(function(s) { return "<li>" + s + "</li>"; }).join("");
-  if (device === "ios") {
-    document.getElementById("iosStepsList").innerHTML = html;
-  } else {
-    document.getElementById("droidStepsList").innerHTML = html;
-  }
+function populateAllSteps(code) {
+  // Populate both device lists upfront so toggling works without extra calls
+  var iosSteps     = GPS_STEPS.ios[code]     || GPS_STEPS.ios[1];
+  var androidSteps = GPS_STEPS.android[code] || GPS_STEPS.android[1];
+  document.getElementById("iosStepsList").innerHTML =
+    iosSteps.map(function(s){ return "<li>" + s + "</li>"; }).join("");
+  document.getElementById("droidStepsList").innerHTML =
+    androidSteps.map(function(s){ return "<li>" + s + "</li>"; }).join("");
 }
 
 function showGpsErr(code, msg) {
@@ -692,14 +702,8 @@ function showGpsErr(code, msg) {
   // Detect device and show correct steps
   var ua = /android/i.test(navigator.userAgent) ? "android" : "ios";
 
-  // Pre-populate both lists so switching tabs works without re-calling
-  GPS_STEPS.ios[code]     = GPS_STEPS.ios[code]     || GPS_STEPS.ios[1];
-  GPS_STEPS.android[code] = GPS_STEPS.android[code] || GPS_STEPS.android[1];
-  document.getElementById("iosStepsList").innerHTML =
-    GPS_STEPS.ios[code].map(function(s){ return "<li>" + s + "</li>"; }).join("");
-  document.getElementById("droidStepsList").innerHTML =
-    GPS_STEPS.android[code].map(function(s){ return "<li>" + s + "</li>"; }).join("");
-
+  // Populate both lists first, then show the right one
+  populateAllSteps(code);
   switchGpsDevice(ua);
 }
 

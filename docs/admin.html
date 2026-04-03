@@ -1764,7 +1764,10 @@ function renderLive(){
       <td style="text-align:center;">${v.device_token ? `<span class="check-icon">✓</span>` : `<span class="cross-icon">—</span>`}</td>
       <td style="text-align:center;">${(v.lat!=null&&v.lng!=null) ? `<span class="check-icon">✓</span>` : `<span class="cross-icon">—</span>`}</td>
       <td style="text-align:right;">
-        <button class="btn-danger btn-sm" onclick="openManualCheckoutModal('${escapeHtml(v.visit_id)}','${escapeHtml(nameOf(v))}','${escapeHtml(v.check_in_at)}')">Sign out</button>
+        <div style="display:flex;gap:6px;justify-content:flex-end;">
+          <button class="btn-danger btn-sm" onclick="openManualCheckoutModal('${escapeHtml(v.visit_id)}','${escapeHtml(nameOf(v))}','${escapeHtml(v.check_in_at)}')">Sign out</button>
+          <button class="btn-ghost btn-sm" onclick="openDeleteModal('${escapeHtml(v.visit_id)}','${escapeHtml(nameOf(v))}','${escapeHtml(v.site_code||"")}')">Delete</button>
+        </div>
       </td>
     </tr>
   `).join("");
@@ -1785,7 +1788,12 @@ function renderLive(){
       <td style="color:var(--label4);">—</td>
       <td style="text-align:center;">${v.device_token ? `<span class="check-icon">✓</span>` : `<span class="cross-icon">—</span>`}</td>
       <td style="text-align:center;">${(v.lat!=null&&v.lng!=null) ? `<span class="check-icon">✓</span>` : `<span class="cross-icon">—</span>`}</td>
-      <td style="text-align:right;font-size:11.5px;color:var(--label3);">Unconfirmed</td>
+      <td style="text-align:right;">
+        <div style="display:flex;gap:6px;justify-content:flex-end;">
+          <span style="font-size:11px;color:var(--label3);align-self:center;">Unconfirmed</span>
+          <button class="btn-ghost btn-sm" onclick="openDeleteModal('${escapeHtml(v.visit_id)}','${escapeHtml(nameOf(v))}','${escapeHtml(v.site_code||"")}')">Delete</button>
+        </div>
+      </td>
     </tr>
   `).join("");
 
@@ -1931,8 +1939,12 @@ async function confirmDelete(){
   if(!deleteId) return;
   const res=await fetch(API_BASE+"/delete-visit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({visitId:deleteId})});
   const data=await res.json();
-  if(data.ok){ await loadData(); renderTimesheetsModal(); }
+  if(!res.ok||!data.ok){ alert(data.error||"Failed to delete visit."); closeDeleteModal(); return; }
   closeDeleteModal();
+  await loadData();
+  // Refresh timesheets modal if it is open
+  const tsModal = document.getElementById("timesheetsModal");
+  if(tsModal && tsModal.style.display==="flex") renderTimesheetsModal();
 }
 
 /* -------------------- PDF -------------------- */
@@ -2240,6 +2252,7 @@ function tsBuildWeekGrid(visits, mondayStr){
       const sHrs   = s.check_out_at ? (sMins/60).toFixed(2) : "—";
       const isSoft = !s.sign_in_confirmed || !s.sign_out_confirmed;
       const site   = s.site_code || "—";
+      const engName = nameOf(s) || "Unknown";
       return `<tr class="ts-session-row">
         <td style="padding:6px 12px;font-size:12px;color:var(--label3);">${i+1}</td>
         <td style="padding:6px 12px;font-size:12.5px;">${escapeHtml(site)}</td>
@@ -2248,7 +2261,10 @@ function tsBuildWeekGrid(visits, mondayStr){
         <td style="padding:6px 12px;font-size:12.5px;">${escapeHtml(sDur)}</td>
         <td style="padding:6px 12px;font-size:12.5px;font-weight:600;">${escapeHtml(sHrs)}h</td>
         <td style="padding:6px 12px;">
-          ${isSoft ? `<span style="font-size:10.5px;font-weight:600;color:#92400e;background:#fffbeb;border:1px solid #fde68a;padding:1px 6px;border-radius:4px;">unconfirmed</span>` : ""}
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+            ${isSoft ? `<span style="font-size:10.5px;font-weight:600;color:#92400e;background:#fffbeb;border:1px solid #fde68a;padding:1px 6px;border-radius:4px;">unconfirmed</span>` : ""}
+            <button class="btn-ghost btn-sm" style="height:26px;padding:0 8px;font-size:11.5px;color:var(--red);border-color:rgba(255,59,48,0.25);" onclick="openDeleteModal('${escapeHtml(s.visit_id)}','${escapeHtml(engName)}','${escapeHtml(site)}')">Delete</button>
+          </div>
         </td>
       </tr>`;
     }).join("");
@@ -2748,7 +2764,10 @@ function setPreset(type){
       </div>
     </div>
     <div class="modal-body">
-      <p id="deleteText" style="color:var(--label2);font-size:14px;line-height:1.5;"></p>
+      <p id="deleteText" style="color:var(--label2);font-size:14px;line-height:1.5;margin-bottom:10px;"></p>
+      <p style="font-size:12.5px;color:var(--label3);background:var(--red-soft);border:1px solid rgba(255,59,48,0.2);border-radius:8px;padding:8px 12px;line-height:1.4;">
+        This permanently removes the visit record. It cannot be undone.
+      </p>
     </div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeDeleteModal()">Cancel</button>

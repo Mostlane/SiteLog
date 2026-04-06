@@ -145,6 +145,51 @@
 .modal-btn.secondary { background: #f1f5f9; color: var(--muted); font-weight: 500; }
 .modal-btn:active { opacity: 0.85; }
 
+/* SITE RULES IN MODAL */
+.rules-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-bottom: 14px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.rules-toggle-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #004a99;
+}
+.rules-toggle-arrow {
+  font-size: 11px;
+  color: #94a3b8;
+  transition: transform 0.2s;
+}
+.rules-toggle-arrow.open { transform: rotate(180deg); }
+.rules-list {
+  display: none;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  padding: 10px 14px 12px;
+  margin-top: -14px;
+  margin-bottom: 14px;
+}
+.rules-list.open { display: block; }
+.rules-list ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #0f172a;
+  line-height: 1.75;
+}
+.rules-list ul li { margin-bottom: 2px; }
+
 /* NOT YOU MODAL */
 .not-you-identity { display: flex; align-items: center; gap: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px 16px; margin-bottom: 20px; text-align: left; }
 .not-you-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--blue); color: #fff; font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -466,6 +511,15 @@
     <div class="modal-handle"></div>
     <div class="modal-title">Confirm Check In</div>
     <div class="modal-body" id="modalSignInText">I am aware of the site rules and will report to the site foreman.</div>
+    <div id="rulesToggleWrap" style="display:none;">
+      <div class="rules-toggle" onclick="toggleSiteRules()">
+        <span class="rules-toggle-label">&#128216; View site rules</span>
+        <span class="rules-toggle-arrow" id="rulesArrow">&#9660;</span>
+      </div>
+      <div class="rules-list" id="rulesList">
+        <ul id="rulesListItems"></ul>
+      </div>
+    </div>
     <button class="modal-btn primary"   onclick="appConfirmSignInYes()">Yes, Check Me In</button>
     <button class="modal-btn secondary" onclick="appConfirmSignInNo()">No</button>
   </div>
@@ -593,6 +647,7 @@ var pendingCheckoutSite = "";
 var pendingCheckinSite  = "";
 var pendingCheckinFirst = "";
 var pendingCheckinCo    = "";
+var pendingCheckinRules = [];
 var pendingNetworkAction = null;
 var permCurrentDevice   = "iphone";
 var adminTapCount       = 0;
@@ -874,15 +929,37 @@ function appConfirmSignOutNo() {
 }
 
 // SIGN IN MODAL
+function toggleSiteRules() {
+  var list  = document.getElementById("rulesList");
+  var arrow = document.getElementById("rulesArrow");
+  var open  = list.classList.toggle("open");
+  arrow.classList.toggle("open", open);
+}
+
 function openSignInModal(siteName, firstName, company) {
   pendingCheckinSite  = siteName  || "";
   pendingCheckinFirst = firstName || "";
   pendingCheckinCo    = company   || "";
+  // Populate rules
+  var wrap  = document.getElementById("rulesToggleWrap");
+  var list  = document.getElementById("rulesList");
+  var items = document.getElementById("rulesListItems");
+  var arrow = document.getElementById("rulesArrow");
+  var rules = pendingCheckinRules || [];
+  if (rules.length > 0) {
+    items.innerHTML = rules.map(function(r) { return "<li>" + r + "</li>"; }).join("");
+    wrap.style.display = "block";
+  } else {
+    wrap.style.display = "none";
+  }
+  // Always start collapsed
+  list.classList.remove("open");
+  arrow.classList.remove("open");
   document.getElementById("modalSignIn").classList.add("open");
 }
 function closeSignInModal() {
   document.getElementById("modalSignIn").classList.remove("open");
-  pendingCheckinSite = ""; pendingCheckinFirst = ""; pendingCheckinCo = "";
+  pendingCheckinSite = ""; pendingCheckinFirst = ""; pendingCheckinCo = ""; pendingCheckinRules = [];
 }
 async function appConfirmSignInYes() {
   var res, data;
@@ -944,6 +1021,7 @@ async function appScan() {
 
   if (data.status === "confirm_check_in") {
     document.getElementById("appNotYouRow").style.display = "block";
+    pendingCheckinRules = data.siteRules || [];
     dashSetState("ready", currentSite, null, null);
     return;
   }
@@ -1384,7 +1462,10 @@ function dashTriggerScan() {
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
     );
   } else {
-    if (dashCurrentSite) openSignInModal(dashCurrentSite, "", "");
+    if (dashCurrentSite) {
+      // pendingCheckinRules already set from last scan response
+      openSignInModal(dashCurrentSite, "", "");
+    }
   }
 }
 function dashTriggerSignOut() {

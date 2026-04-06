@@ -1331,13 +1331,6 @@ document.getElementById(“navDrawer”).classList.toggle(“open”);
 function closeNavDrawer(){
 document.getElementById(“navDrawer”).classList.remove(“open”);
 }
-document.addEventListener(“click”,function(e){
-const drawer=document.getElementById(“navDrawer”);
-const btn=document.getElementById(“navMenuBtn”);
-if(drawer.classList.contains(“open”)&&!drawer.contains(e.target)&&!btn.contains(e.target)){
-drawer.classList.remove(“open”);
-}
-});
 
 function setPreset(type){
 if(type===“all”){ document.getElementById(“fromDate”).value=””; document.getElementById(“toDate”).value=””; loadData(); return; }

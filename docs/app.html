@@ -325,7 +325,7 @@
       <img src="Mostlane%20Icon.jpeg" alt="Mostlane" />
       <span class="app-header-title">Site Log</span>
     </div>
-    <div style="width:32px;"></div>
+    <button id="refreshBtn" onclick="appRefreshLocation()" style="background:rgba(255,255,255,0.18);border:none;color:#fff;width:36px;height:36px;border-radius:10px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">&#8635;</button>
   </div>
 
   <!-- DASHBOARD VIEW -->
@@ -1476,6 +1476,29 @@ function dashTriggerSignOut() {
       else { if (err.code === 1) { dbDel("gps_granted"); showScreen("screen-permission"); showPermissionError(err.code, err.message); } else { document.getElementById("appGpsError").style.display = "block"; } }
     },
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
+  );
+}
+
+// MANUAL REFRESH
+function appRefreshLocation() {
+  var btn = document.getElementById("refreshBtn");
+  if (btn) { btn.style.opacity = "0.5"; btn.style.pointerEvents = "none"; }
+  resetScanUI();
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+      dbSet("gps_granted", true);
+      showMap(lastLocation.lat, lastLocation.lng);
+      appScan().finally(function() {
+        if (btn) { btn.style.opacity = ""; btn.style.pointerEvents = ""; }
+      });
+    },
+    function(err) {
+      if (btn) { btn.style.opacity = ""; btn.style.pointerEvents = ""; }
+      if (err.code === 1) { dbDel("gps_granted"); showScreen("screen-permission"); showPermissionError(err.code, err.message); }
+      else { showGpsErrorInScan(err.code, err.message); }
+    },
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
   );
 }
 

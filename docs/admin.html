@@ -1100,16 +1100,7 @@
   <button class="btn-ghost" onclick="openEngineersModal();closeNavDrawer()">👷 Engineers</button>
   <button class="btn-ghost" onclick="openCompaniesModal();closeNavDrawer()">🏢 Companies</button>
   <button class="btn-primary" onclick="openExportModal();closeNavDrawer()">↑ Export PDF</button>
-  <button class="btn-ghost" onclick="(function(){
-  const to = new Date();
-  const from = new Date();
-  from.setDate(to.getDate() - 7);
-  const fmt = d => d.toISOString().slice(0,10);
-  const fromEl = document.getElementById("fromDate");
-  const toEl   = document.getElementById("toDate");
-  if(!fromEl.value && !toEl.value){ fromEl.value=fmt(from); toEl.value=fmt(to); }
-})();
-loadData();closeNavDrawer()">↺ Refresh</button>
+  <button class="btn-ghost" onclick="loadData();closeNavDrawer()">&#8635; Refresh</button>
 </div>
 
 <!-- PAGE -->
@@ -1555,6 +1546,15 @@ document.getElementById("companyFilter").addEventListener("change",renderAll);
 document.getElementById("purposeFilter").addEventListener("change",renderAll);
 document.getElementById("siteFilter").addEventListener("change",renderAll);
 
+(function(){
+  const to = new Date();
+  const from = new Date();
+  from.setDate(to.getDate() - 7);
+  const fmt = d => d.toISOString().slice(0,10);
+  const fromEl = document.getElementById("fromDate");
+  const toEl   = document.getElementById("toDate");
+  if(!fromEl.value && !toEl.value){ fromEl.value=fmt(from); toEl.value=fmt(to); }
+})();
 loadData();
 
 /* -------------------- DELETE -------------------- */

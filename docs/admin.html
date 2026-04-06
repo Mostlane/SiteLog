@@ -1034,12 +1034,7 @@
     /* Site rules textarea */
     .site-rules-wrap { margin-bottom: 14px; }
     .site-rules-label { font-size: 12px; font-weight: 700; color: var(--label2); margin-bottom: 6px; }
-    .site-rules-textarea {
-      width: 100%; min-height: 90px; padding: 8px 10px;
-      border: 1px solid var(--border-heavy); border-radius: 8px;
-      font-size: 13px; font-family: inherit; color: var(--label);
-      background: var(--surface); resize: vertical; line-height: 1.5; outline: none;
-    }
+    .site-rules-textarea { width: 100%; min-height: 90px; padding: 8px 10px; border: 1px solid var(--border-heavy); border-radius: 8px; font-size: 13px; font-family: inherit; color: var(--label); background: var(--surface); resize: vertical; line-height: 1.5; outline: none; }
     .site-rules-textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
 
     /* Sites expanded row */
@@ -1100,7 +1095,7 @@
   <button class="btn-ghost" onclick="openEngineersModal();closeNavDrawer()">👷 Engineers</button>
   <button class="btn-ghost" onclick="openCompaniesModal();closeNavDrawer()">🏢 Companies</button>
   <button class="btn-primary" onclick="openExportModal();closeNavDrawer()">↑ Export PDF</button>
-  <button class="btn-ghost" onclick="loadData();closeNavDrawer()">&#8635; Refresh</button>
+  <button class="btn-ghost" onclick="loadData();closeNavDrawer()">↺ Refresh</button>
 </div>
 
 <!-- PAGE -->
@@ -1547,13 +1542,11 @@ document.getElementById("purposeFilter").addEventListener("change",renderAll);
 document.getElementById("siteFilter").addEventListener("change",renderAll);
 
 (function(){
-  const to = new Date();
-  const from = new Date();
-  from.setDate(to.getDate() - 7);
-  const fmt = d => d.toISOString().slice(0,10);
-  const fromEl = document.getElementById("fromDate");
-  const toEl   = document.getElementById("toDate");
-  if(!fromEl.value && !toEl.value){ fromEl.value=fmt(from); toEl.value=fmt(to); }
+  const to=new Date(),from=new Date();
+  from.setDate(to.getDate()-7);
+  const fmt=d=>d.toISOString().slice(0,10);
+  const f=document.getElementById("fromDate"),t=document.getElementById("toDate");
+  if(!f.value&&!t.value){f.value=fmt(from);t.value=fmt(to);}
 })();
 loadData();
 
@@ -1778,13 +1771,8 @@ function populateTimesheetFilters(baseVisits){
   personSel.innerHTML=`<option value="">All Engineers</option>`+people.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
   siteSel.innerHTML=`<option value="">All Sites</option>`+sites.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
   if([...companySel.options].some(o=>o.value===currentCompany)) companySel.value=currentCompany;
-  const initialPerson = window.__tsInitialPerson;
-  if(initialPerson){
-    if([...personSel.options].some(o=>o.value===initialPerson)) personSel.value=initialPerson;
-    window.__tsInitialPerson = null;
-  } else {
-    if([...personSel.options].some(o=>o.value===currentPerson)) personSel.value=currentPerson;
-  }
+  const ip=window.__tsInitialPerson;
+  if(ip){if([...personSel.options].some(o=>o.value===ip))personSel.value=ip;window.__tsInitialPerson=null;}else{if([...personSel.options].some(o=>o.value===currentPerson))personSel.value=currentPerson;}
   if([...siteSel.options].some(o=>o.value===currentSite)) siteSel.value=currentSite;
 }
 
@@ -2007,7 +1995,7 @@ function renderTimesheetsModal(){
 }
 
 function openTimesheetsModal(initialPerson){
-  window.__tsInitialPerson = initialPerson || null;
+  window.__tsInitialPerson=initialPerson||null;
   document.getElementById("timesheetsModal").style.display="flex";
   document.getElementById("tsFromDate").value=document.getElementById("fromDate").value||"";
   document.getElementById("tsToDate").value=document.getElementById("toDate").value||"";
@@ -2147,7 +2135,7 @@ function renderSitesAdminTable(){
       <tr class="site-row-detail">
         <td colspan="5">
           <div class="site-rules-wrap">
-            <div class="site-rules-label">&#128216; Site Rules <span style="font-weight:400;color:var(--label4);">(one rule per line — shown to workers on check-in)</span></div>
+            <div class="site-rules-label">&#128216; Site Rules <span style="font-weight:400;color:var(--label4);">(one rule per line)</span></div>
             <textarea class="site-rules-textarea" data-site-rules="${escapeHtml(s.id)}" rows="4" placeholder="e.g. Hard hats must be worn at all times">${escapeHtml(s.site_rules||"")}</textarea>
 
 ```

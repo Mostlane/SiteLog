@@ -1032,17 +1032,15 @@
     }
 
     /* Site rules textarea */
-    .site-rules-wrap { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
-    .site-rules-label { font-size: 11px; font-weight: 600; color: var(--label3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .site-rules-wrap { margin-bottom: 14px; }
+    .site-rules-label { font-size: 12px; font-weight: 700; color: var(--label2); margin-bottom: 6px; }
     .site-rules-textarea {
       width: 100%; min-height: 90px; padding: 8px 10px;
       border: 1px solid var(--border-heavy); border-radius: 8px;
       font-size: 13px; font-family: inherit; color: var(--label);
-      background: var(--surface); resize: vertical; line-height: 1.5;
-      outline: none;
+      background: var(--surface); resize: vertical; line-height: 1.5; outline: none;
     }
     .site-rules-textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
-    .site-rules-hint { font-size: 11px; color: var(--label4); margin-top: 4px; }
 
     /* Sites expanded row */
     .site-row-detail {
@@ -1102,7 +1100,16 @@
   <button class="btn-ghost" onclick="openEngineersModal();closeNavDrawer()">👷 Engineers</button>
   <button class="btn-ghost" onclick="openCompaniesModal();closeNavDrawer()">🏢 Companies</button>
   <button class="btn-primary" onclick="openExportModal();closeNavDrawer()">↑ Export PDF</button>
-  <button class="btn-ghost" onclick="loadData();closeNavDrawer()">↺ Refresh</button>
+  <button class="btn-ghost" onclick="(function(){
+  const to = new Date();
+  const from = new Date();
+  from.setDate(to.getDate() - 7);
+  const fmt = d => d.toISOString().slice(0,10);
+  const fromEl = document.getElementById("fromDate");
+  const toEl   = document.getElementById("toDate");
+  if(!fromEl.value && !toEl.value){ fromEl.value=fmt(from); toEl.value=fmt(to); }
+})();
+loadData();closeNavDrawer()">↺ Refresh</button>
 </div>
 
 <!-- PAGE -->
@@ -1341,11 +1348,8 @@ function sqlShort(ts){
 }
 
 function getTimesheetNoteText(v){
-  if(!v.check_out_at && Number(v.sign_in_confirmed||0)===0) return "Soft check-in (unconfirmed)";
   if(!v.check_out_at) return "No check out";
-  if(Number(v.auto_checkout||0)===1||v.sign_out_status==="No Sign Out") return "Auto sign out";
-  if(Number(v.sign_out_confirmed||0)===0 && v.check_out_at) return "Soft sign out (unconfirmed)";
-  if(Number(v.sign_in_confirmed||0)===0) return "Soft check-in (unconfirmed)";
+  if(Number(v.auto_checkout||0)===1||v.sign_out_status==="No Sign Out") return "Soft / auto sign out";
   return "—";
 }
 
@@ -1523,8 +1527,6 @@ function renderLive(){
 }
 
 function openTimesheetForPerson(personName, company){
-  // FIX #16: Pass the initial filter directly to openTimesheetsModal so there
-  // is no setTimeout race condition. The filter is applied before the first render.
   openTimesheetsModal(personName);
 }
 
@@ -1553,20 +1555,6 @@ document.getElementById("companyFilter").addEventListener("change",renderAll);
 document.getElementById("purposeFilter").addEventListener("change",renderAll);
 document.getElementById("siteFilter").addEventListener("change",renderAll);
 
-// FIX #14: Default to last 7 days on first load so the dashboard is fast
-// and does not attempt to render all-time data immediately.
-(function setDefaultDateRange(){
-  const toDate   = new Date();
-  const fromDate = new Date();
-  fromDate.setDate(toDate.getDate() - 7);
-  const fmt = d => d.toISOString().slice(0,10);
-  const fromEl = document.getElementById("fromDate");
-  const toEl   = document.getElementById("toDate");
-  if(!fromEl.value && !toEl.value){
-    fromEl.value = fmt(fromDate);
-    toEl.value   = fmt(toDate);
-  }
-})();
 loadData();
 
 /* -------------------- DELETE -------------------- */
@@ -1600,8 +1588,7 @@ function openExportModal(){
 
   const durations = closed.map(v => minutesBetween(v.check_in_at, v.check_out_at)).filter(m => m > 0);
   const avgMins   = durations.length ? Math.round(durations.reduce((a,b)=>a+b,0) / durations.length) : 0;
-  const missedOut  = visits.filter(v => Number(v.auto_checkout||0) === 1).length;
-  const softTotal  = visits.filter(v => Number(v.sign_in_confirmed||0)===0 || (v.check_out_at && Number(v.sign_out_confirmed||0)===0 && Number(v.auto_checkout||0)===0)).length;
+  const missedOut = visits.filter(v => Number(v.auto_checkout||0) === 1).length;
   const uniquePeople = new Set(visits.map(v => nameOf(v))).size;
   const uniqueSites  = new Set(visits.map(v => v.site_code).filter(Boolean)).size;
   const totalHours   = durations.reduce((a,b)=>a+b,0) / 60;
@@ -1618,7 +1605,7 @@ function openExportModal(){
   document.getElementById("exportPreviewPeople").textContent = uniquePeople;
   document.getElementById("exportPreviewSites").textContent  = uniqueSites;
   document.getElementById("exportPreviewAvg").textContent    = avgMins ? fmtDuration(avgMins) : "—";
-  document.getElementById("exportPreviewMissed").textContent = missedOut + (softTotal > 0 ? ` (+${softTotal} soft)` : "");
+  document.getElementById("exportPreviewMissed").textContent = missedOut;
   document.getElementById("exportPreviewHours").textContent  = totalHours.toFixed(1) + " h";
 
   document.getElementById("exportModal").style.display="flex";
@@ -1636,7 +1623,6 @@ function generatePDF(){
   const durations   = closed.map(v => minutesBetween(v.check_in_at, v.check_out_at)).filter(m => m > 0);
   const avgMins     = durations.length ? Math.round(durations.reduce((a,b)=>a+b,0) / durations.length) : 0;
   const missedOut   = visits.filter(v => Number(v.auto_checkout||0) === 1).length;
-  const softTotal   = visits.filter(v => Number(v.sign_in_confirmed||0)===0 || (v.check_out_at && Number(v.sign_out_confirmed||0)===0 && Number(v.auto_checkout||0)===0)).length;
   const uniquePeople= [...new Set(visits.map(v=>nameOf(v)).filter(Boolean))];
   const uniqueSites = [...new Set(visits.map(v=>v.site_code).filter(Boolean))];
   const totalHours  = durations.reduce((a,b)=>a+b,0) / 60;
@@ -1660,21 +1646,15 @@ function generatePDF(){
   const sorted = visits.slice().sort((a,b)=>(b.check_in_at||"").localeCompare(a.check_in_at||""));
 
   const tableRows = sorted.map((v, i) => {
-    const isLive      = !v.check_out_at;
-    const isMissed    = Number(v.auto_checkout||0) === 1;
-    const isSoftIn    = Number(v.sign_in_confirmed||0) === 0;
-    const isSoftOut   = v.check_out_at && Number(v.sign_out_confirmed||0) === 0 && !isMissed;
-    const dur         = v.check_out_at ? fmtDuration(minutesBetween(v.check_in_at,v.check_out_at)) : "—";
-    const rowBg       = i % 2 === 0 ? "#fff" : "#f9f9fb";
-    const statusDot   = isLive && isSoftIn
-      ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ff9f0a;margin-right:5px;"></span>Soft check-in`
-      : isLive
-        ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#34c759;margin-right:5px;"></span>Live`
-        : isMissed
-          ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ff3b30;margin-right:5px;"></span>Auto sign-out`
-          : isSoftOut
-            ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ff9f0a;margin-right:5px;"></span>Soft sign-out`
-            : `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#aeaeb2;margin-right:5px;"></span>Signed out`;
+    const isLive   = !v.check_out_at;
+    const isMissed = Number(v.auto_checkout||0) === 1;
+    const dur      = v.check_out_at ? fmtDuration(minutesBetween(v.check_in_at,v.check_out_at)) : "—";
+    const rowBg    = i % 2 === 0 ? "#fff" : "#f9f9fb";
+    const statusDot = isLive
+      ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#34c759;margin-right:5px;"></span>Live`
+      : isMissed
+        ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ff3b30;margin-right:5px;"></span>No sign-out`
+        : `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#aeaeb2;margin-right:5px;"></span>Signed out`;
 
     return `
       <tr style="background:${rowBg};">
@@ -1718,8 +1698,7 @@ function generatePDF(){
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px;">
       ${statCard("Avg Session", avgMins ? fmtDuration(avgMins) : "—", "per completed visit")}
       ${statCard("Longest", longestMins ? fmtDuration(longestMins) : "—")}
-      ${statCard("Auto Sign-outs", missedOut, missedOut > 0 ? "requires attention" : "none — great!")}
-      ${statCard("Soft / Unconfirmed", softTotal, softTotal > 0 ? "check-in or sign-out unconfirmed" : "all confirmed")}
+      ${statCard("Missed Sign-outs", missedOut, missedOut > 0 ? "requires attention" : "none — great!")}
       ${statCard("Live Now", live.length, live.length > 0 ? "still on site" : "all signed out")}
     </div>
 
@@ -1799,7 +1778,6 @@ function populateTimesheetFilters(baseVisits){
   personSel.innerHTML=`<option value="">All Engineers</option>`+people.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
   siteSel.innerHTML=`<option value="">All Sites</option>`+sites.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
   if([...companySel.options].some(o=>o.value===currentCompany)) companySel.value=currentCompany;
-  // FIX #16: Apply the initial person from openTimesheetForPerson (race-condition-free).
   const initialPerson = window.__tsInitialPerson;
   if(initialPerson){
     if([...personSel.options].some(o=>o.value===initialPerson)) personSel.value=initialPerson;
@@ -1978,9 +1956,6 @@ function renderTimesheetsModal(){
       const totalHrs  = durations.reduce((a,b)=>a+b,0) / 60;
       const avgMins   = durations.length ? Math.round(durations.reduce((a,b)=>a+b,0) / durations.length) : 0;
       const missed    = allEngVisits.filter(v => Number(v.auto_checkout||0)===1).length;
-      const softIns   = allEngVisits.filter(v => Number(v.sign_in_confirmed||0)===0 && !v.check_out_at).length;
-      const softOuts  = allEngVisits.filter(v => Number(v.sign_out_confirmed||0)===0 && v.check_out_at && Number(v.auto_checkout||0)===0).length;
-      const totalSoft = softIns + softOuts;
       const longestM  = durations.length ? Math.max(...durations) : 0;
       const daysWorked= new Set(allEngVisits.map(v=>(v.check_in_at||"").slice(0,10))).size;
 
@@ -2004,11 +1979,7 @@ function renderTimesheetsModal(){
           </div>
           <div class="eng-stat">
             <span class="eng-stat-val ${missed > 0 ? 'warn' : 'good'}">${missed}</span>
-            <span class="eng-stat-label">Auto sign-outs</span>
-          </div>
-          <div class="eng-stat">
-            <span class="eng-stat-val ${totalSoft > 0 ? 'warn' : 'good'}">${totalSoft}</span>
-            <span class="eng-stat-label">Unconfirmed</span>
+            <span class="eng-stat-label">Missed sign-outs</span>
           </div>
         </div>`;
 
@@ -2036,11 +2007,10 @@ function renderTimesheetsModal(){
 }
 
 function openTimesheetsModal(initialPerson){
+  window.__tsInitialPerson = initialPerson || null;
   document.getElementById("timesheetsModal").style.display="flex";
   document.getElementById("tsFromDate").value=document.getElementById("fromDate").value||"";
   document.getElementById("tsToDate").value=document.getElementById("toDate").value||"";
-  // FIX #16: Store desired person filter; populateTimesheetFilters applies it synchronously.
-  window.__tsInitialPerson = initialPerson || null;
   renderTimesheetsModal();
 }
 
@@ -2061,13 +2031,12 @@ function exportTimesheetsPdf(){
   const el = document.getElementById("timesheetsPdfRoot");
 
   // Temporarily expand the modal to show all content for capture
-  const origMaxH    = el.style.maxHeight;
-  const origOverflow  = el.style.overflow;
-  const origOverflowY = el.style.overflowY; // FIX #17: capture overflowY too
-
+  const origMaxH = el.style.maxHeight;
+  const origOverflow = el.style.overflow;
   el.style.maxHeight = "none";
-  el.style.overflow  = "visible";
-  el.style.overflowY = "visible"; // ensure no clipping during capture
+  el.style.overflow = "visible";
+
+  const origBodyScroll = el.style.overflowY;
 
   html2pdf().set({
     margin: 0.2,
@@ -2075,10 +2044,8 @@ function exportTimesheetsPdf(){
     jsPDF: { unit:"in", format:"a4", orientation:"landscape" },
     html2canvas: { scale:2, useCORS:true, scrollY:0, windowWidth: el.scrollWidth }
   }).from(el).save().then(()=>{
-    // FIX #17: Restore all three properties that were captured
     el.style.maxHeight = origMaxH;
     el.style.overflow  = origOverflow;
-    el.style.overflowY = origOverflowY;
   });
 }
 
@@ -2179,9 +2146,9 @@ function renderSitesAdminTable(){
       </tr>
       <tr class="site-row-detail">
         <td colspan="5">
-          <div class="site-rules-wrap" style="margin-bottom:14px;">
-            <div class="site-rules-label" style="color:var(--label2);font-size:12px;font-weight:700;margin-bottom:6px;">&#128216; Site Rules <span style="font-weight:400;color:var(--label4);">(one rule per line — shown to workers on check-in)</span></div>
-            <textarea class="site-rules-textarea" data-site-rules="${escapeHtml(s.id)}" rows="4" placeholder="e.g.&#10;Hard hats must be worn at all times&#10;Report to site foreman on arrival&#10;No smoking on site">${escapeHtml(s.site_rules||"")}</textarea>
+          <div class="site-rules-wrap">
+            <div class="site-rules-label">&#128216; Site Rules <span style="font-weight:400;color:var(--label4);">(one rule per line — shown to workers on check-in)</span></div>
+            <textarea class="site-rules-textarea" data-site-rules="${escapeHtml(s.id)}" rows="4" placeholder="e.g. Hard hats must be worn at all times">${escapeHtml(s.site_rules||"")}</textarea>
 
 ```
       </div>

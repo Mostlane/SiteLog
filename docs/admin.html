@@ -2376,7 +2376,11 @@ renderCompaniesAdmin();
 
 function toggleNavDrawer(){
 const drawer=document.getElementById(“navDrawer”);
+const btn=document.getElementById(“navMenuBtn”);
 drawer.classList.toggle(“open”);
+// Prevent the document click listener closing it immediately
+btn._justToggled = true;
+setTimeout(function(){ btn._justToggled = false; }, 50);
 }
 
 function closeNavDrawer(){
@@ -2387,6 +2391,8 @@ document.getElementById(“navDrawer”).classList.remove(“open”);
 document.addEventListener(“click”,function(e){
 const drawer=document.getElementById(“navDrawer”);
 const btn=document.getElementById(“navMenuBtn”);
+// Ignore if the toggle button itself just fired
+if(btn && btn._justToggled) return;
 if(drawer.classList.contains(“open”)&&!drawer.contains(e.target)&&!btn.contains(e.target)){
 drawer.classList.remove(“open”);
 }

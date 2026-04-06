@@ -7,6 +7,7 @@
     <link rel="apple-touch-icon" href="Mostlane%20Icon%20180.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&amp;display=swap"
@@ -1412,6 +1413,9 @@
       let engineersActive = [];
       let companiesAll = [];
       let siteCompanyMap = {};
+      let newSiteMap = null;
+      let newSiteMarker = null;
+      let newSiteGeocoder = null;
 
       /* HELPERS */
       function safeParse(ts){
@@ -1940,12 +1944,78 @@
         html2pdf().set({margin:0.2,filename:"SiteLog_Timesheet.pdf",jsPDF:{unit:"in",format:"a4",orientation:"landscape"},html2canvas:{scale:2,useCORS:true,scrollY:0,windowWidth:el.scrollWidth}}).from(el).save().then(()=>{ el.style.maxHeight=origMaxH; el.style.overflow=origOverflow; });
       }
 
+      /* SITES MAP */
+      function initNewSiteMap(){
+        if(newSiteMap || !window.google || !document.getElementById("newSiteMap")) return;
+
+        const defaultLatLng = { lat: 51.0643, lng: -1.2872 };
+
+        newSiteMap = new google.maps.Map(document.getElementById("newSiteMap"), {
+          center: defaultLatLng,
+          zoom: 8,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false
+        });
+
+        newSiteGeocoder = new google.maps.Geocoder();
+
+        newSiteMarker = new google.maps.Marker({
+          position: defaultLatLng,
+          map: newSiteMap,
+          draggable: true
+        });
+
+        newSiteMarker.addListener("dragend", function(e){
+          const lat = e.latLng.lat();
+          const lng = e.latLng.lng();
+          document.getElementById("newSiteLat").value = lat.toFixed(6);
+          document.getElementById("newSiteLng").value = lng.toFixed(6);
+        });
+
+        newSiteMap.addListener("click", function(e){
+          newSiteMarker.setPosition(e.latLng);
+          document.getElementById("newSiteLat").value = e.latLng.lat().toFixed(6);
+          document.getElementById("newSiteLng").value = e.latLng.lng().toFixed(6);
+        });
+      }
+
+      function findPostcodeForNewSite(){
+        const postcode = (document.getElementById("newSitePostcode").value || "").trim();
+        if(!postcode){
+          alert("Please enter a postcode.");
+          return;
+        }
+
+        initNewSiteMap();
+        if(!newSiteGeocoder){
+          alert("Google Maps is not available.");
+          return;
+        }
+
+        newSiteGeocoder.geocode({ address: postcode, componentRestrictions: { country: "GB" } }, function(results, status){
+          if(status !== "OK" || !results || !results.length){
+            alert("Postcode not found.");
+            return;
+          }
+
+          const loc = results[0].geometry.location;
+          newSiteMap.setCenter(loc);
+          newSiteMap.setZoom(18);
+          newSiteMarker.setPosition(loc);
+
+          document.getElementById("newSiteLat").value = loc.lat().toFixed(6);
+          document.getElementById("newSiteLng").value = loc.lng().toFixed(6);
+        });
+      }
+
       /* SITES MODAL */
       async function openSitesModal(){
         document.getElementById("sitesModal").style.display="flex";
         document.getElementById("sitesAdminBody").innerHTML='<p style="color:var(--label3);">Loading...</p>';
         await fetchSites(); await fetchCompaniesMaster(); await loadSiteCompanyMap();
         renderSitesAdminTable();
+        setTimeout(initNewSiteMap, 50);
       }
       function closeSitesModal(){ document.getElementById("sitesModal").style.display="none"; }
 
@@ -2016,19 +2086,50 @@
 
       async function addSite(){
         const nameEl=document.getElementById("newSiteName");
+        const postcodeEl=document.getElementById("newSitePostcode");
         const latEl=document.getElementById("newSiteLat");
         const lngEl=document.getElementById("newSiteLng");
         const radEl=document.getElementById("newSiteRadius");
+
         const siteName=(nameEl?.value||"").trim();
+        const postcode=(postcodeEl?.value||"").trim();
         const lat=latEl?.value.trim();
         const lng=lngEl?.value.trim();
         const radius=Number(radEl?.value||500);
-        if(!siteName||!lat||!lng){ alert("Site name, latitude and longitude are required."); return; }
-        if(isNaN(Number(lat))||isNaN(Number(lng))){ alert("Latitude and longitude must be numbers."); return; }
-        const res=await fetch(API_BASE+"/add-site",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({siteName,lat:Number(lat),lng:Number(lng),radius})});
+
+        if(!siteName){ alert("Site name is required."); return; }
+        if(!postcode){ alert("Postcode is required."); return; }
+        if(!lat||!lng){ alert("Please search for a postcode and place the pin on the map."); return; }
+        if(isNaN(Number(lat))||isNaN(Number(lng))){ alert("Latitude and longitude must be valid numbers."); return; }
+
+        const res=await fetch(API_BASE+"/add-site",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            siteName,
+            postcode,
+            lat:Number(lat),
+            lng:Number(lng),
+            radius
+          })
+        });
+
         const data=await res.json();
         if(!res.ok||!data.ok){ alert("Failed to add site.\n\n"+(data.error||"Unknown error")); return; }
-        nameEl.value=""; latEl.value=""; lngEl.value=""; radEl.value="500";
+
+        nameEl.value="";
+        postcodeEl.value="";
+        latEl.value="";
+        lngEl.value="";
+        radEl.value="500";
+
+        if(newSiteMap && newSiteMarker){
+          const defaultLatLng = { lat: 51.0643, lng: -1.2872 };
+          newSiteMap.setCenter(defaultLatLng);
+          newSiteMap.setZoom(8);
+          newSiteMarker.setPosition(defaultLatLng);
+        }
+
         await fetchSites(); await loadSiteCompanyMap(); renderSitesAdminTable(); renderAll();
       }
 
@@ -2333,24 +2434,40 @@
           </div>
           <div class="add-form">
             <div class="add-form-title">Add New Site</div>
-            <div class="add-form-grid">
+            <div class="add-form-grid" style="grid-template-columns: 2fr 1fr 1fr 1fr;">
               <div class="field-stack">
                 <span class="field-label">Site Name</span>
                 <input id="newSiteName" type="text" placeholder="e.g. Warehouse A" />
               </div>
               <div class="field-stack">
-                <span class="field-label">Latitude</span>
-                <input id="newSiteLat" type="text" placeholder="51.5074" />
-              </div>
-              <div class="field-stack">
-                <span class="field-label">Longitude</span>
-                <input id="newSiteLng" type="text" placeholder="-0.1278" />
+                <span class="field-label">Postcode</span>
+                <input id="newSitePostcode" type="text" placeholder="e.g. PO15 5RQ" />
               </div>
               <div class="field-stack">
                 <span class="field-label">Radius (m)</span>
                 <input id="newSiteRadius" type="number" value="500" min="50" step="10" />
               </div>
+              <div class="field-stack">
+                <span class="field-label">Find</span>
+                <button class="btn-primary btn-sm" style="height:36px;" onclick="findPostcodeForNewSite()">Search Postcode</button>
+              </div>
             </div>
+
+            <div style="margin-top: 12px;">
+              <div id="newSiteMap" style="width:100%;height:320px;border-radius:12px;border:1px solid var(--border);overflow:hidden;background:#f2f2f7;"></div>
+            </div>
+
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+              <div class="field-stack" style="flex:1;min-width:160px;">
+                <span class="field-label">Latitude</span>
+                <input id="newSiteLat" type="text" placeholder="Latitude" readonly />
+              </div>
+              <div class="field-stack" style="flex:1;min-width:160px;">
+                <span class="field-label">Longitude</span>
+                <input id="newSiteLng" type="text" placeholder="Longitude" readonly />
+              </div>
+            </div>
+
             <div style="margin-top: 10px"><button class="btn-primary btn-sm" onclick="addSite()">Add Site</button></div>
           </div>
           <div id="sitesAdminBody"></div>

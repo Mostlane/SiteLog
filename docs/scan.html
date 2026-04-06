@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -48,10 +47,51 @@
       color: #64748b;
       margin-bottom: 10px;
     }
+
+    /* Identity chip shown inside the card */
+    .identity-chip {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 10px auto 0;
+      padding: 8px 14px;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 999px;
+      max-width: 360px;
+    }
+    .identity-chip .id-avatar {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #004a99;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .identity-chip .id-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #0a1628;
+    }
+    .identity-chip .id-company {
+      font-size: 12px;
+      color: #64748b;
+    }
+    .identity-chip .id-sep {
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+
     #map {
       height: 220px;
       border-radius: 12px;
-      margin-top: 10px;
+      margin-top: 12px;
       touch-action: none;
       pointer-events: none;
       overflow: hidden;
@@ -119,104 +159,131 @@
     }
     .not-you a { color: rgba(0,74,153,0.6); font-weight: 600; text-decoration: underline; }
 
+    /* GPS / Network error panels */
+    .err-panel {
+      display: none;
+      margin: 0 auto 14px;
+      max-width: 520px;
+      background: rgba(255,255,255,0.97);
+      border-radius: 16px;
+      padding: 20px 18px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+      text-align: left;
+    }
+    .err-title { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
+    .err-body  { font-size: 14px; color: #64748b; margin-bottom: 14px; line-height: 1.5; }
+    .err-btn {
+      display: block; width: 100%; padding: 13px;
+      background: #004a99; color: #fff; border: none;
+      border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .fix-steps { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+    .fix-steps ol { margin: 0; padding-left: 18px; font-size: 13px; color: #0a1628; line-height: 1.75; }
+    .device-toggle {
+      display: inline-flex;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 999px;
+      padding: 3px;
+      margin-bottom: 14px;
+    }
+    .device-toggle button {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 20px;
+      border-radius: 999px;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      width: auto;
+      max-width: none;
+      margin: 0;
+      text-align: center;
+      transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    }
+    .device-toggle button.active {
+      background: #fff;
+      color: #004a99;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.12);
+    }
 
-/* GPS / Network error panels */
-.err-panel {
-  display: none;
-  margin: 0 auto 14px;
-  max-width: 520px;
-  background: rgba(255,255,255,0.97);
-  border-radius: 16px;
-  padding: 20px 18px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
-  text-align: left;
-}
-.err-title { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
-.err-body  { font-size: 14px; color: #64748b; margin-bottom: 14px; line-height: 1.5; }
-.err-btn {
-  display: block; width: 100%; padding: 13px;
-  background: #004a99; color: #fff; border: none;
-  border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer;
-}
-.fix-steps { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
-.fix-steps ol { margin: 0; padding-left: 18px; font-size: 13px; color: #0a1628; line-height: 1.75; }
-.device-toggle {
-  display: inline-flex;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  padding: 3px;
-  margin-bottom: 14px;
-}
-.device-toggle button {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 20px;
-  border-radius: 999px;
-  border: none;
-  background: transparent;
-  color: #64748b;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  width: auto;
-  max-width: none;
-  margin: 0;
-  text-align: center;
-  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
-}
-.device-toggle button.active {
-  background: #fff;
-  color: #004a99;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.12);
-}
+    /* Confirm modals */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: none; align-items: flex-end; justify-content: center;
+      z-index: 10000; padding-bottom: env(safe-area-inset-bottom,0);
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-sheet {
+      background: #fff; width: 100%; max-width: 520px;
+      border-radius: 24px 24px 0 0; padding: 20px 20px 28px;
+      text-align: center;
+    }
+    .modal-handle { width: 36px; height: 4px; background: #e2e8f0; border-radius: 2px; margin: 0 auto 16px; }
+    .modal-title  { font-size: 18px; font-weight: 700; color: #0a1628; margin-bottom: 8px; }
+    .modal-body   { font-size: 14px; color: #64748b; margin-bottom: 20px; line-height: 1.5; }
+    .modal-dur    { font-size: 22px; font-weight: 800; color: #004a99; margin-bottom: 16px; }
+    .modal-btn {
+      display: block; width: 100%; padding: 15px;
+      border: none; border-radius: 14px; font-size: 16px; font-weight: 700;
+      cursor: pointer; margin-bottom: 10px;
+    }
+    .modal-btn.primary   { background: #004a99; color: #fff; }
+    .modal-btn.danger    { background: #dc2626; color: #fff; }
+    .modal-btn.secondary { background: #f1f5f9; color: #64748b; font-weight: 500; }
+    .modal-btn:active { opacity: 0.85; }
 
-/* Confirm modals */
-.modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.55);
-  display: none; align-items: flex-end; justify-content: center;
-  z-index: 10000; padding-bottom: env(safe-area-inset-bottom,0);
-}
-.modal-overlay.open { display: flex; }
-.modal-sheet {
-  background: #fff; width: 100%; max-width: 520px;
-  border-radius: 24px 24px 0 0; padding: 20px 20px 28px;
-  text-align: center;
-}
-.modal-handle { width: 36px; height: 4px; background: #e2e8f0; border-radius: 2px; margin: 0 auto 16px; }
-.modal-title  { font-size: 18px; font-weight: 700; color: #0a1628; margin-bottom: 8px; }
-.modal-body   { font-size: 14px; color: #64748b; margin-bottom: 20px; line-height: 1.5; }
-.modal-dur    { font-size: 22px; font-weight: 800; color: #004a99; margin-bottom: 16px; }
-.modal-btn {
-  display: block; width: 100%; padding: 15px;
-  border: none; border-radius: 14px; font-size: 16px; font-weight: 700;
-  cursor: pointer; margin-bottom: 10px;
-}
-.modal-btn.primary { background: #004a99; color: #fff; }
-.modal-btn.secondary { background: #f1f5f9; color: #64748b; font-weight: 500; }
-.modal-btn:active { opacity: 0.85; }
+    /* Not you modal — identity display */
+    .not-you-identity {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    .not-you-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: #004a99;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .not-you-name    { font-size: 16px; font-weight: 700; color: #0a1628; }
+    .not-you-company { font-size: 13px; color: #64748b; margin-top: 2px; }
+    .not-you-device  { font-size: 11px; color: #94a3b8; margin-top: 3px; font-family: monospace; }
 
-/* Success overlay */
-#successOverlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.72);
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; pointer-events: none; transition: opacity .25s ease; z-index: 9999;
-}
-#successOverlay.active { opacity: 1; pointer-events: auto; }
-.success-card {
-  background: #fff; width: min(380px,calc(100% - 40px));
-  border-radius: 28px; padding: 44px 24px 40px; text-align: center;
-  transform: scale(.88); transition: transform .25s ease;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-}
-#successOverlay.active .success-card { transform: scale(1); }
-.suc-icon  { font-size: 72px; line-height: 1; margin-bottom: 14px; }
-.suc-title { font-size: 28px; font-weight: 800; color: #0a1628; margin-bottom: 8px; }
-.suc-sub   { font-size: 15px; color: #64748b; }
-.suc-dur   { font-size: 20px; font-weight: 800; color: #004a99; margin-top: 12px; }
-
-
+    /* Success overlay */
+    #successOverlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity .25s ease; z-index: 9999;
+    }
+    #successOverlay.active { opacity: 1; pointer-events: auto; }
+    .success-card {
+      background: #fff; width: min(380px,calc(100% - 40px));
+      border-radius: 28px; padding: 44px 24px 40px; text-align: center;
+      transform: scale(.88); transition: transform .25s ease;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    #successOverlay.active .success-card { transform: scale(1); }
+    .suc-icon  { font-size: 72px; line-height: 1; margin-bottom: 14px; }
+    .suc-title { font-size: 28px; font-weight: 800; color: #0a1628; margin-bottom: 8px; }
+    .suc-sub   { font-size: 15px; color: #64748b; }
+    .suc-dur   { font-size: 20px; font-weight: 800; color: #004a99; margin-top: 12px; }
   </style>
 </head>
 <body>
@@ -232,18 +299,27 @@
 
 <div class="card" id="mainCard">
   <div class="status-title" id="statusTitle">Checking Location...</div>
-  <div class="status-sub"   id="statusSub">Requesting GPS...</div>
+  <div class="status-sub" id="statusSub">Requesting GPS...</div>
+
+  <!-- Identity chip: shown once user is recognised -->
+  <div class="identity-chip" id="identityChip">
+    <div class="id-avatar" id="idAvatar">?</div>
+    <span class="id-name" id="idName"></span>
+    <span class="id-sep">&middot;</span>
+    <span class="id-company" id="idCompany"></span>
+  </div>
+
   <div id="map"></div>
 </div>
 
 <div class="not-you" id="notYouRow" style="display:none;">
-  Not you? <a href="#" onclick="doReset(); return false;">Reset device</a>
+  Not you? <a href="#" onclick="openNotYouModal(); return false;">Reset device</a>
 </div>
 
 <div class="card" id="registerBox" style="display:none;">
   <div style="font-size:17px;font-weight:700;margin-bottom:14px;">First Visit Registration</div>
   <input id="rFirst" placeholder="First Name" />
-  <input id="rLast"  placeholder="Last Name" />
+  <input id="rLast" placeholder="Last Name" />
   <select id="rPurpose" required>
     <option value="" disabled selected>Select purpose</option>
     <option value="Visiting">Visiting</option>
@@ -274,7 +350,7 @@
   <div id="gpsStepsWrap">
     <div class="device-toggle">
       <button id="btnIOS" class="active" onclick="switchGpsDevice('ios')">iPhone</button>
-      <button id="btnAndroid"            onclick="switchGpsDevice('android')">Android</button>
+      <button id="btnAndroid" onclick="switchGpsDevice('android')">Android</button>
     </div>
     <div class="fix-steps" id="iosSteps"><ol id="iosStepsList"></ol></div>
     <div class="fix-steps" id="droidSteps" style="display:none;"><ol id="droidStepsList"></ol></div>
@@ -282,78 +358,84 @@
   <button class="err-btn" onclick="retryGps()">Try Again</button>
 </div>
 
-<!-- Confirm Sign In -->
-
+<!-- Confirm Check In -->
 <div class="modal-overlay" id="modalIn">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-title">Confirm Check In</div>
     <div class="modal-body">I am aware of the site rules and will report to the site foreman.</div>
-    <button class="modal-btn primary"    onclick="confirmInYes()">Yes, Check Me In</button>
-    <button class="modal-btn secondary"  onclick="confirmInNo()">No</button>
+    <button class="modal-btn primary" onclick="confirmInYes()">Yes, Check Me In</button>
+    <button class="modal-btn secondary" onclick="confirmInNo()">No</button>
   </div>
 </div>
 
 <!-- Confirm Sign Out -->
-
 <div class="modal-overlay" id="modalOut">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-title">Confirm Sign Out</div>
-    <div class="modal-body"  id="modalOutText"></div>
-    <div class="modal-dur"   id="modalOutDur" style="display:none;"></div>
-    <button class="modal-btn primary"    onclick="confirmOutYes()">Yes, Sign Me Out</button>
-    <button class="modal-btn secondary"  onclick="confirmOutNo()">No, Stay Signed In</button>
+    <div class="modal-body" id="modalOutText"></div>
+    <div class="modal-dur" id="modalOutDur" style="display:none;"></div>
+    <button class="modal-btn primary" onclick="confirmOutYes()">Yes, Sign Me Out</button>
+    <button class="modal-btn secondary" onclick="confirmOutNo()">No, Stay Signed In</button>
+  </div>
+</div>
+
+<!-- Not You Modal -->
+<div class="modal-overlay" id="modalNotYou">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Device Registered To</div>
+    <div class="not-you-identity">
+      <div class="not-you-avatar" id="notYouAvatar">?</div>
+      <div>
+        <div class="not-you-name" id="notYouName">Unknown</div>
+        <div class="not-you-company" id="notYouCompany"></div>
+        <div class="not-you-device" id="notYouDevice"></div>
+      </div>
+    </div>
+    <div class="modal-body">If this is not you, tap Reset Device below. You will need to re-register on your next scan.</div>
+    <button class="modal-btn danger" onclick="confirmReset()">Reset Device</button>
+    <button class="modal-btn secondary" onclick="closeNotYouModal()">That's Me — Cancel</button>
   </div>
 </div>
 
 <!-- Success Overlay -->
-
 <div id="successOverlay">
   <div class="success-card">
-    <div class="suc-icon"  id="sucIcon">&#x2705;</div>
+    <div class="suc-icon" id="sucIcon">&#x2705;</div>
     <div class="suc-title" id="sucTitle">Checked In</div>
-    <div class="suc-sub"   id="sucSub">Recorded successfully</div>
-    <div class="suc-dur"   id="sucDur" style="display:none;"></div>
+    <div class="suc-sub" id="sucSub">Recorded successfully</div>
+    <div class="suc-dur" id="sucDur" style="display:none;"></div>
   </div>
 </div>
 
 <script>
-const API = "https://sitelog-api.jamie-def.workers.dev";
+var API = "https://sitelog-api.jamie-def.workers.dev";
 
-// ── PWA REDIRECT ─────────────────────────────────────────────────────────
-// If the user has opened app.html before (cookie ml_pwa=1 is set),
-// redirect to app.html. On iOS this will open inside the installed PWA
-// because iOS routes same-origin navigations into the PWA when installed.
-// We do this immediately, before any other JS runs.
+// -- PWA REDIRECT ----------------------------------
 (function() {
   try {
+    var isStandalone = window.navigator.standalone === true ||
+      window.matchMedia("(display-mode: standalone)").matches;
     var hasPWACookie = document.cookie.split(";").some(function(c) {
       return c.trim().startsWith("ml_pwa=1");
     });
-    // Also check localStorage as a fallback
     var hasPWAStorage = false;
     try { hasPWAStorage = !!localStorage.getItem("ml_pwa"); } catch(e) {}
 
-    if (hasPWACookie || hasPWAStorage) {
-      // Build the full absolute URL to app.html with current query string
-      // iOS will open this in the PWA context if the PWA is installed
-      var origin = window.location.origin;
-      var dest   = origin + "/SiteLog/app.html" + window.location.search;
-      window.location.href = dest;
-      // Belt-and-braces: stop further execution
-      throw new Error("redirecting");
+    if (isStandalone || hasPWACookie || hasPWAStorage) {
+      var dest = window.location.origin + "/SiteLog/app.html" + window.location.search;
+      window.location.replace(dest);
+      return;
     }
-  } catch(e) {
-    // If it's our redirect throw, rethrow to stop execution
-    if (e.message === "redirecting") { throw e; }
-    // Otherwise swallow and continue normally
-  }
+  } catch(e) {}
 })();
 
-// ── DEVICE TOKEN ─────────────────────────────────
+// -- DEVICE TOKEN ----------------------------------
 function readCookieTok() {
-  var c = document.cookie.split(";").map(function(x){return x.trim();}).find(function(x){return x.startsWith("ml_did=");});
+  var c = document.cookie.split(";").map(function(x){ return x.trim(); })
+    .find(function(x){ return x.startsWith("ml_did="); });
   return c ? c.split("=")[1] : null;
 }
 function writeCookieTok(t) {
@@ -365,45 +447,48 @@ if (!deviceToken) { deviceToken = crypto.randomUUID(); }
 try { writeCookieTok(deviceToken); } catch(e) {}
 try { localStorage.setItem("mostlane_device_id", deviceToken); } catch(e) {}
 
-// ── STATE ────────────────────────────────────────
-var lastLocation   = null;
-var currentSite    = null;
-var pendingOutId   = null;
-var pendingOutName = "";
-var pendingOutSite = "";
-var pendingInSite  = "";
-var pendingInFirst = "";
-var pendingInCo    = "";
+// -- STATE -----------------------------------------
+var lastLocation     = null;
+var currentSite      = null;
+var pendingOutId     = null;
+var pendingOutName   = "";
+var pendingOutSite   = "";
+var pendingInSite    = "";
+var pendingInFirst   = "";
+var pendingInCo      = "";
 var pendingNetAction = null;
-var checkInTime    = null;
+var checkInTime      = null;
 
-// ── HELPERS ──────────────────────────────────────
+// Stored identity — name + company shown in chip and Not You modal
+var knownFirstName = "";
+var knownLastName  = "";
+var knownCompany   = "";
+
+// -- HELPERS ---------------------------------------
 function fetchWT(url, opts, ms) {
   if (!ms) ms = 12000;
   var ctrl = new AbortController();
   var t    = setTimeout(function(){ ctrl.abort(); }, ms);
-  return fetch(url, Object.assign({}, opts||{}, { signal: ctrl.signal }))
+  return fetch(url, Object.assign({}, opts || {}, { signal: ctrl.signal }))
     .finally(function(){ clearTimeout(t); });
 }
 
 function fmtDur(mins) {
-  var h = Math.floor(mins/60), m = mins%60;
+  var h = Math.floor(mins / 60), m = mins % 60;
   return h > 0 ? h + "h " + m + "m" : m + "m";
 }
 
-function fmtTime(ts) {
-  if (!ts) return "—";
-  try {
-    var clean = String(ts).replace(" ","T");
-    if (!clean.endsWith("Z") && !clean.includes("+")) clean += "Z";
-    var d = new Date(clean);
-    if (isNaN(d.getTime())) return "—";
-    return d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
-  } catch(e) { return "—"; }
+function initials(first, last) {
+  var f = (first || "").trim();
+  var l = (last  || "").trim();
+  return ((f[0] || "") + (l[0] || "")).toUpperCase() || "?";
 }
 
-function showSuccess(icon, title, sub, dur) {
-  document.getElementById("sucIcon").textContent  = icon;
+function showSuccess(type, title, sub, dur) {
+  var iconEl = document.getElementById("sucIcon");
+  if      (type === "in")  { iconEl.textContent = ""; iconEl.innerHTML = "&#x2705;"; }
+  else if (type === "out") { iconEl.textContent = ""; iconEl.innerHTML = "&#x1F44B;"; }
+  else                     { iconEl.innerHTML = type; }
   document.getElementById("sucTitle").textContent = title;
   document.getElementById("sucSub").textContent   = sub;
   var durEl = document.getElementById("sucDur");
@@ -411,7 +496,7 @@ function showSuccess(icon, title, sub, dur) {
   else      { durEl.style.display = "none"; }
   var ov = document.getElementById("successOverlay");
   ov.classList.add("active");
-  try { if(navigator.vibrate) navigator.vibrate(80); } catch(e) {}
+  try { if (navigator.vibrate) navigator.vibrate(80); } catch(e) {}
   clearTimeout(window.__sucT);
   window.__sucT = setTimeout(function(){ ov.classList.remove("active"); }, 3500);
 }
@@ -427,25 +512,77 @@ function logFailedScan(errorType) {
   } catch(e) {}
 }
 
-// ── MAP ──────────────────────────────────────────
-function showMap(lat, lng) {
-  var map = new google.maps.Map(document.getElementById("map"), {
-    center: {lat:lat, lng:lng}, zoom: 18, mapTypeId: "hybrid",
-    disableDefaultUI: true, draggable: false, scrollwheel: false,
-    disableDoubleClickZoom: true, keyboardShortcuts: false, gestureHandling: "none"
-  });
-  new google.maps.Marker({ position: {lat:lat,lng:lng}, map: map });
+// -- IDENTITY --------------------------------------
+function storeIdentity(firstName, lastName, company) {
+  knownFirstName = firstName || "";
+  knownLastName  = lastName  || "";
+  knownCompany   = company   || "";
+  try {
+    var existing = JSON.parse(localStorage.getItem("mostlane_profile") || "{}");
+    existing.firstName = knownFirstName;
+    existing.lastName  = knownLastName;
+    existing.company   = knownCompany;
+    localStorage.setItem("mostlane_profile", JSON.stringify(existing));
+  } catch(e) {}
 }
 
-// ── RESET ────────────────────────────────────────
-function doReset() {
-  if (!confirm("This will reset this device and return to first-time registration.")) return;
-  try { localStorage.removeItem("mostlane_device_id"); localStorage.removeItem("mostlane_last_checkin"); } catch(e) {}
+function loadStoredIdentity() {
+  try {
+    var p = JSON.parse(localStorage.getItem("mostlane_profile") || "{}");
+    knownFirstName = p.firstName || "";
+    knownLastName  = p.lastName  || "";
+    knownCompany   = p.company   || "";
+  } catch(e) {}
+}
+
+function showIdentityChip() {
+  if (!knownFirstName && !knownLastName) return;
+  var fullName = (knownFirstName + " " + knownLastName).trim();
+  var chip = document.getElementById("identityChip");
+  document.getElementById("idAvatar").textContent  = initials(knownFirstName, knownLastName);
+  document.getElementById("idName").textContent    = fullName;
+  document.getElementById("idCompany").textContent = knownCompany || "";
+  chip.style.display = "flex";
+}
+
+function hideIdentityChip() {
+  document.getElementById("identityChip").style.display = "none";
+}
+
+// -- NOT YOU MODAL ---------------------------------
+function openNotYouModal() {
+  var fullName = (knownFirstName + " " + knownLastName).trim() || "Unknown";
+  document.getElementById("notYouAvatar").textContent  = initials(knownFirstName, knownLastName);
+  document.getElementById("notYouName").textContent    = fullName;
+  document.getElementById("notYouCompany").textContent = knownCompany || "Unknown company";
+  document.getElementById("notYouDevice").textContent  = "Device: " + (deviceToken || "").slice(0, 8) + "...";
+  document.getElementById("modalNotYou").classList.add("open");
+}
+
+function closeNotYouModal() {
+  document.getElementById("modalNotYou").classList.remove("open");
+}
+
+function confirmReset() {
+  closeNotYouModal();
+  try { localStorage.removeItem("mostlane_device_id"); } catch(e) {}
+  try { localStorage.removeItem("mostlane_last_checkin"); } catch(e) {}
+  try { localStorage.removeItem("mostlane_profile"); } catch(e) {}
   document.cookie = "ml_did=; max-age=0; path=/";
   location.reload();
 }
 
-// ── LOAD COMPANIES ───────────────────────────────
+// -- MAP -------------------------------------------
+function showMap(lat, lng) {
+  var map = new google.maps.Map(document.getElementById("map"), {
+    center: { lat: lat, lng: lng }, zoom: 18, mapTypeId: "hybrid",
+    disableDefaultUI: true, draggable: false, scrollwheel: false,
+    disableDoubleClickZoom: true, keyboardShortcuts: false, gestureHandling: "none"
+  });
+  new google.maps.Marker({ position: { lat: lat, lng: lng }, map: map });
+}
+
+// -- LOAD COMPANIES --------------------------------
 async function loadCompanies(siteName) {
   try {
     var res  = await fetchWT(API + "/companies-for-site?site=" + encodeURIComponent(siteName));
@@ -457,20 +594,14 @@ async function loadCompanies(siteName) {
       o.value = c.name; o.textContent = c.name;
       sel.appendChild(o);
     });
-    try {
-      var saved = localStorage.getItem("mostlane_profile");
-      if (saved) {
-        var p = JSON.parse(saved);
-        if (p.company) {
-          var exists = Array.from(sel.options).some(function(o){ return o.value === p.company; });
-          if (exists) sel.value = p.company;
-        }
-      }
-    } catch(e) {}
+    if (knownCompany) {
+      var exists = Array.from(sel.options).some(function(o){ return o.value === knownCompany; });
+      if (exists) sel.value = knownCompany;
+    }
   } catch(e) {}
 }
 
-// ── CONFIRM SIGN IN ──────────────────────────────
+// -- CONFIRM CHECK IN ------------------------------
 function openInModal(siteName, firstName, company) {
   pendingInSite  = siteName  || "";
   pendingInFirst = firstName || "";
@@ -483,8 +614,12 @@ async function confirmInYes() {
   var res, data;
   try {
     res  = await fetchWT(API + "/confirm-checkin", {
-      method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ deviceToken:deviceToken, lat:lastLocation.lat, lng:lastLocation.lng, accuracy:lastLocation.accuracy, site:pendingInSite })
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceToken: deviceToken,
+        lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy,
+        site: pendingInSite
+      })
     });
     data = await res.json();
   } catch(e) { showNetErr("checkin"); return; }
@@ -501,8 +636,9 @@ async function confirmInYes() {
   document.getElementById("statusSub").textContent   = firstName ? "Welcome, " + firstName : "You are now on site";
   document.getElementById("noticeBox").innerHTML     = "<strong>Site Notice:</strong> Report to site foreman";
 
+  showIdentityChip();
   closeInModal();
-  showSuccess("✅", firstName ? "Welcome " + firstName : "Checked In",
+  showSuccess("in", firstName ? "Welcome " + firstName : "Checked In",
               siteName ? "Signed in at " + siteName : "You are now on site", null);
 }
 
@@ -513,13 +649,12 @@ function confirmInNo() {
   document.getElementById("noticeBox").innerHTML     = "<strong>Check In Refused:</strong> Contact Mostlane 02380 262000";
 }
 
-// ── CONFIRM SIGN OUT ─────────────────────────────
+// -- CONFIRM SIGN OUT ------------------------------
 function openOutModal(visitId, siteName, firstName) {
   pendingOutId   = visitId;
   pendingOutName = firstName || "";
   pendingOutSite = siteName  || "";
 
-  // Compute duration so far
   var durStr = "";
   try {
     var start = localStorage.getItem("mostlane_last_checkin") || checkInTime;
@@ -551,7 +686,7 @@ async function confirmOutYes() {
   var res, data;
   try {
     res  = await fetchWT(API + "/confirm-checkout", {
-      method: "POST", headers: {"Content-Type":"application/json"},
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ visitId: pendingOutId })
     });
     data = await res.json();
@@ -574,8 +709,9 @@ async function confirmOutYes() {
   document.getElementById("statusSub").textContent   = firstName ? "Goodbye " + firstName : "Visit complete";
   document.getElementById("noticeBox").innerHTML     = "<strong>Visit Complete:</strong> Thank you, you may now leave site.";
 
+  showIdentityChip();
   closeOutModal();
-  showSuccess("👋", firstName ? "Goodbye " + firstName : "Signed Out",
+  showSuccess("out", firstName ? "Goodbye " + firstName : "Signed Out",
               siteName ? "Signed out from " + siteName : "Visit recorded",
               durStr ? durStr + " on site" : null);
 }
@@ -586,28 +722,30 @@ function confirmOutNo() {
   document.getElementById("statusSub").textContent   = "Sign out cancelled.";
 }
 
-// ── NETWORK ERROR ────────────────────────────────
+// -- NETWORK ERROR ---------------------------------
 function showNetErr(action) {
   pendingNetAction = action;
   document.getElementById("mainCard").style.display = "none";
   document.getElementById("netError").style.display = "block";
-  document.getElementById("netErrorMsg").textContent =
-    { scan:"Could not reach the server.", checkin:"Check-in failed — server unreachable.",
-      checkout:"Sign-out failed — server unreachable.", register:"Registration failed." }[action]
-    || "Could not reach the server.";
+  document.getElementById("netErrorMsg").innerHTML = {
+    scan:     "Could not reach the server.",
+    checkin:  "Check-in failed &mdash; server unreachable.",
+    checkout: "Sign-out failed &mdash; server unreachable.",
+    register: "Registration failed."
+  }[action] || "Could not reach the server.";
 }
 function retryNetwork() {
   document.getElementById("netError").style.display = "none";
   document.getElementById("mainCard").style.display = "block";
   var a = pendingNetAction; pendingNetAction = null;
-  if      (a==="scan")     doScan();
-  else if (a==="checkin")  confirmInYes();
-  else if (a==="checkout") confirmOutYes();
-  else if (a==="register") doRegister();
+  if      (a === "scan")     doScan();
+  else if (a === "checkin")  confirmInYes();
+  else if (a === "checkout") confirmOutYes();
+  else if (a === "register") doRegister();
   else startLocation();
 }
 
-// ── GPS ERROR ────────────────────────────────────
+// -- GPS ERROR -------------------------------------
 var GPS_STEPS = {
   ios: {
     1: [
@@ -656,13 +794,11 @@ function switchGpsDevice(d) {
   gpsDevice = d;
   document.getElementById("btnIOS").classList.toggle("active", d === "ios");
   document.getElementById("btnAndroid").classList.toggle("active", d === "android");
-  // Both lists are already populated — just show/hide
   document.getElementById("iosSteps").style.display   = d === "ios"     ? "block" : "none";
   document.getElementById("droidSteps").style.display = d === "android" ? "block" : "none";
 }
 
 function populateAllSteps(code) {
-  // Populate both device lists upfront so toggling works without extra calls
   var iosSteps     = GPS_STEPS.ios[code]     || GPS_STEPS.ios[1];
   var androidSteps = GPS_STEPS.android[code] || GPS_STEPS.android[1];
   document.getElementById("iosStepsList").innerHTML =
@@ -672,14 +808,11 @@ function populateAllSteps(code) {
 }
 
 function showGpsErr(code, msg) {
-  window.__lastGpsCode = code;
   logFailedScan(code === 1 ? "denied" : code === 2 ? "unavailable" : "timeout");
-
   document.getElementById("mainCard").style.display    = "none";
   document.getElementById("registerBox").style.display = "none";
   document.getElementById("gpsError").style.display    = "block";
 
-  // Check for private browsing
   var isPrivate = false;
   try { localStorage.setItem("__t", "1"); localStorage.removeItem("__t"); } catch(e) { isPrivate = true; }
 
@@ -699,12 +832,8 @@ function showGpsErr(code, msg) {
   document.getElementById("gpsPrivate").style.display   = "none";
   document.getElementById("gpsStepsWrap").style.display = "block";
 
-  // Detect device and show correct steps
-  var ua = /android/i.test(navigator.userAgent) ? "android" : "ios";
-
-  // Populate both lists first, then show the right one
   populateAllSteps(code);
-  switchGpsDevice(ua);
+  switchGpsDevice(/android/i.test(navigator.userAgent) ? "android" : "ios");
 }
 
 function retryGps() {
@@ -715,13 +844,16 @@ function retryGps() {
   startLocation();
 }
 
-// ── SCAN ─────────────────────────────────────────
+// -- SCAN ------------------------------------------
 async function doScan() {
   var res, data;
   try {
     res  = await fetchWT(API + "/scan", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ deviceToken:deviceToken, lat:lastLocation.lat, lng:lastLocation.lng, accuracy:lastLocation.accuracy })
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceToken: deviceToken,
+        lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy
+      })
     });
     data = await res.json();
   } catch(e) { showNetErr("scan"); return; }
@@ -738,20 +870,16 @@ async function doScan() {
   var firstName = data.firstName || "";
   var company   = data.company   || "";
 
+  if (firstName) {
+    storeIdentity(firstName, knownLastName, company || knownCompany);
+  }
+
   if (data.status === "first_visit") {
     document.getElementById("statusTitle").textContent = "Registration Required";
     document.getElementById("statusSub").textContent   = "First visit — please register below";
-    try {
-      var saved = localStorage.getItem("mostlane_profile");
-      if (saved) {
-        var p = JSON.parse(saved);
-        document.getElementById("rFirst").value = p.firstName || "";
-        document.getElementById("rLast").value  = p.lastName  || "";
-        var sp = (p.purpose||"").trim();
-        if (sp==="Visiting"||sp==="Contractor") document.getElementById("rPurpose").value = sp;
-      }
-    } catch(e) {}
     document.getElementById("registerBox").style.display = "block";
+    if (knownFirstName) document.getElementById("rFirst").value = knownFirstName;
+    if (knownLastName)  document.getElementById("rLast").value  = knownLastName;
     return;
   }
 
@@ -760,6 +888,7 @@ async function doScan() {
     document.getElementById("statusTitle").textContent  = "Confirm Sign Out";
     document.getElementById("statusSub").textContent    = firstName ? firstName + ", please confirm sign out." : "Please confirm sign out.";
     document.getElementById("noticeBox").innerHTML      = "<strong>Confirmation Required:</strong> Please confirm before signing out.";
+    showIdentityChip();
     openOutModal(data.visitId, currentSite, firstName);
     return;
   }
@@ -769,6 +898,7 @@ async function doScan() {
     document.getElementById("statusTitle").textContent  = "Confirm Check In";
     document.getElementById("statusSub").textContent    = firstName ? firstName + ", please confirm check in." : "Please confirm check in.";
     document.getElementById("noticeBox").innerHTML      = "<strong>Site Rules:</strong> You must acknowledge site rules and report to site foreman.";
+    showIdentityChip();
     openInModal(currentSite, firstName, company);
     return;
   }
@@ -779,7 +909,9 @@ async function doScan() {
     document.getElementById("notYouRow").style.display  = "block";
     document.getElementById("statusTitle").textContent  = "Checked In";
     document.getElementById("statusSub").textContent    = firstName ? "Welcome back, " + firstName : "You are now on site";
-    showSuccess("✅", firstName ? "Welcome " + firstName : "Checked In", currentSite ? "Signed in at " + currentSite : "On site", null);
+    showIdentityChip();
+    showSuccess("in", firstName ? "Welcome " + firstName : "Checked In",
+                currentSite ? "Signed in at " + currentSite : "On site", null);
     return;
   }
 
@@ -789,7 +921,7 @@ async function doScan() {
     try {
       var start = localStorage.getItem("mostlane_last_checkin") || checkInTime;
       if (start) {
-        var mins = Math.round((Date.now()-start)/60000);
+        var mins = Math.round((Date.now() - start) / 60000);
         durStr = fmtDur(mins);
         localStorage.removeItem("mostlane_last_checkin");
       }
@@ -798,14 +930,15 @@ async function doScan() {
     document.getElementById("statusTitle").textContent = "Signed Out";
     document.getElementById("statusSub").textContent   = firstName ? "Goodbye, " + firstName : "Visit complete";
     document.getElementById("noticeBox").innerHTML     = "<strong>Visit Complete:</strong> Thank you, you may now leave site.";
-    showSuccess("👋", firstName ? "Goodbye " + firstName : "Signed Out",
+    showIdentityChip();
+    showSuccess("out", firstName ? "Goodbye " + firstName : "Signed Out",
                 currentSite ? "Signed out from " + currentSite : "Visit recorded",
                 durStr ? durStr + " on site" : null);
     return;
   }
 }
 
-// ── REGISTER ─────────────────────────────────────
+// -- REGISTER --------------------------------------
 async function doRegister() {
   var first   = document.getElementById("rFirst").value.trim();
   var last    = document.getElementById("rLast").value.trim();
@@ -816,12 +949,18 @@ async function doRegister() {
     alert("Please complete all fields and confirm the site rules.");
     return;
   }
-  try { localStorage.setItem("mostlane_profile", JSON.stringify({firstName:first,lastName:last,purpose:purpose,company:company})); } catch(e) {}
+
+  storeIdentity(first, last, company);
+
   var res, data;
   try {
     res  = await fetchWT(API + "/register", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ deviceToken:deviceToken, firstName:first, lastName:last, purpose:purpose, company:company, siteCode:currentSite, lat:lastLocation.lat, lng:lastLocation.lng, accuracy:lastLocation.accuracy })
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceToken: deviceToken, firstName: first, lastName: last,
+        purpose: purpose, company: company, siteCode: currentSite,
+        lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy
+      })
     });
     data = await res.json();
   } catch(e) { showNetErr("register"); return; }
@@ -830,22 +969,28 @@ async function doRegister() {
   await doScan();
 }
 
-// ── LOCATION ─────────────────────────────────────
+// -- LOCATION --------------------------------------
 function startLocation() {
   navigator.geolocation.getCurrentPosition(
     function(pos) {
-      lastLocation = { lat:pos.coords.latitude, lng:pos.coords.longitude, accuracy:pos.coords.accuracy };
+      lastLocation = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy
+      };
       showMap(lastLocation.lat, lastLocation.lng);
       doScan();
     },
     function(err) { showGpsErr(err.code, err.message); },
-    { enableHighAccuracy:true, timeout:20000, maximumAge:60000 }
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
   );
 }
 
-// Start
+// -- INIT ------------------------------------------
+loadStoredIdentity();
+
 if (navigator.permissions && navigator.permissions.query) {
-  navigator.permissions.query({name:"geolocation"}).then(function(r) {
+  navigator.permissions.query({ name: "geolocation" }).then(function(r) {
     if (r.state === "denied") { showGpsErr(1, "Permission denied"); }
     else { startLocation(); }
   }).catch(function(){ startLocation(); });

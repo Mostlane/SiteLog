@@ -1971,164 +1971,160 @@
             +'<div class="site-rules-wrap">'
             +'<div class="site-rules-label">Site Rules <span style="font-weight:400;color:var(--label4);">(one rule per line)</span></div>'
             +'<textarea class="site-rules-textarea" data-site-rules="'+escapeHtml(s.id)+'" rows="4" placeholder="e.g. Hard hats must be worn at all times">'+escapeHtml(s.site_rules||"")+'</textarea>'
-
-      ```
-        +'</div>'
-        +'<div class="site-companies-section">'
-        +'<div class="site-companies-label">'+escapeHtml(s.site_name||"Site")+" Companies"+'</div>'
-        +'<div class="company-chip-row" id="chips-'+escapeHtml(s.id)+'">'+(companyChips.length?companyChips:'<span style="color:var(--label4);font-size:12px;">No companies configured</span>')+'</div>'
-        +'<div style="margin-top:8px;"><button class="btn-primary btn-sm" onclick="saveSiteCompanies(\''+escapeHtml(s.id)+'\')">Save company assignments</button></div>'
-        +'</div>'
-        +'</td></tr>';
-      ```
-
-      }).join(””);
-      wrap.innerHTML=’<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Status</th><th>Site Name</th><th>Lat / Lng</th><th>Radius (m)</th><th style="text-align:right;">Actions</th></tr></thead><tbody>’+rows+’</tbody></table></div>’;
+            +'</div>'
+            +'<div class="site-companies-section">'
+            +'<div class="site-companies-label">'+escapeHtml(s.site_name||"Site")+" Companies"+'</div>'
+            +'<div class="company-chip-row" id="chips-'+escapeHtml(s.id)+'">'+(companyChips.length?companyChips:'<span style="color:var(--label4);font-size:12px;">No companies configured</span>')+'</div>'
+            +'<div style="margin-top:8px;"><button class="btn-primary btn-sm" onclick="saveSiteCompanies(\''+escapeHtml(s.id)+'\')">Save company assignments</button></div>'
+            +'</div>'
+            +'</td></tr>';
+        }).join("");
+        wrap.innerHTML='<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Status</th><th>Site Name</th><th>Lat / Lng</th><th>Radius (m)</th><th style="text-align:right;">Actions</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
       }
 
-      function toggleSiteCompanyChip(el){ el.classList.toggle(“active”); }
+      function toggleSiteCompanyChip(el){ el.classList.toggle("active"); }
 
       async function saveSiteCompanies(siteId){
-      const chips=document.querySelectorAll(’#chips-’+CSS.escape(siteId)+’ .company-chip-toggle’);
-      const companyIds=[…chips].filter(c=>c.classList.contains(“active”)).map(c=>c.dataset.companyId);
-      siteCompanyMap[siteId]=companyIds;
-      try{
-      const res=await fetch(API_BASE+”/update-site-companies”,{method:“POST”,headers:{“Content-Type”:“application/json”},body:JSON.stringify({[siteId]:companyIds})});
-      const data=await res.json();
-      if(!res.ok||!data.ok){ alert(“Failed to save.\n\n”+(data.error||“Unknown error”)); return; }
-      const btn=document.querySelector(’#chips-’+CSS.escape(siteId)).nextElementSibling.querySelector(“button”);
-      if(btn){ const orig=btn.textContent; btn.textContent=“Saved”; setTimeout(()=>btn.textContent=orig,1500); }
-      }catch(err){ alert(“Network error.\n\n”+err.message); }
+        const chips=document.querySelectorAll('#chips-'+CSS.escape(siteId)+' .company-chip-toggle');
+        const companyIds=[...chips].filter(c=>c.classList.contains("active")).map(c=>c.dataset.companyId);
+        siteCompanyMap[siteId]=companyIds;
+        try{
+          const res=await fetch(API_BASE+"/update-site-companies",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({[siteId]:companyIds})});
+          const data=await res.json();
+          if(!res.ok||!data.ok){ alert("Failed to save.\n\n"+(data.error||"Unknown error")); return; }
+          const btn=document.querySelector('#chips-'+CSS.escape(siteId)).nextElementSibling.querySelector("button");
+          if(btn){ const orig=btn.textContent; btn.textContent="Saved"; setTimeout(()=>btn.textContent=orig,1500); }
+        }catch(err){ alert("Network error.\n\n"+err.message); }
       }
 
       async function saveSite(id){
-      const nameEl=document.querySelector(‘input[data-site-name=”’+CSS.escape(id)+’”]’);
-      const radEl=document.querySelector(‘input[data-site-radius=”’+CSS.escape(id)+’”]’);
-      const rulesEl=document.querySelector(‘textarea[data-site-rules=”’+CSS.escape(id)+’”]’);
-      const siteName=(nameEl?.value||””).trim();
-      const radius=Number(radEl?.value||500);
-      const siteRules=(rulesEl?.value||””).trim()||null;
-      if(!siteName){ alert(“Site name cannot be blank.”); return; }
-      await fetch(API_BASE+”/update-site”,{method:“POST”,headers:{“Content-Type”:“application/json”},body:JSON.stringify({id,siteName,radius,siteRules})});
-      await fetchSites(); await loadSiteCompanyMap(); renderSitesAdminTable(); renderAll();
+        const nameEl=document.querySelector('input[data-site-name="'+CSS.escape(id)+'"]');
+        const radEl=document.querySelector('input[data-site-radius="'+CSS.escape(id)+'"]');
+        const rulesEl=document.querySelector('textarea[data-site-rules="'+CSS.escape(id)+'"]');
+        const siteName=(nameEl?.value||"").trim();
+        const radius=Number(radEl?.value||500);
+        const siteRules=(rulesEl?.value||"").trim()||null;
+        if(!siteName){ alert("Site name cannot be blank."); return; }
+        await fetch(API_BASE+"/update-site",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,siteName,radius,siteRules})});
+        await fetchSites(); await loadSiteCompanyMap(); renderSitesAdminTable(); renderAll();
       }
 
       async function toggleSite(id){
-      await fetch(API_BASE+”/toggle-site”,{method:“POST”,headers:{“Content-Type”:“application/json”},body:JSON.stringify({id})});
-      await fetchSites(); renderSitesAdminTable(); renderAll();
+        await fetch(API_BASE+"/toggle-site",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+        await fetchSites(); renderSitesAdminTable(); renderAll();
       }
 
       async function addSite(){
-      const nameEl=document.getElementById(“newSiteName”);
-      const latEl=document.getElementById(“newSiteLat”);
-      const lngEl=document.getElementById(“newSiteLng”);
-      const radEl=document.getElementById(“newSiteRadius”);
-      const siteName=(nameEl?.value||””).trim();
-      const lat=latEl?.value.trim();
-      const lng=lngEl?.value.trim();
-      const radius=Number(radEl?.value||500);
-      if(!siteName||!lat||!lng){ alert(“Site name, latitude and longitude are required.”); return; }
-      if(isNaN(Number(lat))||isNaN(Number(lng))){ alert(“Latitude and longitude must be numbers.”); return; }
-      const res=await fetch(API_BASE+”/add-site”,{method:“POST”,headers:{“Content-Type”:“application/json”},body:JSON.stringify({siteName,lat:Number(lat),lng:Number(lng),radius})});
-      const data=await res.json();
-      if(!res.ok||!data.ok){ alert(“Failed to add site.\n\n”+(data.error||“Unknown error”)); return; }
-      nameEl.value=””; latEl.value=””; lngEl.value=””; radEl.value=“500”;
-      await fetchSites(); await loadSiteCompanyMap(); renderSitesAdminTable(); renderAll();
+        const nameEl=document.getElementById("newSiteName");
+        const latEl=document.getElementById("newSiteLat");
+        const lngEl=document.getElementById("newSiteLng");
+        const radEl=document.getElementById("newSiteRadius");
+        const siteName=(nameEl?.value||"").trim();
+        const lat=latEl?.value.trim();
+        const lng=lngEl?.value.trim();
+        const radius=Number(radEl?.value||500);
+        if(!siteName||!lat||!lng){ alert("Site name, latitude and longitude are required."); return; }
+        if(isNaN(Number(lat))||isNaN(Number(lng))){ alert("Latitude and longitude must be numbers."); return; }
+        const res=await fetch(API_BASE+"/add-site",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({siteName,lat:Number(lat),lng:Number(lng),radius})});
+        const data=await res.json();
+        if(!res.ok||!data.ok){ alert("Failed to add site.\n\n"+(data.error||"Unknown error")); return; }
+        nameEl.value=""; latEl.value=""; lngEl.value=""; radEl.value="500";
+        await fetchSites(); await loadSiteCompanyMap(); renderSitesAdminTable(); renderAll();
       }
 
       /* ENGINEERS MODAL */
-      function openEngineersModal(){ document.getElementById(“engineersModal”).style.display=“flex”; renderEngineersAdminTable(); }
-      function closeEngineersModal(){ document.getElementById(“engineersModal”).style.display=“none”; }
+      function openEngineersModal(){ document.getElementById("engineersModal").style.display="flex"; renderEngineersAdminTable(); }
+      function closeEngineersModal(){ document.getElementById("engineersModal").style.display="none"; }
 
       function renderEngineersAdminTable(){
-      const wrap=document.getElementById(“engineersAdminBody”);
-      if(!engineersAll.length){ wrap.innerHTML=’<p style="color:var(--label3);">No engineers returned.</p>’; return; }
-      const rows=engineersAll.slice().sort((a,b)=>(((a.first_name||””)+” “+(a.last_name||””)).trim()).localeCompare(((b.first_name||””)+” “+(b.last_name||””)).trim())).map(p=>{
-      const isArch=Number(p.archived||0)===1;
-      const pill=isArch?’<span class="pill pill-arch">Archived</span>’:’<span class="pill pill-active">Active</span>’;
-      return ‘<tr><td>’+pill+’</td>’
-      +’<td><input data-eng-first=”’+escapeHtml(p.id)+’” value=”’+escapeHtml(p.first_name||””)+’” /></td>’
-      +’<td><input data-eng-last=”’+escapeHtml(p.id)+’” value=”’+escapeHtml(p.last_name||””)+’” /></td>’
-      +’<td><input data-eng-company=”’+escapeHtml(p.id)+’” value=”’+escapeHtml(p.company||””)+’” /></td>’
-      +’<td><input data-eng-purpose=”’+escapeHtml(p.id)+’” value=”’+escapeHtml(p.purpose||””)+’” /></td>’
-      +’<td><input data-eng-rate=”’+escapeHtml(p.id)+’” type=“number” step=“0.01” min=“0” value=”’+escapeHtml(p.hourly_rate??p.rate??””)+’” placeholder=”–” style=“width:90px;” /></td>’
-      +’<td><div class="row-btns"><button class="btn-primary btn-sm" onclick="saveEngineer(\''+escapeHtml(p.id)+'\')">Save</button><button class="btn-ghost btn-sm" onclick="toggleEngineer(\''+escapeHtml(p.id)+'\')">’+(isArch?“Unarchive”:“Archive”)+’</button></div></td>’
-      +’</tr>’;
-      }).join(””);
-      wrap.innerHTML=’<table class="admin-table"><thead><tr><th>Status</th><th>First</th><th>Last</th><th>Company</th><th>Purpose</th><th>Rate /hr</th><th style="text-align:right;">Actions</th></tr></thead><tbody>’+rows+’</tbody></table>’;
+        const wrap=document.getElementById("engineersAdminBody");
+        if(!engineersAll.length){ wrap.innerHTML='<p style="color:var(--label3);">No engineers returned.</p>'; return; }
+        const rows=engineersAll.slice().sort((a,b)=>(((a.first_name||"")+" "+(a.last_name||"")).trim()).localeCompare(((b.first_name||"")+" "+(b.last_name||"")).trim())).map(p=>{
+          const isArch=Number(p.archived||0)===1;
+          const pill=isArch?'<span class="pill pill-arch">Archived</span>':'<span class="pill pill-active">Active</span>';
+          return '<tr><td>'+pill+'</td>'
+          +'<td><input data-eng-first="'+escapeHtml(p.id)+'" value="'+escapeHtml(p.first_name||"")+'" /></td>'
+          +'<td><input data-eng-last="'+escapeHtml(p.id)+'" value="'+escapeHtml(p.last_name||"")+'" /></td>'
+          +'<td><input data-eng-company="'+escapeHtml(p.id)+'" value="'+escapeHtml(p.company||"")+'" /></td>'
+          +'<td><input data-eng-purpose="'+escapeHtml(p.id)+'" value="'+escapeHtml(p.purpose||"")+'" /></td>'
+          +'<td><input data-eng-rate="'+escapeHtml(p.id)+'" type="number" step="0.01" min="0" value="'+escapeHtml(p.hourly_rate??p.rate??"")+'" placeholder="--" style="width:90px;" /></td>'
+          +'<td><div class="row-btns"><button class="btn-primary btn-sm" onclick="saveEngineer(\''+escapeHtml(p.id)+'\')">Save</button><button class="btn-ghost btn-sm" onclick="toggleEngineer(\''+escapeHtml(p.id)+'\')">'+(isArch?"Unarchive":"Archive")+'</button></div></td>'
+          +'</tr>';
+        }).join("");
+        wrap.innerHTML='<table class="admin-table"><thead><tr><th>Status</th><th>First</th><th>Last</th><th>Company</th><th>Purpose</th><th>Rate /hr</th><th style="text-align:right;">Actions</th></tr></thead><tbody>'+rows+'</tbody></table>';
       }
 
       async function saveEngineer(id){
-      const firstName=(document.querySelector(‘input[data-eng-first=”’+CSS.escape(id)+’”]’)?.value||””).trim();
-      const lastName=(document.querySelector(‘input[data-eng-last=”’+CSS.escape(id)+’”]’)?.value||””).trim();
-      const company=(document.querySelector(‘input[data-eng-company=”’+CSS.escape(id)+’”]’)?.value||””).trim();
-      const purpose=(document.querySelector(‘input[data-eng-purpose=”’+CSS.escape(id)+’”]’)?.value||””).trim();
-      const rateRaw=(document.querySelector(‘input[data-eng-rate=”’+CSS.escape(id)+’”]’)?.value||””).trim();
-      const hourlyRate=rateRaw===””?null:Number(rateRaw);
-      if(!firstName&&!lastName){ alert(“Engineer must have at least a first or last name.”); return; }
-      await fetch(API_BASE+”/update-engineer”,{method:“POST”,headers:{“Content-Type”:“application/json”},body:JSON.stringify({id,firstName,lastName,company,purpose,hourlyRate})});
-      await fetchEngineers(); renderEngineersAdminTable(); renderAll();
+        const firstName=(document.querySelector('input[data-eng-first="'+CSS.escape(id)+'"]')?.value||"").trim();
+        const lastName=(document.querySelector('input[data-eng-last="'+CSS.escape(id)+'"]')?.value||"").trim();
+        const company=(document.querySelector('input[data-eng-company="'+CSS.escape(id)+'"]')?.value||"").trim();
+        const purpose=(document.querySelector('input[data-eng-purpose="'+CSS.escape(id)+'"]')?.value||"").trim();
+        const rateRaw=(document.querySelector('input[data-eng-rate="'+CSS.escape(id)+'"]')?.value||"").trim();
+        const hourlyRate=rateRaw===""?null:Number(rateRaw);
+        if(!firstName&&!lastName){ alert("Engineer must have at least a first or last name."); return; }
+        await fetch(API_BASE+"/update-engineer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,firstName,lastName,company,purpose,hourlyRate})});
+        await fetchEngineers(); renderEngineersAdminTable(); renderAll();
       }
 
       async function toggleEngineer(id){
-      await fetch(API_BASE+”/toggle-engineer”,{method:“POST”,headers:{“Content-Type”:“application/json”},body:JSON.stringify({id})});
-      await fetchEngineers(); renderEngineersAdminTable(); renderAll();
+        await fetch(API_BASE+"/toggle-engineer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+        await fetchEngineers(); renderEngineersAdminTable(); renderAll();
       }
 
       /* COMPANIES MODAL */
       async function openCompaniesModal(){
-      await fetchSites(); await fetchCompaniesMaster(); await loadSiteCompanyMap();
-      document.getElementById(“companiesModal”).style.display=“flex”;
-      renderCompaniesAdmin();
+        await fetchSites(); await fetchCompaniesMaster(); await loadSiteCompanyMap();
+        document.getElementById("companiesModal").style.display="flex";
+        renderCompaniesAdmin();
       }
-      function closeCompaniesModal(){ document.getElementById(“companiesModal”).style.display=“none”; }
+      function closeCompaniesModal(){ document.getElementById("companiesModal").style.display="none"; }
 
       function renderCompaniesAdmin(){
-      const wrap=document.getElementById(“companiesAdminBody”);
-      const companyRows=companiesAll.map(c=>’<tr><td style="font-weight:500;">’+escapeHtml(c.name)+’</td><td><div class="row-btns"><button class="btn-danger btn-sm" onclick="deleteCompany(\''+escapeHtml(c.id)+'\',\''+escapeHtml(c.name)+'\')">Delete</button></div></td></tr>’).join(””);
-      wrap.innerHTML=’<div class="add-form" style="margin-bottom:16px;"><div class="add-form-title">Add New Company</div><div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;"><div class="field-stack" style="flex:1;min-width:180px;"><span class="field-label">Company Name</span><input id="newCompanyName" type="text" placeholder="e.g. Acme Ltd" style="width:100%;" /></div><button class="btn-primary" onclick="addCompany()">Add Company</button></div></div>’+(companiesAll.length?’<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Company Name</th><th style="text-align:right;">Actions</th></tr></thead><tbody>’+companyRows+’</tbody></table></div>’:’<div class="ts-empty">No companies yet. Add one above.</div>’);
+        const wrap=document.getElementById("companiesAdminBody");
+        const companyRows=companiesAll.map(c=>'<tr><td style="font-weight:500;">'+escapeHtml(c.name)+'</td><td><div class="row-btns"><button class="btn-danger btn-sm" onclick="deleteCompany(\''+escapeHtml(c.id)+'\',\''+escapeHtml(c.name)+'\')">Delete</button></div></td></tr>').join("");
+        wrap.innerHTML='<div class="add-form" style="margin-bottom:16px;"><div class="add-form-title">Add New Company</div><div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;"><div class="field-stack" style="flex:1;min-width:180px;"><span class="field-label">Company Name</span><input id="newCompanyName" type="text" placeholder="e.g. Acme Ltd" style="width:100%;" /></div><button class="btn-primary" onclick="addCompany()">Add Company</button></div></div>'+(companiesAll.length?'<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Company Name</th><th style="text-align:right;">Actions</th></tr></thead><tbody>'+companyRows+'</tbody></table></div>':'<div class="ts-empty">No companies yet. Add one above.</div>');
       }
 
       async function addCompany(){
-      const nameEl=document.getElementById(“newCompanyName”);
-      const name=(nameEl?.value||””).trim();
-      if(!name){ alert(“Company name is required.”); return; }
-      const res=await fetch(API_BASE+”/add-company”,{method:“POST”,headers:{“Content-Type”:“application/json”},body:JSON.stringify({name})});
-      const data=await res.json();
-      if(!res.ok||!data.ok){ alert(“Failed to add company.\n\n”+(data.error||“Unknown error”)); return; }
-      nameEl.value=””; await fetchCompaniesMaster(); renderCompaniesAdmin();
+        const nameEl=document.getElementById("newCompanyName");
+        const name=(nameEl?.value||"").trim();
+        if(!name){ alert("Company name is required."); return; }
+        const res=await fetch(API_BASE+"/add-company",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})});
+        const data=await res.json();
+        if(!res.ok||!data.ok){ alert("Failed to add company.\n\n"+(data.error||"Unknown error")); return; }
+        nameEl.value=""; await fetchCompaniesMaster(); renderCompaniesAdmin();
       }
 
       async function deleteCompany(id, name){
-      if(!confirm(‘Remove company “’+name+’”? This will not delete any historical visit data.’)) return;
-      const res=await fetch(API_BASE+”/delete-company”,{method:“POST”,headers:{“Content-Type”:“application/json”},body:JSON.stringify({id})});
-      const data=await res.json();
-      if(!res.ok||!data.ok){ alert(“Failed to delete company.\n\n”+(data.error||“Unknown error”)); return; }
-      await fetchCompaniesMaster(); renderCompaniesAdmin();
+        if(!confirm('Remove company "'+name+'"? This will not delete any historical visit data.')) return;
+        const res=await fetch(API_BASE+"/delete-company",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+        const data=await res.json();
+        if(!res.ok||!data.ok){ alert("Failed to delete company.\n\n"+(data.error||"Unknown error")); return; }
+        await fetchCompaniesMaster(); renderCompaniesAdmin();
       }
 
       /* NAV DRAWER */
       function toggleNavDrawer(){
-      document.getElementById(“navDrawer”).classList.toggle(“open”);
+        document.getElementById("navDrawer").classList.toggle("open");
       }
       function closeNavDrawer(){
-      document.getElementById(“navDrawer”).classList.remove(“open”);
+        document.getElementById("navDrawer").classList.remove("open");
       }
 
       function setPreset(type){
-      if(type===“all”){ document.getElementById(“fromDate”).value=””; document.getElementById(“toDate”).value=””; loadData(); return; }
-      let fromDate=null;
-      if(type===“week”){
-      const now=new Date(), day=now.getDay(), diff=now.getDate()-day+(day===0?-6:1);
-      fromDate=new Date(now.getFullYear(),now.getMonth(),diff);
-      } else {
-      const now=new Date();
-      fromDate=new Date(now.getFullYear(),now.getMonth(),now.getDate()-type);
-      }
-      const fmt=d=>d.toISOString().slice(0,10);
-      document.getElementById(“fromDate”).value=fmt(fromDate);
-      document.getElementById(“toDate”).value=fmt(new Date());
-      loadData();
+        if(type==="all"){ document.getElementById("fromDate").value=""; document.getElementById("toDate").value=""; loadData(); return; }
+        let fromDate=null;
+        if(type==="week"){
+          const now=new Date(), day=now.getDay(), diff=now.getDate()-day+(day===0?-6:1);
+          fromDate=new Date(now.getFullYear(),now.getMonth(),diff);
+        } else {
+          const now=new Date();
+          fromDate=new Date(now.getFullYear(),now.getMonth(),now.getDate()-type);
+        }
+        const fmt=d=>d.toISOString().slice(0,10);
+        document.getElementById("fromDate").value=fmt(fromDate);
+        document.getElementById("toDate").value=fmt(new Date());
+        loadData();
       }
     </script>
 

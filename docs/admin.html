@@ -1090,7 +1090,7 @@
       <button class="btn-primary btn-sm" onclick="openExportModal()">↑ Export PDF</button>
       <button class="btn-icon btn-ghost btn-sm" onclick="loadData()" title="Refresh">↺</button>
     </div>
-    <button class="nav-menu-btn" onclick="toggleNavDrawer()" id="navMenuBtn">☰</button>
+    <button class="nav-menu-btn" onclick="toggleNavDrawer(); event.stopPropagation();" id="navMenuBtn">☰</button>
   </div>
 </div>
 
@@ -2375,23 +2375,18 @@ renderCompaniesAdmin();
 
 function toggleNavDrawer(){
 const drawer=document.getElementById(“navDrawer”);
-const btn=document.getElementById(“navMenuBtn”);
 drawer.classList.toggle(“open”);
-// Prevent the document click listener closing it immediately
-btn._justToggled = true;
-setTimeout(function(){ btn._justToggled = false; }, 50);
 }
 
 function closeNavDrawer(){
 document.getElementById(“navDrawer”).classList.remove(“open”);
 }
 
-// Close drawer on outside tap
+// Close drawer on outside tap — stopPropagation on the button prevents this
+// firing on the same tap that opens the drawer
 document.addEventListener(“click”,function(e){
 const drawer=document.getElementById(“navDrawer”);
 const btn=document.getElementById(“navMenuBtn”);
-// Ignore if the toggle button itself just fired
-if(btn && btn._justToggled) return;
 if(drawer.classList.contains(“open”)&&!drawer.contains(e.target)&&!btn.contains(e.target)){
 drawer.classList.remove(“open”);
 }

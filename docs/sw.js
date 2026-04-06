@@ -1,60 +1,61 @@
-const CACHE = “sitelog-v1”;
-const SHELL = [
-“/SiteLog/app.html”,
-“/SiteLog/manifest.json”,
-“/SiteLog/Mostlane Logo.jpg”
+var CACHE = “sitelog-v4”;
+var PRECACHE = [
+“./app.html”,
+“./admin.html”,
+“./scan.html”,
+“./Mostlane%20Icon.jpeg”,
+“./Mostlane%20Logo.jpg”
 ];
 
+// Install: precache core files
 self.addEventListener(“install”, function(e) {
+self.skipWaiting();
 e.waitUntil(
 caches.open(CACHE).then(function(cache) {
-return cache.addAll(SHELL);
+return cache.addAll(PRECACHE);
 })
 );
-self.skipWaiting();
 });
 
+// Activate: delete old caches
 self.addEventListener(“activate”, function(e) {
 e.waitUntil(
 caches.keys().then(function(keys) {
 return Promise.all(
 keys.filter(function(k) { return k !== CACHE; })
-.map(function(k)   { return caches.delete(k); })
+.map(function(k) { return caches.delete(k); })
 );
+}).then(function() { return self.clients.claim(); })
+);
+});
+
+// Fetch: network-first for HTML, cache-first for everything else
+self.addEventListener(“fetch”, function(e) {
+var url = e.request.url;
+
+// Always go network-first for HTML pages so updates come through immediately
+if (e.request.mode === “navigate” || url.endsWith(”.html”)) {
+e.respondWith(
+fetch(e.request).then(function(res) {
+var clone = res.clone();
+caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
+return res;
+}).catch(function() {
+return caches.match(e.request);
 })
 );
-self.clients.claim();
-});
-
-self.addEventListener(“fetch”, function(e) {
-const url = new URL(e.request.url);
-
-// Always go network-first for API calls
-if (url.hostname.includes(“workers.dev”) ||
-url.hostname.includes(“googleapis.com”) ||
-url.hostname.includes(“google.com”)) {
-e.respondWith(fetch(e.request).catch(function() {
-return new Response(JSON.stringify({ ok: false, error: “offline” }), {
-headers: { “Content-Type”: “application/json” }
-});
-}));
 return;
 }
 
-// Cache-first for app shell assets
+// Cache-first for images and other static assets
 e.respondWith(
 caches.match(e.request).then(function(cached) {
-return cached || fetch(e.request).then(function(response) {
-if (response && response.status === 200 && response.type === “basic”) {
-var clone = response.clone();
-caches.open(CACHE).then(function(cache) {
-cache.put(e.request, clone);
+if (cached) return cached;
+return fetch(e.request).then(function(res) {
+var clone = res.clone();
+caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
+return res;
 });
-}
-return response;
-});
-}).catch(function() {
-return caches.match(”/SiteLog/app.html”);
 })
 );
 });

@@ -145,6 +145,36 @@
 .modal-btn.secondary { background: #f1f5f9; color: var(--muted); font-weight: 500; }
 .modal-btn:active { opacity: 0.85; }
 
+/* DASHBOARD INFO STRIP */
+.dash-info-strip {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.dash-info-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.dash-info-row span.lbl { flex-shrink: 0; font-size: 13px; }
+.dash-info-row span.val { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-last-event {
+  margin-top: 8px;
+  padding: 9px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.dash-last-event-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 3px; }
+.dash-last-event-val { font-weight: 600; color: var(--text); font-size: 13px; }
+
 /* SITE RULES IN MODAL */
 .rules-toggle {
   display: flex;
@@ -343,6 +373,24 @@
       <button class="dash-action-btn dash-btn-in"  id="dashBtnIn"  onclick="dashTriggerScan()"    style="display:none;">Check In</button>
       <button class="dash-action-btn dash-btn-out" id="dashBtnOut" onclick="dashTriggerSignOut()" style="display:none;">Sign Out</button>
       <div id="dashDuration" style="display:none;font-size:13px;color:var(--muted);margin-top:8px;text-align:center;"></div>
+      <div class="dash-info-strip">
+        <div class="dash-info-row">
+          <span class="lbl">&#128100;</span>
+          <span class="val" id="dashInfoName">--</span>
+        </div>
+        <div class="dash-info-row">
+          <span class="lbl">&#128241;</span>
+          <span class="val" id="dashInfoDevice">--</span>
+        </div>
+        <div class="dash-info-row">
+          <span class="lbl">&#128336;</span>
+          <span class="val" id="dashInfoClock">--</span>
+        </div>
+        <div class="dash-last-event" id="dashLastEventWrap" style="display:none;">
+          <div class="dash-last-event-title">Last event</div>
+          <div class="dash-last-event-val" id="dashLastEvent">--</div>
+        </div>
+      </div>
     </div>
     <div class="dash-cards-row">
       <div class="dash-card" id="dashOnSiteCard" onclick="dashShowOnSite()">
@@ -922,6 +970,7 @@ async function appConfirmSignOutYes() {
   }
   closeSignOutModal();
   dashSetState("unknown", null, null, null);
+  recordLastEvent("Signed out from " + (siteName || "site") + (durText ? " (" + durText + ")" : ""));
   showSuccess("out", siteName, firstName, durText);
 }
 function appConfirmSignOutNo() {
@@ -976,6 +1025,8 @@ async function appConfirmSignInYes() {
   await dbSet("last_checkin", checkinTime);
   closeSignInModal();
   dashSetState("in", siteName, null, checkinTime);
+  if (firstName) updateDashInfoStrip(firstName, "", company);
+  recordLastEvent("Checked in at " + (siteName || "site"));
   showSuccess("in", siteName, firstName);
 }
 function appConfirmSignInNo() { closeSignInModal(); }
@@ -997,7 +1048,10 @@ async function appScan() {
   var company   = data.company   || "";
 
   // Store identity whenever the server returns a recognised person
-  if (firstName) storeIdentity(firstName, "", company);
+  if (firstName) {
+    storeIdentity(firstName, "", company);
+    updateDashInfoStrip(firstName, "", company);
+  }
 
   if (data.status === "first_visit") {
     var prof = await dbGet("profile");
@@ -1554,9 +1608,81 @@ window.addEventListener("pageshow", function(e) {
 });
 
 // INIT
+// CLOCK TICKER
+function startClockTicker() {
+  function tick() {
+    var el = document.getElementById("dashInfoClock");
+    if (!el) return;
+    var now = new Date();
+    var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    var d = days[now.getDay()];
+    var dt = now.getDate();
+    var m = months[now.getMonth()];
+    var h = String(now.getHours()).padStart(2,"0");
+    var min = String(now.getMinutes()).padStart(2,"0");
+    el.textContent = d + " " + dt + " " + m + " " + h + ":" + min;
+  }
+  tick();
+  setInterval(tick, 30000);
+}
+
+function updateDashInfoStrip(firstName, lastName, company) {
+  var nameEl = document.getElementById("dashInfoName");
+  var devEl  = document.getElementById("dashInfoDevice");
+  if (!nameEl || !devEl) return;
+  var fullName = ((firstName || "") + " " + (lastName || "")).trim();
+  if (company) fullName += " \u2014 " + company;
+  nameEl.textContent = fullName || "Unknown";
+  devEl.textContent  = "Device: " + (deviceToken || "").slice(0, 8) + "...";
+}
+
+function recordLastEvent(text) {
+  var wrap = document.getElementById("dashLastEventWrap");
+  var val  = document.getElementById("dashLastEvent");
+  if (!wrap || !val) return;
+  var now = new Date();
+  var h   = String(now.getHours()).padStart(2,"0");
+  var min = String(now.getMinutes()).padStart(2,"0");
+  val.textContent = text + " \u2014 " + h + ":" + min;
+  wrap.style.display = "block";
+  try { localStorage.setItem("ml_last_event", JSON.stringify({ text: text, time: Date.now() })); } catch(e) {}
+}
+
+function loadLastEvent() {
+  try {
+    var raw = localStorage.getItem("ml_last_event");
+    if (!raw) return;
+    var ev = JSON.parse(raw);
+    if (!ev || !ev.text) return;
+    var wrap = document.getElementById("dashLastEventWrap");
+    var val  = document.getElementById("dashLastEvent");
+    if (!wrap || !val) return;
+    var d    = new Date(ev.time);
+    var h    = String(d.getHours()).padStart(2,"0");
+    var min  = String(d.getMinutes()).padStart(2,"0");
+    val.textContent  = ev.text + " \u2014 " + h + ":" + min;
+    wrap.style.display = "block";
+  } catch(e) {}
+}
+
 async function init() {
   deviceToken = await getDeviceToken();
   tokenFallbackWrite(deviceToken);
+  // Populate info strip from stored profile
+  var storedProf = null;
+  try { storedProf = JSON.parse(localStorage.getItem("mostlane_profile") || "null"); } catch(e) {}
+  if (storedProf) updateDashInfoStrip(storedProf.firstName, storedProf.lastName, storedProf.company);
+  else {
+    var dbProf = await dbGet("profile");
+    if (dbProf) updateDashInfoStrip(dbProf.firstName, dbProf.lastName, dbProf.company);
+    else {
+      var devEl = document.getElementById("dashInfoDevice");
+      if (devEl) devEl.textContent = "Device: " + (deviceToken || "").slice(0,8) + "...";
+    }
+  }
+  startClockTicker();
+  loadLastEvent();
   var prevGranted = await dbGet("gps_granted");
   if (navigator.permissions && navigator.permissions.query) {
     try {

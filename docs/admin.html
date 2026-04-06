@@ -2179,12 +2179,11 @@ function renderSitesAdminTable(){
       </tr>
       <tr class="site-row-detail">
         <td colspan="5">
-          <div class="site-rules-wrap">
-            <div class="site-rules-label">Site Rules (one rule per line)</div>
-            <textarea class="site-rules-textarea" data-site-rules="${escapeHtml(s.id)}" rows="4" placeholder="Enter each site rule on a new line...">${escapeHtml(s.site_rules||"")}</textarea>
+          <div class="site-rules-wrap" style="margin-bottom:14px;">
+            <div class="site-rules-label" style="color:var(--label2);font-size:12px;font-weight:700;margin-bottom:6px;">&#128216; Site Rules <span style="font-weight:400;color:var(--label4);">(one rule per line — shown to workers on check-in)</span></div>
+            <textarea class="site-rules-textarea" data-site-rules="${escapeHtml(s.id)}" rows="4" placeholder="e.g.&#10;Hard hats must be worn at all times&#10;Report to site foreman on arrival&#10;No smoking on site">${escapeHtml(s.site_rules||"")}</textarea>
 
 ```
-        <div class="site-rules-hint">Workers see these as a collapsible list before confirming check-in.</div>
       </div>
       <div class="site-companies-section">
         <div class="site-companies-label">${escapeHtml(s.site_name||"Site")} — Companies</div>

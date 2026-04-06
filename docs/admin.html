@@ -1090,7 +1090,7 @@
       <button class="btn-primary btn-sm" onclick="openExportModal()">↑ Export PDF</button>
       <button class="btn-icon btn-ghost btn-sm" onclick="loadData()" title="Refresh">↺</button>
     </div>
-    <button class="nav-menu-btn" onclick="toggleNavDrawer(); event.stopPropagation();" id="navMenuBtn">☰</button>
+    <button class="nav-menu-btn" id="navMenuBtn">☰</button>
   </div>
 </div>
 
@@ -2382,12 +2382,22 @@ function closeNavDrawer(){
 document.getElementById(“navDrawer”).classList.remove(“open”);
 }
 
-// Close drawer on outside tap — stopPropagation on the button prevents this
-// firing on the same tap that opens the drawer
+// Wire the hamburger button via JS so stopPropagation works reliably on iOS
+(function(){
+var btn=document.getElementById(“navMenuBtn”);
+if(btn){
+btn.addEventListener(“click”,function(e){
+e.stopPropagation();
+toggleNavDrawer();
+});
+}
+})();
+
+// Close drawer when tapping outside
 document.addEventListener(“click”,function(e){
 const drawer=document.getElementById(“navDrawer”);
 const btn=document.getElementById(“navMenuBtn”);
-if(drawer.classList.contains(“open”)&&!drawer.contains(e.target)&&!btn.contains(e.target)){
+if(drawer && drawer.classList.contains(“open”) && !drawer.contains(e.target) && btn && !btn.contains(e.target)){
 drawer.classList.remove(“open”);
 }
 });

@@ -1,566 +1,239 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>SiteLog -- Admin</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico" />
-  <link rel="apple-touch-icon" href="Mostlane%20Icon%20180.png" />
+  <meta charset="UTF-8"/>
+  <title>SiteLog Admin</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
   <style>
-    :root {
-      --bg:           #f2f2f7;
-      --surface:      #ffffff;
-      --surface2:     #f9f9fb;
-      --surface3:     #f2f2f7;
-      --border:       rgba(0,0,0,0.08);
-      --border-heavy: rgba(0,0,0,0.13);
-      --blue:         #0071e3;
-      --blue-dark:    #0058b0;
-      --blue-soft:    rgba(0,113,227,0.10);
-      --red:          #ff3b30;
-      --red-soft:     rgba(255,59,48,0.10);
-      --green:        #34c759;
-      --green-soft:   rgba(52,199,89,0.10);
-      --amber:        #ff9f0a;
-      --amber-soft:   rgba(255,159,10,0.10);
-      --label:        #1d1d1f;
-      --label2:       #48484a;
-      --label3:       #6e6e73;
-      --label4:       #aeaeb2;
-      --radius-sm:    8px;
-      --radius-md:    12px;
-      --radius-lg:    16px;
-      --radius-xl:    20px;
-      --shadow-sm:    0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-      --shadow-md:    0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
-      --shadow-lg:    0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
-      --shadow-xl:    0 20px 60px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08);
+    :root{--bg:#f2f2f7;--surface:#fff;--surface2:#f9f9fb;--surface3:#f2f2f7;--border:rgba(0,0,0,0.08);--border-heavy:rgba(0,0,0,0.13);--blue:#0071e3;--blue-dark:#0058b0;--blue-soft:rgba(0,113,227,0.10);--red:#ff3b30;--red-soft:rgba(255,59,48,0.10);--green:#34c759;--green-soft:rgba(52,199,89,0.10);--amber:#ff9f0a;--amber-soft:rgba(255,159,10,0.10);--label:#1d1d1f;--label2:#48484a;--label3:#6e6e73;--label4:#aeaeb2;--radius-sm:8px;--radius-md:12px;--radius-lg:16px;--radius-xl:20px;--shadow-md:0 4px 16px rgba(0,0,0,0.08),0 1px 4px rgba(0,0,0,0.04);--shadow-xl:0 20px 60px rgba(0,0,0,0.18),0 4px 16px rgba(0,0,0,0.08);}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html{-webkit-font-smoothing:antialiased;}
+    body{font-family:"DM Sans",-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--label);min-height:100vh;padding:0 0 60px;}
+    .topbar{background:rgba(255,255,255,0.92);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;padding:env(safe-area-inset-top,0) 20px 0 20px;display:flex;align-items:center;min-height:52px;}
+    .topbar-inner{display:flex;align-items:center;justify-content:space-between;width:100%;height:52px;gap:12px;}
+    .topbar-brand{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+    .topbar-logo img{height:28px;width:auto;border-radius:5px;}
+    .topbar-logo-fallback{width:28px;height:28px;background:var(--label);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;}
+    .topbar-title{font-size:15px;font-weight:600;color:var(--label);}
+    .topbar-subtitle{font-size:12px;color:var(--label3);}
+    .topbar-actions{display:flex;align-items:center;gap:6px;}
+    .nav-menu-btn{display:none;width:36px;height:36px;border:1px solid var(--border-heavy);border-radius:var(--radius-sm);background:var(--surface);font-size:16px;cursor:pointer;align-items:center;justify-content:center;}
+    .nav-drawer{display:none;position:fixed;top:calc(52px + env(safe-area-inset-top,0px));left:0;right:0;background:var(--surface);border-bottom:1px solid var(--border);padding:12px 16px 16px;z-index:99;flex-direction:column;gap:8px;box-shadow:var(--shadow-md);}
+    .nav-drawer.open{display:flex;}
+    .nav-drawer button{width:100%;height:44px;font-size:15px;justify-content:flex-start;padding:0 16px;border-radius:var(--radius-md);}
+    .page{max-width:1120px;margin:0 auto;padding:28px 24px 0;}
+    .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap;}
+    .section-label{font-size:13px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.6px;}
+    .card{background:var(--surface);border-radius:var(--radius-xl);box-shadow:var(--shadow-md);border:1px solid var(--border);overflow:hidden;}
+    .filter-card{background:var(--surface);border-radius:var(--radius-xl);box-shadow:var(--shadow-md);border:1px solid var(--border);margin-bottom:24px;overflow:hidden;}
+    .filter-toggle{display:flex;align-items:center;justify-content:space-between;padding:13px 20px;cursor:pointer;user-select:none;gap:10px;}
+    .filter-toggle-label{font-size:13px;font-weight:600;color:var(--label2);display:flex;align-items:center;gap:8px;}
+    .filter-toggle-summary{font-size:12px;color:var(--label3);font-weight:400;}
+    .filter-toggle-arrow{font-size:12px;color:var(--label3);transition:transform 0.2s;}
+    .filter-toggle-arrow.open{transform:rotate(180deg);}
+    .filter-body{display:none;padding:0 20px 16px;gap:14px;flex-wrap:wrap;align-items:flex-end;border-top:1px solid var(--border);}
+    .filter-body.open{display:flex;}
+    .filter-group{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;padding-top:14px;}
+    .name-link{color:var(--blue);font-weight:600;cursor:pointer;text-decoration:none;border-bottom:1px solid transparent;}
+    .name-link:hover{border-bottom-color:var(--blue);}
+    .eng-stats{display:flex;flex-wrap:wrap;gap:8px;padding:10px 16px 12px;background:var(--bg);border-bottom:1px solid var(--border);}
+    .eng-stat{display:flex;flex-direction:column;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:8px 14px;min-width:90px;}
+    .eng-stat-val{font-size:17px;font-weight:700;color:var(--label);line-height:1;}
+    .eng-stat-val.warn{color:var(--red);}
+    .eng-stat-val.good{color:var(--green);}
+    .eng-stat-label{font-size:10.5px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.4px;margin-top:4px;}
+    .field-stack{display:flex;flex-direction:column;gap:4px;}
+    .field-label{font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.5px;padding-left:2px;}
+    input[type="text"],input[type="date"],input[type="time"],input[type="number"],input[type="search"],select{height:36px;padding:0 12px;border:1px solid var(--border-heavy);border-radius:var(--radius-sm);font-size:13.5px;font-family:inherit;color:var(--label);background:var(--surface);outline:none;transition:border-color 0.15s,box-shadow 0.15s;-webkit-appearance:none;}
+    input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);}
+    select[multiple]{height:auto;min-height:80px;padding:6px;}
+    button{display:inline-flex;align-items:center;gap:5px;height:36px;padding:0 14px;border:none;border-radius:var(--radius-sm);font-size:13.5px;font-family:inherit;font-weight:500;cursor:pointer;transition:opacity 0.12s,transform 0.1s;white-space:nowrap;outline:none;}
+    button:active{transform:scale(0.97);}
+    .btn-primary{background:var(--blue);color:#fff;}
+    .btn-primary:hover{background:var(--blue-dark);}
+    .btn-ghost{background:var(--surface3);color:var(--label2);border:1px solid var(--border-heavy);}
+    .btn-ghost:hover{background:#e8e8ed;}
+    .btn-danger{background:var(--red-soft);color:var(--red);border:1px solid rgba(255,59,48,0.20);}
+    .btn-danger:hover{background:rgba(255,59,48,0.18);}
+    .btn-amber{background:var(--amber-soft);color:#92400e;border:1px solid rgba(255,159,10,0.25);}
+    .btn-sm{height:30px;padding:0 10px;font-size:12.5px;border-radius:6px;}
+    .btn-icon{width:36px;padding:0;justify-content:center;}
+    .chip-group{display:flex;gap:6px;flex-wrap:wrap;}
+    .chip{height:30px;padding:0 12px;border-radius:999px;font-size:12.5px;font-weight:500;background:var(--surface3);color:var(--label2);border:1px solid var(--border-heavy);cursor:pointer;}
+    .chip:hover{background:var(--blue-soft);color:var(--blue);border-color:var(--blue);}
+    .table-wrap{overflow-x:auto;}
+    .admin-table-scroll{overflow-x:auto;}
+    table{width:100%;border-collapse:collapse;font-size:13.5px;}
+    thead th{background:var(--surface2);color:var(--label3);font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
+    tbody td{padding:11px 14px;border-bottom:1px solid var(--border);color:var(--label2);vertical-align:middle;}
+    tbody tr:last-child td{border-bottom:none;}
+    tbody tr:hover{background:var(--surface2);}
+    .pill{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap;}
+    .pill::before{content:'';width:6px;height:6px;border-radius:50%;}
+    .pill-live{background:var(--green-soft);color:#1a7f3c;}.pill-live::before{background:var(--green);}
+    .pill-out{background:var(--surface3);color:var(--label3);}.pill-out::before{background:var(--label4);}
+    .pill-active{background:var(--blue-soft);color:var(--blue);}.pill-active::before{background:var(--blue);}
+    .pill-arch{background:var(--surface3);color:var(--label3);}.pill-arch::before{background:var(--label4);}
+    .pill-pending{background:var(--amber-soft);color:#92400e;}.pill-pending::before{background:var(--amber);}
+    .check-icon{color:var(--green);font-size:15px;font-weight:700;}
+    .cross-icon{color:var(--label4);font-size:13px;}
+    .empty-state{padding:48px 24px;text-align:center;color:var(--label3);}
+    .empty-state .empty-icon{font-size:36px;margin-bottom:10px;opacity:0.5;}
+    .empty-state p{font-size:14px;}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);display:none;justify-content:center;align-items:center;z-index:9000;padding:20px;}
+    .modal-content{width:min(960px,100%);max-height:88vh;overflow:auto;background:var(--surface);border-radius:var(--radius-xl);box-shadow:var(--shadow-xl);border:1px solid var(--border);}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 24px 16px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:2;border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
+    .modal-title{font-size:16px;font-weight:600;color:var(--label);}
+    .modal-subtitle{font-size:13px;color:var(--label3);margin-top:2px;}
+    .modal-body{padding:20px 24px 28px;}
+    .modal-note{font-size:13px;color:var(--label3);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;line-height:1.5;}
+    .modal-actions{display:flex;gap:8px;justify-content:flex-end;padding:16px 24px 20px;border-top:1px solid var(--border);}
+    .admin-table{width:100%;border-collapse:collapse;font-size:13px;}
+    .admin-table th{background:var(--surface2);color:var(--label3);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
+    .admin-table td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+    .admin-table tr:last-child td{border-bottom:none;}
+    .admin-table tr:hover td{background:var(--surface2);}
+    .admin-table td input,.admin-table td select{width:100%;height:32px;padding:0 8px;border:1px solid var(--border-heavy);border-radius:6px;font-size:13px;font-family:inherit;background:var(--surface);}
+    .admin-table td input:focus,.admin-table td select:focus{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue-soft);outline:none;}
+    .row-btns{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;}
+    .travel-section{margin-top:10px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border);}
+    .travel-section-label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--label3);margin-bottom:8px;}
+    .travel-fields{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;}
+    .travel-fields select,.travel-fields input{height:30px;font-size:12.5px;padding:0 8px;}
+    .ts-modal-content{width:min(1300px,96vw);max-height:90vh;overflow:auto;background:var(--surface);border-radius:var(--radius-xl);box-shadow:var(--shadow-xl);border:1px solid var(--border);}
+    .ts-filter-bar{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:16px 24px;background:var(--surface2);border-bottom:1px solid var(--border);}
+    .ts-body{padding:20px 24px 28px;}
+    .ts-meta{font-size:12.5px;color:var(--label3);margin-bottom:14px;}
+    .ts-company-section{margin-top:20px;}
+    .ts-company-title{font-size:13px;font-weight:700;color:var(--label3);text-transform:uppercase;letter-spacing:0.7px;padding:10px 0 8px;border-bottom:2px solid var(--label);margin-bottom:16px;}
+    .ts-engineer-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:16px;}
+    .ts-engineer-header{padding:14px 16px 12px;background:var(--surface2);border-bottom:1px solid var(--border);}
+    .ts-engineer-title{font-size:16px;font-weight:600;color:var(--label);margin-bottom:10px;}
+    .ts-engineer-admin{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;}
+    .ts-engineer-admin .full{grid-column:1/-1;}
+    .ts-engineer-admin-btns{display:flex;gap:6px;flex-wrap:wrap;}
+    .ts-week-block{padding:16px;}
+    .ts-week-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+    .ts-week-text{font-size:13px;font-weight:600;color:var(--label2);}
+    .ts-pill{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;border:1px solid var(--border-heavy);background:var(--surface);font-size:12px;font-weight:500;color:var(--label2);}
+    .ts-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius-md);}
+    .ts-table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1100px;}
+    .ts-table th{background:var(--surface2);color:var(--label3);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
+    .ts-table td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--label2);vertical-align:middle;}
+    .ts-table tfoot td{background:var(--surface2);font-weight:600;color:var(--label);border-top:1px solid var(--border-heavy);border-bottom:none;}
+    .ts-table tbody tr:last-child td{border-bottom:none;}
+    .ts-table tbody tr:hover td{background:var(--surface2);}
+    .ts-cell-center{text-align:center;white-space:nowrap;}
+    .ts-map-link{color:var(--blue);text-decoration:none;font-size:13px;margin-left:4px;}
+    .ts-note-bad{color:var(--red);font-weight:600;font-size:12px;}
+    .ts-travel-cell{font-size:12px;line-height:1.5;white-space:nowrap;}
+    .ts-travel-paid{color:var(--green);font-size:11px;font-weight:600;}
+    .ts-summary{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;border-top:1px solid var(--border);background:var(--surface2);}
+    .ts-visit-edit{display:flex;gap:4px;flex-wrap:wrap;align-items:center;}
+    .ts-visit-edit input{min-width:130px;height:28px;padding:0 8px;font-size:12px;border:1px solid var(--border-heavy);border-radius:6px;}
+    .ts-empty{padding:32px 20px;text-align:center;background:var(--surface2);border:1px dashed var(--border-heavy);border-radius:var(--radius-md);color:var(--label3);font-size:13.5px;}
+    .transfer-banner{background:var(--amber-soft);border:1px solid rgba(255,159,10,0.4);border-radius:var(--radius-md);padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+    .transfer-banner-text{font-size:13px;font-weight:600;color:#92400e;}
+    .site-companies-section{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+    .site-companies-label{font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;}
+    .company-chip-row{display:flex;flex-wrap:wrap;gap:6px;}
+    .company-chip-toggle{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--border-heavy);background:var(--surface);color:var(--label3);user-select:none;}
+    .company-chip-toggle.active{background:var(--blue-soft);color:var(--blue);border-color:var(--blue);}
+    .site-row-detail{background:var(--surface2);}
+    .site-row-detail td{padding:10px 14px 14px !important;}
+    .add-form{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:18px;}
+    .add-form-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--label3);margin-bottom:10px;}
+    .add-form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:end;}
+    .add-form-grid input{width:100%;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+    .card,.filter-card{animation:fadeUp 0.3s ease both;}
+    .checkout-field{margin:12px 0 20px;}
+    .checkout-field label{display:block;font-size:11.5px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;}
+    @media(max-width:768px){
+      .page{padding:12px 10px 0;}
+      .topbar-actions{display:none;}
+      .topbar-subtitle{display:none;}
+      .nav-menu-btn{display:flex;}
+      .filter-body{padding:0 14px 14px;}
+      .filter-group{width:100%;padding-top:12px;}
+      .chip{flex:1 1 auto;text-align:center;}
+      .modal{padding:0;align-items:flex-end;}
+      .modal-content,.ts-modal-content{width:100% !important;max-width:100% !important;max-height:92vh;border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
+      .modal-header{flex-wrap:wrap;gap:8px;}
+      .modal-actions{flex-wrap:wrap;}
+      .modal-actions button{flex:1 1 auto;}
+      .ts-filter-bar{flex-direction:column;padding:12px 14px;gap:10px;}
+      .ts-body{padding:12px 10px;}
+      .row-btns button{flex:1 1 auto;}
+      .add-form-grid{grid-template-columns:1fr 1fr !important;}
+      .eng-stat{min-width:80px;}
     }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { -webkit-font-smoothing: antialiased; }
-
-    body {
-      font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--bg);
-      color: var(--label);
-      min-height: 100vh;
-      padding: 0 0 60px 0;
+    @media(max-width:480px){
+      .add-form-grid{grid-template-columns:1fr !important;}
+      .eng-stat{flex:1 1 calc(50% - 4px);}
     }
-
-    /* ADMIN HEADER */
-    .admin-header {
-      background: var(--blue);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      padding: env(safe-area-inset-top, 0) 0 0;
-      box-shadow: 0 2px 16px rgba(0,74,153,0.25);
-    }
-
-    .admin-header-inner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 56px;
-      padding: 0 20px;
-      gap: 16px;
-    }
-
-    .admin-brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-shrink: 0;
-    }
-
-    .admin-logo {
-      height: 30px;
-      width: auto;
-      border-radius: 7px;
-      background: rgba(255,255,255,0.15);
-    }
-
-    .admin-title {
-      font-size: 16px;
-      font-weight: 700;
-      color: #fff;
-      letter-spacing: -0.2px;
-      line-height: 1;
-    }
-
-    .admin-sub {
-      font-size: 11px;
-      color: rgba(255,255,255,0.6);
-      font-weight: 500;
-      margin-top: 2px;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-    }
-
-    .admin-nav {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: nowrap;
-    }
-
-    .nav-pill {
-      height: 32px;
-      padding: 0 12px;
-      border: 1px solid rgba(255,255,255,0.25);
-      border-radius: 999px;
-      background: rgba(255,255,255,0.12);
-      color: rgba(255,255,255,0.9);
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
-      white-space: nowrap;
-      font-family: inherit;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-    }
-
-    .nav-pill:hover { background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.4); }
-    .nav-pill:active { transform: scale(0.96); }
-
-    .nav-pill-primary {
-      background: #fff;
-      color: var(--blue);
-      border-color: #fff;
-      font-weight: 700;
-    }
-    .nav-pill-primary:hover { background: rgba(255,255,255,0.92); }
-
-    .nav-pill-icon {
-      width: 32px;
-      padding: 0;
-      justify-content: center;
-      font-size: 16px;
-    }
-
-    /* Mobile nav */
-    .nav-menu-btn {
-      display: none;
-      width: 36px;
-      height: 36px;
-      border: 1px solid rgba(255,255,255,0.25);
-      border-radius: var(--radius-sm);
-      background: rgba(255,255,255,0.12);
-      color: #fff;
-      font-size: 18px;
-      cursor: pointer;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    .nav-drawer {
-      display: none;
-      position: fixed;
-      top: calc(56px + env(safe-area-inset-top, 0px));
-      left: 0; right: 0;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 12px 16px 16px;
-      z-index: 99;
-      flex-direction: column;
-      gap: 8px;
-      box-shadow: var(--shadow-md);
-    }
-
-    .nav-drawer.open { display: flex; }
-
-    .nav-drawer button {
-      width: 100%;
-      height: 44px;
-      font-size: 15px;
-      justify-content: flex-start;
-      padding: 0 16px;
-      border-radius: var(--radius-md);
-    }
-
-    /* PAGE */
-    .page { max-width: 1120px; margin: 0 auto; padding: 28px 24px 0; }
-
-    .section-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .section-label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--label3);
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-    }
-
-    .card {
-      background: var(--surface);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--shadow-md);
-      border: 1px solid var(--border);
-      overflow: hidden;
-    }
-
-    /* FILTER CARD */
-    .filter-card {
-      background: var(--surface);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--shadow-md);
-      border: 1px solid var(--border);
-      margin-bottom: 24px;
-      overflow: hidden;
-    }
-
-    .filter-toggle {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 13px 20px;
-      cursor: pointer;
-      user-select: none;
-      gap: 10px;
-    }
-
-    .filter-toggle-label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--label2);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .filter-toggle-summary { font-size: 12px; color: var(--label3); font-weight: 400; }
-    .filter-toggle-arrow { font-size: 12px; color: var(--label3); transition: transform 0.2s; flex-shrink: 0; }
-    .filter-toggle-arrow.open { transform: rotate(180deg); }
-
-    .filter-body {
-      display: none;
-      padding: 0 20px 16px;
-      gap: 14px;
-      flex-wrap: wrap;
-      align-items: flex-end;
-      justify-content: space-between;
-      border-top: 1px solid var(--border);
-    }
-    .filter-body.open { display: flex; }
-
-    .filter-group { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; padding-top: 14px; }
-
-    .name-link {
-      color: var(--blue);
-      font-weight: 600;
-      cursor: pointer;
-      text-decoration: none;
-      border-bottom: 1px solid transparent;
-      transition: border-color 0.12s;
-    }
-    .name-link:hover { border-bottom-color: var(--blue); }
-
-    .eng-stats { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px 12px; background: var(--bg); border-bottom: 1px solid var(--border); }
-    .eng-stat { display: flex; flex-direction: column; align-items: flex-start; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 8px 14px; min-width: 90px; }
-    .eng-stat-val { font-size: 17px; font-weight: 700; color: var(--label); letter-spacing: -0.3px; line-height: 1; }
-    .eng-stat-val.warn { color: var(--red); }
-    .eng-stat-val.good { color: var(--green); }
-    .eng-stat-label { font-size: 10.5px; font-weight: 600; color: var(--label3); text-transform: uppercase; letter-spacing: 0.4px; margin-top: 4px; }
-
-    .field-stack { display: flex; flex-direction: column; gap: 4px; }
-    .field-label { font-size: 11px; font-weight: 600; color: var(--label3); text-transform: uppercase; letter-spacing: 0.5px; padding-left: 2px; }
-
-    /* INPUTS */
-    input[type="text"], input[type="date"], input[type="time"], input[type="number"], input[type="search"], select {
-      height: 36px; padding: 0 12px; border: 1px solid var(--border-heavy);
-      border-radius: var(--radius-sm); font-size: 13.5px; font-family: inherit;
-      color: var(--label); background: var(--surface); outline: none;
-      transition: border-color 0.15s, box-shadow 0.15s; -webkit-appearance: none;
-    }
-    input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
-    select[multiple] { height: auto; min-height: 80px; padding: 6px; border-radius: var(--radius-sm); }
-    select[multiple] option { padding: 4px 6px; border-radius: 4px; }
-
-    /* BUTTONS */
-    button {
-      display: inline-flex; align-items: center; gap: 5px; height: 36px;
-      padding: 0 14px; border: none; border-radius: var(--radius-sm);
-      font-size: 13.5px; font-family: inherit; font-weight: 500; cursor: pointer;
-      transition: opacity 0.12s, transform 0.1s, box-shadow 0.12s; white-space: nowrap; outline: none;
-    }
-    button:active { transform: scale(0.97); }
-    .btn-primary { background: var(--blue); color: #fff; }
-    .btn-primary:hover { background: var(--blue-dark); }
-    .btn-ghost { background: var(--surface3); color: var(--label2); border: 1px solid var(--border-heavy); }
-    .btn-ghost:hover { background: #e8e8ed; }
-    .btn-danger { background: var(--red-soft); color: var(--red); border: 1px solid rgba(255,59,48,0.20); }
-    .btn-danger:hover { background: rgba(255,59,48,0.18); }
-    .btn-sm { height: 30px; padding: 0 10px; font-size: 12.5px; border-radius: 6px; }
-    .btn-icon { width: 36px; padding: 0; justify-content: center; font-size: 16px; }
-    .btn-icon.btn-sm { width: 30px; }
-
-    .chip-group { display: flex; gap: 6px; flex-wrap: wrap; }
-    .chip {
-      height: 30px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 500;
-      background: var(--surface3); color: var(--label2); border: 1px solid var(--border-heavy);
-      cursor: pointer; transition: background 0.12s, color 0.12s;
-    }
-    .chip:hover { background: var(--blue-soft); color: var(--blue); border-color: var(--blue); }
-    .chip:active { transform: scale(0.96); }
-
-    /* TABLE */
-    .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-    thead th { background: var(--surface2); color: var(--label3); font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
-    tbody td { padding: 11px 14px; border-bottom: 1px solid var(--border); color: var(--label2); vertical-align: middle; }
-    tbody tr:last-child td { border-bottom: none; }
-    tbody tr { transition: background 0.1s; }
-    tbody tr:hover { background: var(--surface2); }
-
-    /* PILLS */
-    .pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; letter-spacing: 0.1px; }
-    .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .pill-live    { background: var(--green-soft); color: #1a7f3c; }
-    .pill-live::before { background: var(--green); }
-    .pill-out     { background: var(--surface3); color: var(--label3); }
-    .pill-out::before { background: var(--label4); }
-    .pill-auto    { background: var(--red-soft); color: #c0392b; }
-    .pill-auto::before { background: var(--red); }
-    .pill-active  { background: var(--blue-soft); color: var(--blue); }
-    .pill-active::before { background: var(--blue); }
-    .pill-arch    { background: var(--surface3); color: var(--label3); }
-    .pill-arch::before { background: var(--label4); }
-    .pill-pending { background: var(--amber-soft); color: #b45309; }
-    .pill-pending::before { background: var(--amber); }
-    .pill-gps    { background: var(--red-soft); color: #c0392b; }
-    .pill-gps::before { background: var(--red); }
-    .pill-unreg  { background: rgba(124,58,237,0.10); color: #5b21b6; }
-    .pill-unreg::before { background: #7c3aed; }
-
-    .check-icon { color: var(--green); font-size: 15px; }
-    .cross-icon { color: var(--label4); font-size: 13px; }
-
-    .empty-state { padding: 48px 24px; text-align: center; color: var(--label3); }
-    .empty-state .empty-icon { font-size: 36px; margin-bottom: 10px; opacity: 0.5; }
-    .empty-state p { font-size: 14px; }
-
-    /* MODAL */
-    .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px); display: none; justify-content: center; align-items: center; z-index: 9000; padding: 20px; }
-    .modal-content { width: min(960px, 100%); max-height: 88vh; overflow: auto; background: var(--surface); border-radius: var(--radius-xl); box-shadow: var(--shadow-xl); border: 1px solid var(--border); }
-    .modal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 24px 16px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 2; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
-    .modal-title { font-size: 16px; font-weight: 600; color: var(--label); }
-    .modal-subtitle { font-size: 13px; color: var(--label3); margin-top: 2px; }
-    .modal-body { padding: 20px 24px 28px; }
-    .modal-note { font-size: 13px; color: var(--label3); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 16px; line-height: 1.5; }
-    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; padding: 16px 24px 20px; border-top: 1px solid var(--border); }
-
-    /* ADMIN TABLE */
-    .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .admin-table th { background: var(--surface2); color: var(--label3); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
-    .admin-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    .admin-table tr:last-child td { border-bottom: none; }
-    .admin-table tr:hover td { background: var(--surface2); }
-    .admin-table td input { width: 100%; height: 32px; padding: 0 8px; border: 1px solid var(--border-heavy); border-radius: 6px; font-size: 13px; font-family: inherit; background: var(--surface); }
-    .admin-table td input:focus { border-color: var(--blue); box-shadow: 0 0 0 2px var(--blue-soft); outline: none; }
-    .row-btns { display: flex; gap: 6px; justify-content: flex-end; }
-
-    /* TIMESHEET MODAL */
-    .ts-modal-content { width: min(1100px, 96vw); max-height: 90vh; overflow: auto; background: var(--surface); border-radius: var(--radius-xl); box-shadow: var(--shadow-xl); border: 1px solid var(--border); }
-    .ts-filter-bar { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; padding: 14px 24px; background: var(--surface2); border-bottom: 1px solid var(--border); }
-    .ts-body { padding: 20px 24px 28px; }
-    .ts-empty { padding: 40px 20px; text-align: center; background: var(--surface2); border: 1px dashed var(--border-heavy); border-radius: var(--radius-md); color: var(--label3); font-size: 13.5px; }
-
-    .ts-week-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 24px; }
-    .ts-week-nav { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); gap: 12px; }
-    .ts-week-title { font-size: 14px; font-weight: 700; color: var(--label); letter-spacing: -0.2px; }
-    .ts-week-total { font-size: 13px; font-weight: 600; color: var(--blue); background: var(--blue-soft); padding: 4px 12px; border-radius: 999px; border: 1px solid rgba(0,113,227,0.15); }
-    .ts-nav-btn { width: 32px; height: 32px; padding: 0; justify-content: center; font-size: 15px; border-radius: var(--radius-sm); flex-shrink: 0; }
-    .ts-engineer-name { font-size: 16px; font-weight: 700; color: var(--label); padding: 14px 16px 0; letter-spacing: -0.3px; }
-
-    .ts-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border-heavy); background: var(--surface); font-size: 12px; font-weight: 500; color: var(--label2); }
-    .ts-visit-edit { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
-    .ts-visit-edit input { min-width: 140px; height: 28px; padding: 0 8px; font-size: 12px; border: 1px solid var(--border-heavy); border-radius: 6px; font-family: 'SF Mono', monospace; }
-
-    .ts-day-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 12px; }
-    .ts-day-absent-card { opacity: 0.6; }
-    .ts-day-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); }
-    .ts-day-name { font-size: 14px; font-weight: 700; color: var(--label); min-width: 130px; }
-    .ts-today { color: var(--blue); }
-    .ts-day-summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .ts-day-time { font-size: 13px; font-weight: 600; color: var(--label2); font-family: 'SF Mono', monospace; }
-    .ts-day-tag { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
-    .ts-tag-total   { background: var(--blue-soft); color: var(--blue); }
-    .ts-tag-ongoing { background: var(--green-soft); color: #1a7f3c; }
-    .ts-tag-absent  { background: var(--surface3); color: var(--label4); font-weight: 500; }
-    .ts-day-hrs { font-size: 14px; font-weight: 700; color: var(--label); min-width: 36px; text-align: right; }
-    .ts-session-table-wrap { overflow-x: auto; }
-    .ts-session-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 500px; }
-    .ts-session-table th { background: var(--surface2); color: var(--label3); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 7px 12px; text-align: left; border-bottom: 1px solid var(--border); }
-    .ts-session-table tfoot td { background: var(--surface2); border-top: 2px solid var(--border-heavy); }
-    .ts-session-row:last-child td { border-bottom: none; }
-    .ts-session-row td { border-bottom: 1px solid var(--border); }
-    .ts-session-row:hover td { background: var(--surface2); }
-
-    /* CHECKOUT MODAL */
-    .checkout-modal .modal-content { width: min(420px, 100%); }
-    .checkout-field { margin: 12px 0 20px; }
-    .checkout-field label { display: block; font-size: 11.5px; font-weight: 600; color: var(--label3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-    .checkout-field input { width: 100%; }
-
-    /* SITE RULES */
-    .site-rules-wrap { margin-bottom: 14px; }
-    .site-rules-label { font-size: 12px; font-weight: 700; color: var(--label2); margin-bottom: 6px; }
-    .site-rules-textarea { width: 100%; min-height: 90px; padding: 8px 10px; border: 1px solid var(--border-heavy); border-radius: 8px; font-size: 13px; font-family: inherit; color: var(--label); background: var(--surface); resize: vertical; line-height: 1.5; outline: none; }
-    .site-rules-textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
-
-    /* COMPANY CHIPS */
-    .site-companies-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
-    .site-companies-label { font-size: 11px; font-weight: 600; color: var(--label3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-    .company-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
-    .company-chip-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border-heavy); background: var(--surface); color: var(--label3); transition: background 0.12s, color 0.12s, border-color 0.12s; user-select: none; }
-    .company-chip-toggle.active { background: var(--blue-soft); color: var(--blue); border-color: var(--blue); }
-
-    .site-row-detail { background: var(--surface2); }
-    .site-row-detail td { padding: 10px 14px 14px 14px !important; }
-
-    /* ADD FORM */
-    .add-form { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 18px; }
-    .add-form-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--label3); margin-bottom: 10px; }
-    .add-form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; align-items: end; }
-    .add-form-grid .field-stack { min-width: 0; }
-    .add-form-grid input { width: 100%; }
-
-    /* RESPONSIVE */
-    @media (max-width: 768px) {
-      .page { padding: 12px 10px 0; }
-      .admin-nav { display: none; }
-      .admin-sub { display: none; }
-      .nav-menu-btn { display: flex; }
-      .filter-body { padding: 0 14px 14px; }
-      .filter-group { width: 100%; padding-top: 12px; }
-      .field-stack { width: 100%; }
-      .field-stack input, .field-stack select { width: 100% !important; }
-      .chip-group { gap: 6px; }
-      .chip { flex: 1 1 auto; text-align: center; }
-      .modal { padding: 0; align-items: flex-end; }
-      .modal-content { width: 100% !important; max-width: 100% !important; max-height: 92vh; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
-      .ts-modal-content { width: 100% !important; max-width: 100% !important; max-height: 92vh; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
-      .modal-header { border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important; flex-wrap: wrap; gap: 8px; }
-      .modal-actions { flex-wrap: wrap; }
-      .modal-actions button { flex: 1 1 auto; }
-      .admin-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-      .ts-filter-bar { flex-direction: column; padding: 12px 14px; gap: 10px; }
-      .ts-filter-bar .field-stack { width: 100%; }
-      .ts-filter-bar select, .ts-filter-bar input { width: 100% !important; }
-      .ts-body { padding: 12px 10px; }
-      .row-btns { flex-wrap: wrap; }
-      .row-btns button { flex: 1 1 auto; }
-      .add-form-grid { grid-template-columns: 1fr 1fr !important; }
-      .eng-stats { padding: 8px 10px 10px; }
-      .eng-stat { min-width: 80px; padding: 7px 10px; }
-      .eng-stat-val { font-size: 15px; }
-    }
-
-    @media (max-width: 480px) {
-      .add-form-grid { grid-template-columns: 1fr !important; }
-      .eng-stat { flex: 1 1 calc(50% - 4px); }
-    }
-
-    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-    .card, .filter-card { animation: fadeUp 0.3s ease both; }
-    .card:nth-child(2) { animation-delay: 0.06s; }
   </style>
 </head>
 <body>
 
-<header class="admin-header">
-  <div class="admin-header-inner">
-    <div class="admin-brand">
-      <img src="Mostlane Logo.jpg" alt="Mostlane" class="admin-logo" onerror="this.style.display='none'" />
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="topbar-brand">
+      <div class="topbar-logo">
+        <img src="Mostlane Logo.jpg" alt="Mostlane" onerror="this.parentElement.innerHTML='<div class=topbar-logo-fallback>S</div>'"/>
+      </div>
       <div>
-        <div class="admin-title">Site Log</div>
-        <div class="admin-sub">Admin Dashboard</div>
+        <div class="topbar-title">SiteLog</div>
+        <div class="topbar-subtitle">Admin Dashboard</div>
       </div>
     </div>
-    <nav class="admin-nav" id="adminNav">
-      <button class="nav-pill" onclick="openTimesheetsModal()">Timesheets</button>
-      <button class="nav-pill" onclick="openSitesModal()">Sites</button>
-      <button class="nav-pill" onclick="openEngineersModal()">Engineers</button>
-      <button class="nav-pill" onclick="openCompaniesModal()">Companies</button>
-      <button class="nav-pill nav-pill-primary" onclick="openExportModal()">Export PDF</button>
-      <button class="nav-pill nav-pill-icon" onclick="loadData()" title="Refresh">&#8635;</button>
-    </nav>
+    <div class="topbar-actions">
+      <button class="btn-ghost btn-sm" onclick="openTimesheetsModal()">&#129534; Timesheets</button>
+      <button class="btn-ghost btn-sm" onclick="openSitesModal()">&#128194; Sites</button>
+      <button class="btn-ghost btn-sm" onclick="openEngineersModal()">&#128119; Engineers</button>
+      <button class="btn-ghost btn-sm" onclick="openCompaniesModal()">&#127970; Companies</button>
+      <button class="btn-amber btn-sm" id="transfersNavBtn" onclick="openTransfersModal()" style="display:none;">&#9200; Transfers <span id="transfersBadge"></span></button>
+      <button class="btn-primary btn-sm" onclick="openExportModal()">&#8593; Export PDF</button>
+      <button class="btn-icon btn-ghost btn-sm" onclick="loadData()" title="Refresh">&#8635;</button>
+    </div>
     <button class="nav-menu-btn" onclick="toggleNavDrawer()" id="navMenuBtn">&#9776;</button>
   </div>
-</header>
+</div>
 
 <div class="nav-drawer" id="navDrawer">
-  <button class="btn-ghost" onclick="openTimesheetsModal();closeNavDrawer()">Timesheets</button>
-  <button class="btn-ghost" onclick="openSitesModal();closeNavDrawer()">Sites</button>
-  <button class="btn-ghost" onclick="openEngineersModal();closeNavDrawer()">Engineers</button>
-  <button class="btn-ghost" onclick="openCompaniesModal();closeNavDrawer()">Companies</button>
-  <button class="btn-primary" onclick="openExportModal();closeNavDrawer()">Export PDF</button>
-  <button class="btn-ghost" onclick="loadData();closeNavDrawer()">Refresh</button>
+  <button class="btn-ghost" onclick="openTimesheetsModal();closeNavDrawer()">&#129534; Timesheets</button>
+  <button class="btn-ghost" onclick="openSitesModal();closeNavDrawer()">&#128194; Sites</button>
+  <button class="btn-ghost" onclick="openEngineersModal();closeNavDrawer()">&#128119; Engineers</button>
+  <button class="btn-ghost" onclick="openCompaniesModal();closeNavDrawer()">&#127970; Companies</button>
+  <button class="btn-amber" id="transfersNavBtnMobile" onclick="openTransfersModal();closeNavDrawer()" style="display:none;">&#9200; Transfers <span id="transfersBadgeMobile"></span></button>
+  <button class="btn-primary" onclick="openExportModal();closeNavDrawer()">&#8593; Export PDF</button>
+  <button class="btn-ghost" onclick="loadData();closeNavDrawer()">&#8635; Refresh</button>
 </div>
 
 <div class="page">
-  <div class="filter-card" id="filterCard">
+  <div class="filter-card">
     <div class="filter-toggle" onclick="toggleFilters()">
       <div class="filter-toggle-label">
-        Filters &amp; Date Range
-        <span class="filter-toggle-summary" id="filterSummary">All time &middot; All people &middot; All sites</span>
+        &#128269; Filters &amp; Date Range
+        <span class="filter-toggle-summary" id="filterSummary">All time</span>
       </div>
       <span class="filter-toggle-arrow" id="filterArrow">&#9660;</span>
     </div>
     <div class="filter-body" id="filterBody">
       <div class="filter-group">
-        <div class="field-stack">
-          <span class="field-label">Search</span>
-          <input type="search" id="search" placeholder="Name..." style="width:160px;" />
-        </div>
-        <div class="field-stack">
-          <span class="field-label">People</span>
-          <select id="personFilter" multiple size="4" style="min-width:140px;"></select>
-        </div>
-        <div class="field-stack">
-          <span class="field-label">Company</span>
-          <select id="companyFilter" multiple size="4" style="min-width:140px;"></select>
-        </div>
-        <div class="field-stack">
-          <span class="field-label">Purpose</span>
-          <select id="purposeFilter" style="width:140px;">
-            <option value="">All Purposes</option>
-            <option value="Visiting">Visiting</option>
-            <option value="Contractor">Contractor</option>
-          </select>
-        </div>
-        <div class="field-stack">
-          <span class="field-label">Site</span>
-          <select id="siteFilter" style="width:140px;">
-            <option value="">All Sites</option>
-          </select>
-        </div>
+        <div class="field-stack"><span class="field-label">Search</span><input type="search" id="search" placeholder="Name..." style="width:160px;"/></div>
+        <div class="field-stack"><span class="field-label">People</span><select id="personFilter" multiple size="4" style="min-width:140px;"></select></div>
+        <div class="field-stack"><span class="field-label">Company</span><select id="companyFilter" multiple size="4" style="min-width:140px;"></select></div>
+        <div class="field-stack"><span class="field-label">Purpose</span><select id="purposeFilter" style="width:140px;"><option value="">All Purposes</option><option value="Visiting">Visiting</option><option value="Contractor">Contractor</option></select></div>
+        <div class="field-stack"><span class="field-label">Site</span><select id="siteFilter" style="width:140px;"><option value="">All Sites</option></select></div>
       </div>
       <div class="filter-group" style="flex-direction:column;align-items:flex-start;gap:10px;">
         <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
-          <div class="field-stack">
-            <span class="field-label">From</span>
-            <input type="date" id="fromDate" style="width:148px;" />
-          </div>
-          <div class="field-stack">
-            <span class="field-label">To</span>
-            <input type="date" id="toDate" style="width:148px;" />
-          </div>
+          <div class="field-stack"><span class="field-label">From</span><input type="date" id="fromDate" style="width:148px;"/></div>
+          <div class="field-stack"><span class="field-label">To</span><input type="date" id="toDate" style="width:148px;"/></div>
         </div>
         <div class="chip-group">
           <button class="chip" onclick="setPreset('week')">This week</button>
@@ -573,28 +246,158 @@
     </div>
   </div>
 
-  <div class="section-header">
-    <span class="section-label" id="liveTableLabel">Today's Activity</span>
-  </div>
+  <div class="section-header"><span class="section-label">&#128994; Live on site</span></div>
   <div class="card" style="margin-bottom:32px;">
     <div class="table-wrap">
-      <table id="liveTable">
-        <thead>
-          <tr>
-            <th>Status</th>
-            <th>Name</th>
-            <th>Company</th>
-            <th>Purpose</th>
-            <th>Site</th>
-            <th>Checked in</th>
-            <th>Duration</th>
-            <th style="text-align:center;">Device</th>
-            <th style="text-align:center;">GPS</th>
-            <th style="text-align:right;">Actions</th>
-          </tr>
-        </thead>
+      <table>
+        <thead><tr>
+          <th>Status</th><th>Name</th><th>Company</th><th>Purpose</th><th>Site</th>
+          <th>Checked in</th><th>Duration</th>
+          <th style="text-align:center;">Device</th><th style="text-align:center;">GPS</th>
+          <th style="text-align:right;">Actions</th>
+        </tr></thead>
         <tbody id="liveRows"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<div id="deleteModal" class="modal">
+  <div class="modal-content" style="width:min(400px,100%);">
+    <div class="modal-header"><div><div class="modal-title">Delete Visit</div><div class="modal-subtitle">This cannot be undone</div></div></div>
+    <div class="modal-body"><p id="deleteText" style="color:var(--label2);font-size:14px;line-height:1.5;"></p></div>
+    <div class="modal-actions"><button class="btn-ghost" onclick="closeDeleteModal()">Cancel</button><button class="btn-danger" onclick="confirmDelete()">Delete Visit</button></div>
+  </div>
+</div>
+
+<div id="manualCheckoutModal" class="modal">
+  <div class="modal-content" style="width:min(420px,100%);">
+    <div class="modal-header"><div><div class="modal-title">Manual Sign Out</div><div class="modal-subtitle" id="manualCheckoutText"></div></div></div>
+    <div class="modal-body"><div class="checkout-field"><label>Sign out time</label><input type="time" id="manualCheckoutTime" style="width:100%;"/></div></div>
+    <div class="modal-actions"><button class="btn-ghost" onclick="closeManualCheckoutModal()">Cancel</button><button class="btn-danger" onclick="confirmManualCheckout()">Confirm Sign Out</button></div>
+  </div>
+</div>
+
+<div id="exportModal" class="modal">
+  <div class="modal-content" style="width:min(560px,100%);">
+    <div class="modal-header">
+      <div><div class="modal-title">Export PDF Report</div><div class="modal-subtitle" id="exportPreviewRange"></div></div>
+      <button class="btn-ghost btn-sm" onclick="closeExportModal()">Cancel</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:6px;">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;"><div style="font-size:22px;font-weight:700;" id="exportPreviewSessions">-</div><div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:3px;">Total Sessions</div></div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;"><div style="font-size:22px;font-weight:700;" id="exportPreviewHours">-</div><div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:3px;">Total Hours</div></div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;"><div style="font-size:22px;font-weight:700;" id="exportPreviewPeople">-</div><div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:3px;">People</div></div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;"><div style="font-size:22px;font-weight:700;" id="exportPreviewSites">-</div><div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:3px;">Sites</div></div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;"><div style="font-size:22px;font-weight:700;" id="exportPreviewAvg">-</div><div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:3px;">Avg Session</div></div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;"><div style="font-size:22px;font-weight:700;" id="exportPreviewMissed">-</div><div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:3px;">Missed Sign-outs</div></div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;"><div style="font-size:22px;font-weight:700;color:var(--green);" id="exportPreviewLive">-</div><div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:3px;">Live on Site Now</div></div>
+    </div>
+    <div class="modal-actions"><button class="btn-ghost" onclick="closeExportModal()">Cancel</button><button class="btn-primary" onclick="generatePDF()">Generate PDF</button></div>
+  </div>
+</div>
+
+<div id="transfersModal" class="modal">
+  <div class="modal-content" style="width:min(720px,100%);">
+    <div class="modal-header">
+      <div><div class="modal-title">&#9200; Pending Device Transfers</div><div class="modal-subtitle">Approve or reject new phone registration requests</div></div>
+      <button class="btn-ghost btn-sm" onclick="closeTransfersModal()">Close</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-note">When an engineer scans on a new phone and taps "Previously Registered", their request appears here. Approving links their history and invalidates the old device. Rejecting clears the request.</div>
+      <div id="transfersBody"></div>
+    </div>
+  </div>
+</div>
+
+<div id="approveTransferModal" class="modal">
+  <div class="modal-content" style="width:min(500px,100%);">
+    <div class="modal-header"><div><div class="modal-title">Approve Transfer</div><div class="modal-subtitle" id="approveTransferSubtitle"></div></div></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--label2);margin-bottom:12px;">Select the existing engineer record to link this device to. Their full visit history will transfer, and the old device will be invalidated.</p>
+      <div class="field-stack" style="margin-bottom:16px;">
+        <span class="field-label">Link to existing engineer</span>
+        <select id="approveTargetSelect" style="width:100%;height:auto;min-height:120px;" size="6"></select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeApproveTransferModal()">Cancel</button>
+      <button class="btn-primary" onclick="confirmApproveTransfer()">Approve &amp; Link</button>
+    </div>
+  </div>
+</div>
+
+<div id="sitesModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div><div class="modal-title">&#128194; Sites</div><div class="modal-subtitle">Add, edit, archive and assign companies</div></div>
+      <button class="btn-ghost btn-sm" onclick="closeSitesModal()">Close</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-note">Archived sites are hidden from scan matching. Historical logs still reference them.</div>
+      <div class="add-form">
+        <div class="add-form-title">Add New Site</div>
+        <div class="add-form-grid">
+          <div class="field-stack"><span class="field-label">Site Name</span><input id="newSiteName" type="text" placeholder="e.g. Warehouse A"/></div>
+          <div class="field-stack"><span class="field-label">Latitude</span><input id="newSiteLat" type="text" placeholder="51.5074"/></div>
+          <div class="field-stack"><span class="field-label">Longitude</span><input id="newSiteLng" type="text" placeholder="-0.1278"/></div>
+          <div class="field-stack"><span class="field-label">Radius (m)</span><input id="newSiteRadius" type="number" value="500" min="50" step="10"/></div>
+        </div>
+        <div style="margin-top:10px;"><button class="btn-primary btn-sm" onclick="addSite()">Add Site</button></div>
+      </div>
+      <div id="sitesAdminBody"></div>
+    </div>
+  </div>
+</div>
+
+<div id="engineersModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div><div class="modal-title">&#128119; Engineers</div><div class="modal-subtitle">Edit details, rates and travel allowance</div></div>
+      <button class="btn-ghost btn-sm" onclick="closeEngineersModal()">Close</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-note">Travel allowance is hidden from engineers until configured. "Not configured" and "No allowance" both show nothing on timesheets.</div>
+      <div id="engineersAdminBody"></div>
+    </div>
+  </div>
+</div>
+
+<div id="companiesModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div><div class="modal-title">&#127970; Companies</div><div class="modal-subtitle">Add or remove. Assign to sites in the Sites modal.</div></div>
+      <button class="btn-ghost btn-sm" onclick="closeCompaniesModal()">Close</button>
+    </div>
+    <div class="modal-body"><div id="companiesAdminBody"></div></div>
+  </div>
+</div>
+
+<div id="timesheetsModal" class="modal">
+  <div class="ts-modal-content" id="timesheetsPdfRoot">
+    <div class="modal-header" style="border-radius:20px 20px 0 0;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <img src="Mostlane Logo.jpg" alt="Mostlane" style="height:24px;width:auto;border-radius:4px;" onerror="this.style.display='none'"/>
+        <div class="modal-title">Weekly Timesheets</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-ghost btn-sm" onclick="exportTimesheetsPdf()">&#8593; Export PDF</button>
+        <button class="btn-ghost btn-sm" onclick="closeTimesheetsModal()">Close</button>
+      </div>
+    </div>
+    <div class="ts-filter-bar">
+      <div class="field-stack"><span class="field-label">Company</span><select id="tsCompanyFilter" onchange="renderTimesheetsModal()" style="width:160px;"><option value="">All Companies</option></select></div>
+      <div class="field-stack"><span class="field-label">Engineer</span><select id="tsPersonFilter" onchange="renderTimesheetsModal()" style="width:160px;"><option value="">All Engineers</option></select></div>
+      <div class="field-stack"><span class="field-label">Site</span><select id="tsSiteFilter" onchange="renderTimesheetsModal()" style="width:140px;"><option value="">All Sites</option></select></div>
+      <div class="field-stack"><span class="field-label">From</span><input type="date" id="tsFromDate" onchange="renderTimesheetsModal()" style="width:148px;"></div>
+      <div class="field-stack"><span class="field-label">To</span><input type="date" id="tsToDate" onchange="renderTimesheetsModal()" style="width:148px;"></div>
+      <div style="display:flex;align-items:flex-end;"><button class="btn-ghost btn-sm" onclick="clearTimesheetFilters()">Reset</button></div>
+    </div>
+    <div class="ts-body">
+      <div class="ts-meta" id="timesheetsMeta"></div>
+      <div id="timesheetsBody"></div>
     </div>
   </div>
 </div>
@@ -613,935 +416,1315 @@ let engineersAll = [];
 let engineersActive = [];
 let companiesAll = [];
 let siteCompanyMap = {};
+let pendingTransferIdToApprove = null;
 
-function safeParse(ts){
-  if(!ts) return null;
-  try {
-    var clean = String(ts).replace(" ","T");
-    if(!clean.endsWith("Z") && !clean.includes("+")) clean += "Z";
-    var d = new Date(clean);
-    return isNaN(d.getTime()) ? null : d;
-  } catch(e){ return null; }
+function escSel(value) {
+  if (window.CSS && typeof window.CSS.escape === "function") return window.CSS.escape(String(value));
+  return String(value).replace(/["\\]/g, "\\$&");
 }
 
-function toLocal(ts){
-  if(!ts) return "-";
-  var d = safeParse(ts);
-  return d ? d.toLocaleString() : "-";
+/* ── TRAVEL CALC ── */
+function calcPaidMins(actualMins, actualMiles, eng) {
+  if (!eng || eng.travel_status !== "paid") return 0;
+  const capType = eng.travel_cap_type;
+  const capVal = parseFloat(eng.travel_cap_value) || 0;
+  if (!capType || capType === "none") return actualMins;
+  if (capType === "time") return Math.max(0, actualMins - capVal);
+  if (capType === "distance" && actualMiles > 0) {
+    const unpaidMins = Math.round((Math.min(capVal, actualMiles) / actualMiles) * actualMins);
+    return Math.max(0, actualMins - unpaidMins);
+  }
+  return 0;
 }
 
-function formatTimeOnly(ts){
-  if(!ts) return "--";
-  var d = safeParse(ts);
-  return d ? d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "--";
+/* ── HELPERS ── */
+function toLocal(ts) {
+  if (!ts) return "-";
+  const d = new Date(String(ts).replace(" ", "T") + "Z");
+  return isNaN(d) ? ts : d.toLocaleString("en-GB");
 }
-
-function minutesBetween(a,b){
-  if(!a) return 0;
-  var start = safeParse(a);
-  if(!start) return 0;
-  var end = b ? safeParse(b) : new Date();
-  if(!end) end = new Date();
-  return Math.max(0, Math.round((end - start) / 60000));
+function formatTimeOnly(ts) {
+  if (!ts) return "-";
+  const d = new Date(String(ts).replace(" ", "T") + "Z");
+  return isNaN(d) ? "-" : d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
-
-function fmtDuration(mins){
-  const h=Math.floor(mins/60), m=mins%60;
-  return h>0 ? h+"h "+m+"m" : m+"m";
+function minutesBetween(a, b) {
+  if (!a) return 0;
+  const s = new Date(String(a).replace(" ", "T") + "Z");
+  const e = b ? new Date(String(b).replace(" ", "T") + "Z") : new Date();
+  return Math.max(0, Math.round((e - s) / 60000));
 }
-
-function nameOf(v){ return ((v.first_name||"")+" "+(v.last_name||"")).trim(); }
-
-function fmtDay(dayStr){
-  if(!dayStr||dayStr.length<10) return dayStr||"-";
-  return dayStr.slice(8,10)+"/"+dayStr.slice(5,7)+"/"+dayStr.slice(2,4);
+function fmtDuration(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? h + "h " + m + "m" : m + "m";
 }
-
-function mondayOf(dayStr){
-  const d = new Date(dayStr+"T00:00:00");
-  const day = d.getDay();
-  d.setDate(d.getDate()+(day===0?-6:1-day));
-  return d.toISOString().slice(0,10);
+function nameOf(v) {
+  return ((v.first_name || "") + " " + (v.last_name || "")).trim();
 }
-
-function addDays(isoDate, n){
-  const d = new Date(isoDate+"T00:00:00");
-  d.setDate(d.getDate()+n);
-  return d.toISOString().slice(0,10);
+function fmtDay(d) {
+  if (!d || d.length < 10) return d || "-";
+  return d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(2, 4);
 }
-
-function fmtTSDay(isoDate){
-  const d = new Date(isoDate+"T00:00:00");
-  const wday = d.toLocaleDateString("en-GB",{weekday:"short"});
-  const mon  = d.toLocaleDateString("en-GB",{month:"short"});
-  const n    = d.getDate();
-  const yr   = d.getFullYear().toString().slice(2);
-  const sfx  = (n%10===1&&n%100!==11)?"st":(n%10===2&&n%100!==12)?"nd":(n%10===3&&n%100!==13)?"rd":"th";
-  return wday+" "+n+sfx+" "+mon+" "+yr;
+function formatTSDate(dayStr) {
+  if (!dayStr) return "-";
+  const d = new Date(dayStr + "T00:00:00");
+  const wd = d.toLocaleDateString("en-GB", { weekday: "short" });
+  const mo = d.toLocaleDateString("en-GB", { month: "short" });
+  const n = d.getDate();
+  const sf = (n % 10 === 1 && n % 100 !== 11) ? "st" : (n % 10 === 2 && n % 100 !== 12) ? "nd" : (n % 10 === 3 && n % 100 !== 13) ? "rd" : "th";
+  return wd + " " + n + sf + " " + mo + " " + d.getFullYear().toString().slice(2);
 }
-
-function fmtWeekRange(mondayStr){
-  const sunday = addDays(mondayStr, 6);
-  const d1 = new Date(mondayStr+"T00:00:00");
-  const d2 = new Date(sunday+"T00:00:00");
-  const fmt = d => {
-    const n = d.getDate();
-    const sfx = (n%10===1&&n%100!==11)?"st":(n%10===2&&n%100!==12)?"nd":(n%10===3&&n%100!==13)?"rd":"th";
-    return n+sfx+" "+d.toLocaleDateString("en-GB",{month:"short"});
-  };
-  return fmt(d1)+" - "+fmt(d2)+" "+d2.getFullYear().toString().slice(2);
+function startOfWeekMonday(dayStr) {
+  const d = new Date(dayStr + "T00:00:00");
+  const dy = d.getDay();
+  d.setDate(d.getDate() + (dy === 0 ? -6 : 1 - dy));
+  return d.toISOString().slice(0, 10);
 }
-
-function escapeHtml(str){
+function formatWeekCommencing(dayStr) {
+  return new Date(dayStr + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+}
+function escapeHtml(str) {
   return String(str)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+function companySortKey(n) {
+  const s = (n || "").trim().toLowerCase();
+  return s === "mostlane" ? "0" : ("1-" + s);
+}
+function sqlShort(ts) {
+  return ts ? String(ts).slice(0, 16) : "";
+}
+function mapPinHtml(v) {
+  if (v.lat == null || v.lng == null) return "";
+  return '<a class="ts-map-link" href="https://www.google.com/maps?q=' + encodeURIComponent(v.lat) + ',' + encodeURIComponent(v.lng) + '" target="_blank">&#128205; Map</a>';
+}
+function findEngineer(personId, name, company) {
+  if (personId) {
+    const e = engineersAll.find(e => String(e.id) === String(personId));
+    if (e) return e;
+  }
+  return engineersAll.find(e => (((e.first_name || "").trim() + " " + (e.last_name || "").trim()).trim() === name) && ((e.company || "") === (company || ""))) || null;
+}
+function closeModalById(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = "none";
 }
 
-function companySortKey(name){
-  const n=(name||"").trim().toLowerCase();
-  return n==="mostlane" ? "0-mostlane" : "1-"+n;
+/* ── MANUAL CHECKOUT ── */
+function openManualCheckoutModal(id, name, checkIn) {
+  manualCheckoutId = id;
+  manualCheckoutCheckIn = checkIn;
+  document.getElementById("manualCheckoutText").innerText = "Sign out " + name + " (checked in " + toLocal(checkIn) + ")";
+  document.getElementById("manualCheckoutTime").value = "";
+  document.getElementById("manualCheckoutModal").style.display = "flex";
+}
+function closeManualCheckoutModal() {
+  document.getElementById("manualCheckoutModal").style.display = "none";
+  manualCheckoutId = null;
+  manualCheckoutCheckIn = null;
+}
+async function confirmManualCheckout() {
+  const tv = document.getElementById("manualCheckoutTime").value;
+  if (!tv) {
+    alert("Please select a time.");
+    return;
+  }
+  const ci = new Date(String(manualCheckoutCheckIn).replace(" ", "T") + "Z");
+  const yyyy = ci.getUTCFullYear();
+  const mm = String(ci.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(ci.getUTCDate()).padStart(2, "0");
+  const manualTime = yyyy + "-" + mm + "-" + dd + " " + tv + ":00";
+  const mo = new Date(manualTime.replace(" ", "T") + "Z");
+  if (mo <= ci) {
+    alert("Sign out time must be after check-in time.");
+    return;
+  }
+  if (mo > new Date()) {
+    alert("Sign out time cannot be in the future.");
+    return;
+  }
+  const res = await fetch(API_BASE + "/manual-checkout", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ visitId: manualCheckoutId, manualTime })
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) {
+    alert(data.error || "Failed.");
+    return;
+  }
+  closeManualCheckoutModal();
+  loadData();
 }
 
-function passFilters(v){
-  const search=document.getElementById("search").value.toLowerCase().trim();
-  const selectedPeople=Array.from(document.getElementById("personFilter").selectedOptions).map(o=>o.value);
-  const selectedCompanies=Array.from(document.getElementById("companyFilter").selectedOptions).map(o=>o.value);
-  const selectedPurpose=document.getElementById("purposeFilter").value;
-  const selectedSite=document.getElementById("siteFilter").value;
-  const name=nameOf(v);
-  return (!search||name.toLowerCase().includes(search)) &&
-    (!selectedPeople.length||selectedPeople.includes(name)) &&
-    (!selectedCompanies.length||selectedCompanies.includes(v.company)) &&
-    (!selectedPurpose||v.purpose===selectedPurpose) &&
-    (!selectedSite||v.site_code===selectedSite);
+/* ── FILTERS ── */
+function passFilters(v) {
+  const s = document.getElementById("search").value.toLowerCase().trim();
+  const pp = Array.from(document.getElementById("personFilter").selectedOptions).map(o => o.value);
+  const cp = Array.from(document.getElementById("companyFilter").selectedOptions).map(o => o.value);
+  const pu = document.getElementById("purposeFilter").value;
+  const si = document.getElementById("siteFilter").value;
+  const n = nameOf(v);
+
+  return (!s || n.toLowerCase().includes(s)) &&
+         (!pp.length || pp.includes(n)) &&
+         (!cp.length || cp.includes(v.company)) &&
+         (!pu || v.purpose === pu) &&
+         (!si || v.site_code === si);
+}
+function buildSiteFilter() {
+  const sel = document.getElementById("siteFilter");
+  const cur = sel.value;
+  const names = sitesActive.length
+    ? sitesActive.map(s => s.site_name).filter(Boolean)
+    : [...new Set(filteredVisits.map(v => v.site_code).filter(Boolean))];
+
+  sel.innerHTML = '<option value="">All Sites</option>' +
+    [...new Set(names)].sort().map(s => '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>').join("");
+
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+function buildPersonFilter() {
+  const sel = document.getElementById("personFilter");
+  const cur = Array.from(sel.selectedOptions).map(o => o.value);
+  const names = [...new Set((engineersActive.length ? engineersActive.map(p => nameOf(p)) : filteredVisits.map(v => nameOf(v))).filter(Boolean))].sort();
+  sel.innerHTML = names.map(n => '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>').join("");
+  Array.from(sel.options).forEach(o => { if (cur.includes(o.value)) o.selected = true; });
+}
+function buildCompanyFilter() {
+  const sel = document.getElementById("companyFilter");
+  const cur = Array.from(sel.selectedOptions).map(o => o.value);
+  const cos = [...new Set(filteredVisits.map(v => v.company).filter(Boolean))].sort();
+  sel.innerHTML = cos.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join("");
+  Array.from(sel.options).forEach(o => { if (cur.includes(o.value)) o.selected = true; });
+}
+function toggleFilters() {
+  document.getElementById("filterBody").classList.toggle("open");
+  document.getElementById("filterArrow").classList.toggle("open");
+}
+function updateFilterSummary() {
+  const from = document.getElementById("fromDate").value;
+  const to = document.getElementById("toDate").value;
+  const s = document.getElementById("search").value.trim();
+  const si = document.getElementById("siteFilter").value;
+  const parts = [];
+
+  if (from && to) parts.push(fmtDay(from) + " to " + fmtDay(to));
+  else if (from) parts.push("From " + fmtDay(from));
+  else if (to) parts.push("Up to " + fmtDay(to));
+  else parts.push("All time");
+
+  if (s) parts.push('"' + s + '"');
+  if (si) parts.push(si);
+
+  document.getElementById("filterSummary").textContent = parts.join(" · ");
 }
 
-function buildSiteFilter(){
-  const select=document.getElementById("siteFilter");
-  const current=select.value;
-  const names=sitesActive.length
-    ? sitesActive.map(s=>s.site_name).filter(Boolean)
-    : [...new Set(filteredVisits.map(v=>v.site_code).filter(Boolean))];
-  const sites=[...new Set(names)].sort((a,b)=>a.localeCompare(b));
-  select.innerHTML='<option value="">All Sites</option>'+sites.map(s=>'<option value="'+escapeHtml(s)+'">'+escapeHtml(s)+'</option>').join("");
-  if([...select.options].some(o=>o.value===current)) select.value=current;
+/* ── FETCH ── */
+async function fetchAll() {
+  const r = await fetch(API_BASE + "/admin");
+  const d = await r.json();
+  return d.visits || [];
 }
-
-function buildPersonFilter(){
-  const select=document.getElementById("personFilter");
-  const current=Array.from(select.selectedOptions).map(o=>o.value);
-  let names=engineersActive.length
-    ? engineersActive.map(p=>((p.first_name||"").trim()+" "+(p.last_name||"").trim()).trim()).filter(Boolean)
-    : [...new Set(filteredVisits.map(v=>nameOf(v)).filter(Boolean))];
-  names=[...new Set(names)].sort((a,b)=>a.localeCompare(b));
-  select.innerHTML=names.map(n=>'<option value="'+escapeHtml(n)+'">'+escapeHtml(n)+'</option>').join("");
-  Array.from(select.options).forEach(o=>{ if(current.includes(o.value)) o.selected=true; });
+async function fetchRange(from, to) {
+  const qs = new URLSearchParams();
+  if (from) qs.set("from", from);
+  if (to) qs.set("to", to);
+  const r = await fetch(API_BASE + "/admin?" + qs.toString());
+  const d = await r.json();
+  return d.visits || [];
 }
-
-function buildCompanyFilter(){
-  const select=document.getElementById("companyFilter");
-  const current=Array.from(select.selectedOptions).map(o=>o.value);
-  const companies=[...new Set(filteredVisits.map(v=>v.company).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  select.innerHTML=companies.map(c=>'<option value="'+escapeHtml(c)+'">'+escapeHtml(c)+'</option>').join("");
-  Array.from(select.options).forEach(o=>{ if(current.includes(o.value)) o.selected=true; });
-}
-
-async function fetchAll(){
-  const res=await fetch(API_BASE+"/admin");
-  const data=await res.json();
-  return data.visits||[];
-}
-
-async function fetchRange(from,to){
-  const qs=new URLSearchParams();
-  if(from&&to){qs.set("from",from);qs.set("to",to);}
-  const res=await fetch(API_BASE+"/admin?"+qs.toString());
-  const data=await res.json();
-  return data.visits||[];
-}
-
-async function fetchSites(){
-  try{
-    const res=await fetch(API_BASE+"/sites");
-    const data=await res.json();
-    sitesAll=data.sites||[];
-    sitesActive=sitesAll.filter(s=>Number(s.archived||0)===0);
-  }catch(e){
-    sitesAll=[]; sitesActive=[];
+async function fetchSites() {
+  try {
+    const r = await fetch(API_BASE + "/sites");
+    const d = await r.json();
+    sitesAll = d.sites || [];
+    sitesActive = sitesAll.filter(s => !Number(s.archived || 0));
+  } catch (e) {
+    sitesAll = [];
+    sitesActive = [];
   }
 }
-
-async function fetchEngineers(){
-  try{
-    const res=await fetch(API_BASE+"/engineers");
-    const data=await res.json();
-    engineersAll=data.engineers||data.people||[];
-    engineersActive=engineersAll.filter(p=>Number(p.archived||0)===0);
-  }catch(e){
-    engineersAll=[]; engineersActive=[];
+async function fetchEngineers() {
+  try {
+    const r = await fetch(API_BASE + "/engineers");
+    const d = await r.json();
+    engineersAll = d.engineers || d.people || [];
+    engineersActive = engineersAll.filter(p => !Number(p.archived || 0));
+  } catch (e) {
+    engineersAll = [];
+    engineersActive = [];
   }
 }
-
-async function fetchCompaniesMaster(){
-  try{
-    const res=await fetch(API_BASE+"/companies");
-    const data=await res.json();
-    companiesAll=data.companies||[];
-  }catch(e){
-    companiesAll=[];
+async function fetchCompaniesMaster() {
+  try {
+    const r = await fetch(API_BASE + "/companies");
+    const d = await r.json();
+    companiesAll = d.companies || [];
+  } catch (e) {
+    companiesAll = [];
   }
 }
-
-async function loadSiteCompanyMap(){
-  siteCompanyMap={};
-  for(const site of sitesAll){
-    try{
-      const res=await fetch(API_BASE+"/companies-for-site?site="+encodeURIComponent(site.site_name));
-      const data=await res.json();
-      siteCompanyMap[site.id]=(data.companies||[]).map(c=>c.id);
-    }catch(e){
-      siteCompanyMap[site.id]=[];
+async function loadSiteCompanyMap() {
+  siteCompanyMap = {};
+  for (const site of sitesAll) {
+    try {
+      const r = await fetch(API_BASE + "/companies-for-site?site=" + encodeURIComponent(site.site_name));
+      const d = await r.json();
+      siteCompanyMap[site.id] = (d.companies || []).map(c => c.id);
+    } catch (e) {
+      siteCompanyMap[site.id] = [];
     }
   }
 }
 
-function toggleFilters(){
-  document.getElementById("filterBody").classList.toggle("open");
-  document.getElementById("filterArrow").classList.toggle("open");
-}
+/* ── RENDER LIVE ── */
+function renderLive() {
+  const tbody = document.getElementById("liveRows");
+  const live = filteredVisits.filter(v => !v.check_out_at).filter(passFilters);
 
-function updateFilterSummary(){
-  const from=document.getElementById("fromDate").value;
-  const to=document.getElementById("toDate").value;
-  const search=document.getElementById("search").value.trim();
-  const site=document.getElementById("siteFilter").value;
-  const parts=[];
-  if(from&&to) parts.push(fmtDay(from)+" - "+fmtDay(to)); else parts.push("All time");
-  if(search) parts.push('"'+search+'"');
-  if(site) parts.push(site);
-  document.getElementById("filterSummary").textContent=parts.join(" / ");
-}
-
-function renderLive(){
-  const tbody=document.getElementById("liveRows");
-  const openVisits=allVisits.filter(v=>!v.check_out_at).filter(passFilters);
-
-  if(!openVisits.length){
-    tbody.innerHTML='<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">&#128205;</div><p>No one currently on site.</p></div></td></tr>';
+  if (!live.length) {
+    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">&#128205;</div><p>No one currently on site.</p></div></td></tr>';
     return;
   }
 
-  tbody.innerHTML=openVisits.map(v=>{
-    const isPending=Number(v.sign_in_confirmed||0)===0;
-    const pillHtml=isPending
-      ?'<span class="pill pill-pending">Pending</span>'
-      :'<span class="pill pill-live">Live</span>';
-    return '<tr>'
-      +'<td>'+pillHtml+'</td>'
-      +'<td style="font-weight:500;color:var(--label);"><span class="name-link" onclick="openTimesheetForPerson(\''+escapeHtml(nameOf(v))+'\',\''+escapeHtml(v.company||"")+'\')">'+escapeHtml(nameOf(v))+'</span></td>'
-      +'<td>'+escapeHtml(v.company||"--")+'</td>'
-      +'<td>'+escapeHtml(v.purpose||"--")+'</td>'
-      +'<td><span style="font-size:12px;background:var(--surface3);padding:2px 8px;border-radius:4px;">'+escapeHtml(v.site_code||"--")+'</span></td>'
-      +'<td style="color:var(--label3);font-size:12.5px;">'+escapeHtml(toLocal(v.check_in_at))+'</td>'
-      +'<td style="font-weight:500;">'+escapeHtml(fmtDuration(minutesBetween(v.check_in_at,null)))+'</td>'
-      +'<td style="text-align:center;">'+(v.device_token?'<span class="check-icon">&#10003;</span>':'<span class="cross-icon">--</span>')+'</td>'
-      +'<td style="text-align:center;">'+((v.lat!=null&&v.lng!=null)?'<span class="check-icon">&#10003;</span>':'<span class="cross-icon">--</span>')+'</td>'
-      +'<td style="text-align:right;"><div style="display:flex;gap:6px;justify-content:flex-end;">'
-      +'<button class="btn-danger btn-sm" onclick="openManualCheckoutModal(\''+escapeHtml(v.visit_id)+'\',\''+escapeHtml(nameOf(v))+'\',\''+escapeHtml(v.check_in_at)+'\')">Sign out</button>'
-      +'<button class="btn-ghost btn-sm" onclick="openDeleteModal(\''+escapeHtml(v.visit_id)+'\',\''+escapeHtml(nameOf(v))+'\',\''+escapeHtml(v.site_code||"")+'\')">Delete</button>'
-      +'</div></td>'
-      +'</tr>';
+  tbody.innerHTML = live.map(v => {
+    const hasDevice = !!v.device_token;
+    const hasGps = (v.lat != null && v.lng != null);
+    return '<tr>' +
+      '<td><span class="pill pill-live">Live</span></td>' +
+      '<td style="font-weight:500;"><span class="name-link" onclick="openTimesheetForPerson(\'' + escapeHtml(nameOf(v)) + '\',\'' + escapeHtml(v.company || "") + '\')">' + escapeHtml(nameOf(v)) + '</span></td>' +
+      '<td>' + escapeHtml(v.company || "-") + '</td>' +
+      '<td>' + escapeHtml(v.purpose || "-") + '</td>' +
+      '<td><span style="font-size:12px;background:var(--surface3);padding:2px 8px;border-radius:4px;">' + escapeHtml(v.site_code || "-") + '</span></td>' +
+      '<td style="color:var(--label3);font-size:12.5px;">' + escapeHtml(toLocal(v.check_in_at)) + '</td>' +
+      '<td style="font-weight:500;">' + escapeHtml(fmtDuration(minutesBetween(v.check_in_at, null))) + '</td>' +
+      '<td style="text-align:center;">' + (hasDevice ? '<span class="check-icon">&#10003;</span>' : '<span class="cross-icon">&#8212;</span>') + '</td>' +
+      '<td style="text-align:center;">' + (hasGps ? '<span class="check-icon">&#10003;</span>' : '<span class="cross-icon">&#8212;</span>') + '</td>' +
+      '<td style="text-align:right;"><button class="btn-danger btn-sm" onclick="openManualCheckoutModal(\'' + escapeHtml(v.visit_id) + '\',\'' + escapeHtml(nameOf(v)) + '\',\'' + escapeHtml(v.check_in_at) + '\')">Sign out</button></td>' +
+      '</tr>';
   }).join("");
 }
-
-function openTimesheetForPerson(personName, company){
-  openTimesheetsModal(personName);
+function openTimesheetForPerson(name, company) {
+  openTimesheetsModal();
+  setTimeout(() => {
+    const personSel = document.getElementById("tsPersonFilter");
+    const companySel = document.getElementById("tsCompanyFilter");
+    const personOpt = [...personSel.options].find(o => o.value === name);
+    const companyOpt = [...companySel.options].find(o => o.value === company);
+    if (company && companyOpt) companySel.value = company;
+    if (personOpt) personSel.value = name;
+    renderTimesheetsModal();
+  }, 100);
 }
-
-function renderAll(){
+function renderAll() {
   buildCompanyFilter();
   buildPersonFilter();
   buildSiteFilter();
   renderLive();
   updateFilterSummary();
 }
+async function loadData() {
+  try {
+    await Promise.all([fetchSites(), fetchEngineers()]);
+    allVisits = await fetchAll();
 
-async function loadData(){
-  await Promise.all([fetchSites(),fetchEngineers()]);
-  allVisits=await fetchAll();
-  const from=document.getElementById("fromDate").value;
-  const to=document.getElementById("toDate").value;
-  filteredVisits=(!from||!to)?allVisits.slice():await fetchRange(from,to);
-  renderAll();
+    const from = document.getElementById("fromDate").value;
+    const to = document.getElementById("toDate").value;
+
+    filteredVisits = (!from && !to) ? allVisits.slice() : await fetchRange(from, to);
+
+    renderAll();
+    checkPendingTransfersBadge();
+  } catch (err) {
+    console.error(err);
+    alert("Failed to load SiteLog data.");
+  }
 }
 
-document.getElementById("search").addEventListener("input",renderAll);
-document.getElementById("personFilter").addEventListener("change",renderAll);
-document.getElementById("companyFilter").addEventListener("change",renderAll);
-document.getElementById("purposeFilter").addEventListener("change",renderAll);
-document.getElementById("siteFilter").addEventListener("change",renderAll);
-
-(function(){
-  const to=new Date(), from=new Date();
-  from.setDate(to.getDate()-7);
-  const fmt=d=>d.toISOString().slice(0,10);
-  const f=document.getElementById("fromDate"), t=document.getElementById("toDate");
-  if(!f.value&&!t.value){ f.value=fmt(from); t.value=fmt(to); }
-})();
-loadData();
-
-function openDeleteModal(id,name,site){
-  deleteId=id;
-  document.getElementById("deleteText").innerText="Delete visit for "+name+" at "+site+"?";
-  document.getElementById("deleteModal").style.display="flex";
+/* ── DELETE ── */
+function openDeleteModal(id, name, site) {
+  deleteId = id;
+  document.getElementById("deleteText").innerText = "Delete visit for " + name + " at " + site + "?";
+  document.getElementById("deleteModal").style.display = "flex";
 }
-function closeDeleteModal(){
-  document.getElementById("deleteModal").style.display="none";
-  deleteId=null;
+function closeDeleteModal() {
+  document.getElementById("deleteModal").style.display = "none";
+  deleteId = null;
 }
-async function confirmDelete(){
-  if(!deleteId) return;
-  const res=await fetch(API_BASE+"/delete-visit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({visitId:deleteId})});
-  const data=await res.json();
-  if(!res.ok||!data.ok){ alert(data.error||"Failed to delete."); closeDeleteModal(); return; }
+async function confirmDelete() {
+  if (!deleteId) return;
+  const r = await fetch(API_BASE + "/delete-visit", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ visitId: deleteId })
+  });
+  const d = await r.json();
+  if (d.ok) {
+    await loadData();
+    renderTimesheetsModal();
+  }
   closeDeleteModal();
-  await loadData();
-  const tsModal=document.getElementById("timesheetsModal");
-  if(tsModal&&tsModal.style.display==="flex") renderTimesheetsModal();
 }
 
-function openManualCheckoutModal(id,name,checkIn){
-  manualCheckoutId=id;
-  manualCheckoutCheckIn=checkIn;
-  document.getElementById("manualCheckoutText").innerText="Sign out "+name+" (checked in "+toLocal(checkIn)+")";
-  document.getElementById("manualCheckoutTime").value="";
-  document.getElementById("manualCheckoutModal").style.display="flex";
-}
-function closeManualCheckoutModal(){
-  document.getElementById("manualCheckoutModal").style.display="none";
-  manualCheckoutId=null;
-  manualCheckoutCheckIn=null;
-}
-async function confirmManualCheckout(){
-  const timeValue=document.getElementById("manualCheckoutTime").value;
-  if(!timeValue){ alert("Please select a time."); return; }
-  const checkInDate=new Date(manualCheckoutCheckIn.replace(" ","T")+"Z");
-  const yyyy=checkInDate.getUTCFullYear(), mm=String(checkInDate.getUTCMonth()+1).padStart(2,"0"), dd=String(checkInDate.getUTCDate()).padStart(2,"0");
-  const manualTime=yyyy+"-"+mm+"-"+dd+" "+timeValue+":00";
-  const manualDateObj=new Date(manualTime.replace(" ","T")+"Z");
-  if(manualDateObj<=checkInDate){ alert("Sign out time must be after check-in time."); return; }
-  if(manualDateObj>new Date()){ alert("Sign out time cannot be in the future."); return; }
-  const res=await fetch(API_BASE+"/manual-checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({visitId:manualCheckoutId,manualTime})});
-  const data=await res.json();
-  if(!res.ok||!data.ok){ alert(data.error||"Failed to sign out."); return; }
-  closeManualCheckoutModal();
-  loadData();
-}
+/* ── EXPORT PDF ── */
+function openExportModal() {
+  const visits = filteredVisits.filter(passFilters);
+  const live = visits.filter(v => !v.check_out_at);
+  const closed = visits.filter(v => v.check_out_at);
+  const durs = closed.map(v => minutesBetween(v.check_in_at, v.check_out_at)).filter(m => m > 0);
+  const avg = durs.length ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length) : 0;
 
-function openExportModal(){
-  const visits=filteredVisits.filter(passFilters);
-  const live=visits.filter(v=>!v.check_out_at);
-  const closed=visits.filter(v=>v.check_out_at);
-  const durations=closed.map(v=>minutesBetween(v.check_in_at,v.check_out_at)).filter(m=>m>0);
-  const avgMins=durations.length?Math.round(durations.reduce((a,b)=>a+b,0)/durations.length):0;
-  const missedOut=visits.filter(v=>Number(v.auto_checkout||0)===1).length;
-  const totalHours=durations.reduce((a,b)=>a+b,0)/60;
-  const fromVal=document.getElementById("fromDate").value;
-  const toVal=document.getElementById("toDate").value;
-  const dateRange=(fromVal&&toVal)?fmtDay(fromVal)+" - "+fmtDay(toVal):"All time";
-  document.getElementById("exportPreviewRange").textContent=dateRange;
-  document.getElementById("exportPreviewSessions").textContent=visits.length;
-  document.getElementById("exportPreviewLive").textContent=live.length;
-  document.getElementById("exportPreviewPeople").textContent=new Set(visits.map(v=>nameOf(v))).size;
-  document.getElementById("exportPreviewSites").textContent=new Set(visits.map(v=>v.site_code).filter(Boolean)).size;
-  document.getElementById("exportPreviewAvg").textContent=avgMins?fmtDuration(avgMins):"--";
-  document.getElementById("exportPreviewMissed").textContent=missedOut;
-  document.getElementById("exportPreviewHours").textContent=totalHours.toFixed(1)+" h";
-  document.getElementById("exportModal").style.display="flex";
+  const fromVal = document.getElementById("fromDate").value;
+  const toVal = document.getElementById("toDate").value;
+  document.getElementById("exportPreviewRange").textContent = (fromVal || toVal)
+    ? (fromVal ? fmtDay(fromVal) : "Start") + " to " + (toVal ? fmtDay(toVal) : "Now")
+    : "All time";
+
+  document.getElementById("exportPreviewSessions").textContent = visits.length;
+  document.getElementById("exportPreviewLive").textContent = live.length;
+  document.getElementById("exportPreviewPeople").textContent = new Set(visits.map(v => nameOf(v))).size;
+  document.getElementById("exportPreviewSites").textContent = new Set(visits.map(v => v.site_code).filter(Boolean)).size;
+  document.getElementById("exportPreviewAvg").textContent = avg ? fmtDuration(avg) : "-";
+  document.getElementById("exportPreviewMissed").textContent = visits.filter(v => Number(v.auto_checkout || 0) === 1).length;
+  document.getElementById("exportPreviewHours").textContent = (durs.reduce((a, b) => a + b, 0) / 60).toFixed(1) + "h";
+  document.getElementById("exportModal").style.display = "flex";
 }
-function closeExportModal(){ document.getElementById("exportModal").style.display="none"; }
-function generatePDF(){
-  const visits=filteredVisits.filter(passFilters);
-  const fromVal=document.getElementById("fromDate").value;
-  const toVal=document.getElementById("toDate").value;
-  const dateRange=(fromVal&&toVal)?fmtDay(fromVal)+" - "+fmtDay(toVal):"All time";
-  const generatedAt=new Date().toLocaleString("en-GB");
-  const sorted=visits.slice().sort((a,b)=>(b.check_in_at||"").localeCompare(a.check_in_at||""));
-  const tableRows=sorted.map((v,i)=>{
-    const isLive=!v.check_out_at;
-    const isMissed=Number(v.auto_checkout||0)===1;
-    const dur=v.check_out_at?fmtDuration(minutesBetween(v.check_in_at,v.check_out_at)):"--";
-    const rowBg=i%2===0?"#fff":"#f9f9fb";
-    const dot=isLive?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#34c759;margin-right:5px;"></span>Live':isMissed?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ff3b30;margin-right:5px;"></span>No sign-out':'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#aeaeb2;margin-right:5px;"></span>Signed out';
-    return '<tr style="background:'+rowBg+';">'
-      +'<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">'+dot+'</td>'
-      +'<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;font-weight:600;">'+escapeHtml(nameOf(v))+'</td>'
-      +'<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">'+escapeHtml(v.company||"--")+'</td>'
-      +'<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">'+escapeHtml(v.site_code||"--")+'</td>'
-      +'<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;">'+escapeHtml(formatTimeOnly(v.check_in_at))+'</td>'
-      +'<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;">'+escapeHtml(v.check_out_at?formatTimeOnly(v.check_out_at):"--")+'</td>'
-      +'<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;font-weight:500;">'+escapeHtml(dur)+'</td>'
-      +'<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">'+escapeHtml(v.purpose||"--")+'</td>'
-      +'</tr>';
+function closeExportModal() {
+  document.getElementById("exportModal").style.display = "none";
+}
+function generatePDF() {
+  const visits = filteredVisits.filter(passFilters);
+  const closed = visits.filter(v => v.check_out_at);
+  const durs = closed.map(v => minutesBetween(v.check_in_at, v.check_out_at)).filter(m => m > 0);
+  const totalHrs = durs.reduce((a, b) => a + b, 0) / 60;
+  const genAt = new Date().toLocaleString("en-GB");
+  const fromVal = document.getElementById("fromDate").value;
+  const toVal = document.getElementById("toDate").value;
+  const range = (fromVal || toVal)
+    ? (fromVal ? fmtDay(fromVal) : "Start") + " to " + (toVal ? fmtDay(toVal) : "Now")
+    : "All time";
+
+  const sc = (l, v, s) => '<div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e2e8f0;"><div style="font-size:22px;font-weight:700;color:#1d1d1f;">' + v + '</div><div style="font-size:11px;font-weight:600;color:#6e6e73;text-transform:uppercase;margin-top:3px;">' + l + '</div>' + (s ? '<div style="font-size:11px;color:#aeaeb2;margin-top:2px;">' + s + '</div>' : '') + '</div>';
+
+  const rows = visits.slice().sort((a, b) => (b.check_in_at || "").localeCompare(a.check_in_at || "")).map((v, i) => {
+    const dur = v.check_out_at ? fmtDuration(minutesBetween(v.check_in_at, v.check_out_at)) : "-";
+    const st = !v.check_out_at ? "Live" : Number(v.auto_checkout || 0) === 1 ? "No sign-out" : "Signed out";
+    return '<tr style="background:' + (i % 2 === 0 ? "#fff" : "#f9f9fb") + ';">' +
+      '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">' + st + '</td>' +
+      '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;font-weight:600;">' + escapeHtml(nameOf(v)) + '</td>' +
+      '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">' + escapeHtml(v.company || "-") + '</td>' +
+      '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">' + escapeHtml(v.site_code || "-") + '</td>' +
+      '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;">' + escapeHtml(formatTimeOnly(v.check_in_at)) + '</td>' +
+      '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;">' + escapeHtml(v.check_out_at ? formatTimeOnly(v.check_out_at) : "-") + '</td>' +
+      '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">' + escapeHtml(dur) + '</td>' +
+      '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">' + escapeHtml(v.purpose || "-") + '</td>' +
+      '</tr>';
   }).join("");
-  const doc=document.createElement("div");
-  doc.style.cssText="font-family:-apple-system,sans-serif;background:#f2f2f7;padding:32px;min-width:900px;";
-  doc.innerHTML='<div style="background:#1d1d1f;border-radius:14px;padding:24px 28px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-size:22px;font-weight:700;color:#fff;">SiteLog</div><div style="font-size:13px;color:#aeaeb2;margin-top:4px;">Site Attendance Report</div></div><div style="text-align:right;"><div style="font-size:13px;font-weight:600;color:#fff;">'+escapeHtml(dateRange)+'</div><div style="font-size:11px;color:#6e6e73;margin-top:4px;">Generated '+escapeHtml(generatedAt)+'</div></div></div><div style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;"><table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#f9f9fb;"><th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Status</th><th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Name</th><th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Company</th><th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Site</th><th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">In</th><th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Out</th><th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Duration</th><th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Purpose</th></tr></thead><tbody>'+tableRows+'</tbody></table></div>';
-  html2pdf().set({margin:[0.3,0.3,0.3,0.3],filename:"SiteLog_Report.pdf",jsPDF:{unit:"in",format:"a4",orientation:"landscape"},html2canvas:{scale:2,useCORS:true,backgroundColor:"#f2f2f7"}}).from(doc).save();
+
+  const doc = document.createElement("div");
+  doc.style.cssText = "font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;background:#f2f2f7;padding:32px;min-width:900px;";
+  doc.innerHTML =
+    '<div style="background:#1d1d1f;border-radius:14px;padding:24px 28px;margin-bottom:20px;display:flex;justify-content:space-between;"><div><div style="font-size:22px;font-weight:700;color:#fff;">SiteLog</div><div style="font-size:13px;color:#aeaeb2;margin-top:4px;">Site Attendance Report</div></div><div style="text-align:right;"><div style="font-size:13px;font-weight:600;color:#fff;">' + escapeHtml(range) + '</div><div style="font-size:11px;color:#6e6e73;margin-top:4px;">Generated ' + escapeHtml(genAt) + '</div></div></div>' +
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px;">' +
+    sc("Total Sessions", visits.length) +
+    sc("Total Hours", totalHrs.toFixed(1) + "h") +
+    sc("People", new Set(visits.map(v => nameOf(v))).size) +
+    sc("Missed Sign-outs", visits.filter(v => Number(v.auto_checkout || 0) === 1).length) +
+    '</div>' +
+    '<div style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;"><div style="padding:14px 18px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;"><div style="font-size:13px;font-weight:600;color:#1d1d1f;">Visit Log</div><div style="font-size:11px;color:#aeaeb2;">' + visits.length + ' entries</div></div>' +
+    '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#f9f9fb;">' +
+    '<th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Status</th>' +
+    '<th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Name</th>' +
+    '<th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Company</th>' +
+    '<th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Site</th>' +
+    '<th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">In</th>' +
+    '<th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Out</th>' +
+    '<th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Duration</th>' +
+    '<th style="padding:9px 10px;text-align:left;font-size:10.5px;font-weight:700;color:#6e6e73;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Purpose</th></tr></thead>' +
+    '<tbody>' + (rows || '<tr><td colspan="8" style="padding:24px;text-align:center;color:#aeaeb2;">No visits.</td></tr>') + '</tbody></table></div>' +
+    '<div style="margin-top:20px;padding-top:14px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;"><div style="font-size:10.5px;color:#aeaeb2;">SiteLog - Confidential</div><div style="font-size:10.5px;color:#aeaeb2;">' + escapeHtml(genAt) + '</div></div>';
+
+  html2pdf().set({
+    margin: [0.3, 0.3, 0.3, 0.3],
+    filename: "SiteLog_Report_" + ((fromVal || "all").replace(/-/g, "")) + ".pdf",
+    jsPDF: { unit: "in", format: "a4", orientation: "landscape" },
+    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#f2f2f7" }
+  }).from(doc).save();
+
   closeExportModal();
 }
 
-let tsCurrentWeek = null;
+/* ── PENDING TRANSFERS ── */
+async function checkPendingTransfersBadge() {
+  try {
+    const r = await fetch(API_BASE + "/pending-transfers");
+    const d = await r.json();
+    const count = (d.transfers || []).length;
+    const show = count > 0;
+    const badge = count > 0 ? " (" + count + ")" : "";
 
-function tsGetAllWeeks(visits){
-  const weeks=new Set();
-  visits.forEach(v=>{ const day=(v.check_in_at||"").slice(0,10); if(day) weeks.add(mondayOf(day)); });
-  return [...weeks].sort((a,b)=>a.localeCompare(b));
+    ["transfersNavBtn", "transfersNavBtnMobile"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = show ? "inline-flex" : "none";
+    });
+
+    const desktopBadge = document.getElementById("transfersBadge");
+    if (desktopBadge) desktopBadge.textContent = badge;
+    const mobileBadge = document.getElementById("transfersBadgeMobile");
+    if (mobileBadge) mobileBadge.textContent = badge;
+  } catch (e) {}
 }
 
-function tsPersonVisits(){
-  const person=document.getElementById("tsPersonFilter").value;
-  const company=document.getElementById("tsCompanyFilter").value;
-  if(!person) return [];
-  return allVisits.filter(v=>{
-    if(nameOf(v)!==person) return false;
-    if(company&&(v.company||"")!==company) return false;
+async function openTransfersModal() {
+  document.getElementById("transfersModal").style.display = "flex";
+  document.getElementById("transfersBody").innerHTML = '<p style="color:var(--label3);">Loading...</p>';
+
+  try {
+    const r = await fetch(API_BASE + "/pending-transfers");
+    const d = await r.json();
+    const transfers = d.transfers || [];
+
+    if (!transfers.length) {
+      document.getElementById("transfersBody").innerHTML = '<div class="ts-empty">No pending transfer requests.</div>';
+      return;
+    }
+
+    document.getElementById("transfersBody").innerHTML =
+      '<div class="admin-table-scroll"><table class="admin-table">' +
+      '<thead><tr><th>Requested</th><th>Name</th><th>Company</th><th>Visits since request</th><th style="text-align:right;">Actions</th></tr></thead>' +
+      '<tbody>' + transfers.map(t => '<tr>' +
+        '<td style="font-size:12px;color:var(--label3);">' + escapeHtml(toLocal(t.requested_at)) + '</td>' +
+        '<td style="font-weight:600;">' + escapeHtml((t.first_name || "") + " " + (t.last_name || "")) + '</td>' +
+        '<td>' + escapeHtml(t.company || "") + '</td>' +
+        '<td style="text-align:center;">' + escapeHtml(String(t.visit_count || 0)) + '</td>' +
+        '<td><div class="row-btns">' +
+        '<button class="btn-primary btn-sm" onclick="openApproveTransfer(\'' + escapeHtml(t.id) + '\',\'' + escapeHtml((t.first_name || "") + " " + (t.last_name || "")) + '\',\'' + escapeHtml(t.company || "") + '\')">Approve</button>' +
+        '<button class="btn-danger btn-sm" onclick="rejectTransfer(\'' + escapeHtml(t.id) + '\',\'' + escapeHtml((t.first_name || "") + " " + (t.last_name || "")) + '\')">Reject</button>' +
+        '</div></td>' +
+        '</tr>').join("") +
+      '</tbody></table></div>';
+  } catch (e) {
+    document.getElementById("transfersBody").innerHTML = '<p style="color:var(--red);">Failed to load transfers.</p>';
+  }
+}
+function closeTransfersModal() {
+  document.getElementById("transfersModal").style.display = "none";
+}
+
+async function openApproveTransfer(transferId, name, company) {
+  pendingTransferIdToApprove = transferId;
+  document.getElementById("approveTransferSubtitle").textContent = "Linking " + name + " (" + company + ")";
+  const r = await fetch(API_BASE + "/all-engineers-for-transfer");
+  const d = await r.json();
+  const engineers = d.engineers || [];
+  const sel = document.getElementById("approveTargetSelect");
+  sel.innerHTML = engineers.map(e =>
+    '<option value="' + escapeHtml(e.id) + '">' +
+    escapeHtml((e.first_name || "") + " " + (e.last_name || "") + " - " + (e.company || "")) +
+    '</option>'
+  ).join("");
+  document.getElementById("approveTransferModal").style.display = "flex";
+}
+function closeApproveTransferModal() {
+  document.getElementById("approveTransferModal").style.display = "none";
+  pendingTransferIdToApprove = null;
+}
+async function confirmApproveTransfer() {
+  const targetPersonId = document.getElementById("approveTargetSelect").value;
+  if (!targetPersonId || !pendingTransferIdToApprove) {
+    alert("Please select an engineer.");
+    return;
+  }
+  const r = await fetch(API_BASE + "/approve-transfer", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ transferId: pendingTransferIdToApprove, targetPersonId })
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) {
+    alert(d.error || "Failed to approve.");
+    return;
+  }
+  closeApproveTransferModal();
+  await openTransfersModal();
+  checkPendingTransfersBadge();
+  await loadData();
+}
+async function rejectTransfer(transferId, name) {
+  if (!confirm("Reject transfer request for " + name + "? Their scans during this period will be kept but unlinked.")) return;
+  const r = await fetch(API_BASE + "/reject-transfer", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ transferId })
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) {
+    alert(d.error || "Failed to reject.");
+    return;
+  }
+  await openTransfersModal();
+  checkPendingTransfersBadge();
+}
+
+/* ── TIMESHEETS ── */
+function populateTSFilters(base) {
+  const cs = document.getElementById("tsCompanyFilter");
+  const ps = document.getElementById("tsPersonFilter");
+  const ss = document.getElementById("tsSiteFilter");
+  const cc = cs.value;
+  const cp = ps.value;
+  const csi = ss.value;
+
+  const cos = [...new Set(base.map(v => (v.company || "").trim()).filter(Boolean))].sort((a, b) => companySortKey(a).localeCompare(companySortKey(b)));
+  const peo = [...new Set(base.map(v => nameOf(v)).filter(Boolean))].sort();
+  const sis = [...new Set(base.map(v => (v.site_code || "").trim()).filter(Boolean))].sort();
+
+  cs.innerHTML = '<option value="">All Companies</option>' + cos.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join("");
+  ps.innerHTML = '<option value="">All Engineers</option>' + peo.map(p => '<option value="' + escapeHtml(p) + '">' + escapeHtml(p) + '</option>').join("");
+  ss.innerHTML = '<option value="">All Sites</option>' + sis.map(s => '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>').join("");
+
+  if ([...cs.options].some(o => o.value === cc)) cs.value = cc;
+  if ([...ps.options].some(o => o.value === cp)) ps.value = cp;
+  if ([...ss.options].some(o => o.value === csi)) ss.value = csi;
+}
+function getTSFiltered() {
+  const co = document.getElementById("tsCompanyFilter").value;
+  const pe = document.getElementById("tsPersonFilter").value;
+  const si = document.getElementById("tsSiteFilter").value;
+  const fr = document.getElementById("tsFromDate").value;
+  const to = document.getElementById("tsToDate").value;
+
+  return filteredVisits.filter(passFilters).filter(v => {
+    const day = (v.check_in_at || "").slice(0, 10);
+    if (co && (v.company || "") !== co) return false;
+    if (pe && nameOf(v) !== pe) return false;
+    if (si && (v.site_code || "") !== si) return false;
+    if (fr && day < fr) return false;
+    if (to && day > to) return false;
     return true;
   });
 }
 
-function tsBuildWeekGrid(visits, mondayStr){
-  const byDay={};
-  for(let i=0;i<7;i++){ const iso=addDays(mondayStr,i); byDay[iso]=[]; }
-  visits.forEach(v=>{ const day=(v.check_in_at||"").slice(0,10); if(byDay[day]!==undefined) byDay[day].push(v); });
-  Object.keys(byDay).forEach(day=>{ byDay[day].sort((a,b)=>(a.check_in_at||"").localeCompare(b.check_in_at||"")); });
+function buildEngineerAdminPanel(eng, name, company, id) {
+  const r = eng || {id: id || "", first_name: name.split(" ")[0] || "", last_name: name.split(" ").slice(1).join(" ") || "", company: company || "", purpose: "", hourly_rate: ""};
+  const eid = r.id || id || "";
+  const travelStatus = r.travel_status || "not_configured";
+  const capType = r.travel_cap_type || "";
+  const capVal = r.travel_cap_value != null ? r.travel_cap_value : "";
+  const travelHtml =
+    '<div class="travel-section">' +
+      '<div class="travel-section-label">Travel Allowance</div>' +
+      '<div class="travel-fields">' +
+        '<div class="field-stack"><span class="field-label">Status</span>' +
+          '<select data-ts-eng-travel-status="' + escapeHtml(eid) + '" onchange="onTravelStatusChange(\'' + escapeHtml(eid) + '\')">' +
+            '<option value="not_configured"' + (travelStatus === "not_configured" ? " selected" : "") + '>Not configured</option>' +
+            '<option value="no_allowance"' + (travelStatus === "no_allowance" ? " selected" : "") + '>No allowance</option>' +
+            '<option value="paid"' + (travelStatus === "paid" ? " selected" : "") + '>Paid travel</option>' +
+          '</select></div>' +
+        '<div class="field-stack" id="travelCapGroup-' + escapeHtml(eid) + '" style="display:' + (travelStatus === "paid" ? "flex" : "none") + ';gap:8px;">' +
+          '<span class="field-label">Cap type</span>' +
+          '<select data-ts-eng-cap-type="' + escapeHtml(eid) + '">' +
+            '<option value="none"' + ((capType === "none" || capType === "") ? " selected" : "") + '>No cap (all paid)</option>' +
+            '<option value="time"' + (capType === "time" ? " selected" : "") + '>Time (mins)</option>' +
+            '<option value="distance"' + (capType === "distance" ? " selected" : "") + '>Distance (miles)</option>' +
+          '</select>' +
+          '<input type="number" data-ts-eng-cap-val="' + escapeHtml(eid) + '" value="' + escapeHtml(String(capVal)) + '" placeholder="e.g. 30" style="width:80px;" min="0" step="1">' +
+        '</div></div></div>';
 
-  let weekTotalMins=0;
-  const todayISO=new Date().toISOString().slice(0,10);
+  return '<div class="ts-engineer-admin">' +
+    '<input data-ts-eng-first="' + escapeHtml(eid) + '" value="' + escapeHtml(r.first_name || "") + '" placeholder="First name">' +
+    '<input data-ts-eng-last="' + escapeHtml(eid) + '" value="' + escapeHtml(r.last_name || "") + '" placeholder="Last name">' +
+    '<input data-ts-eng-company="' + escapeHtml(eid) + '" value="' + escapeHtml(r.company || "") + '" placeholder="Company">' +
+    '<input data-ts-eng-purpose="' + escapeHtml(eid) + '" value="' + escapeHtml(r.purpose || "") + '" placeholder="Purpose">' +
+    '<input data-ts-eng-rate="' + escapeHtml(eid) + '" type="number" step="0.01" min="0" value="' + escapeHtml(r.hourly_rate != null ? String(r.hourly_rate) : "") + '" placeholder="Rate per hr">' +
+    '<div class="full">' + travelHtml + '</div>' +
+    '<div class="ts-engineer-admin-btns full">' +
+      '<button class="btn-ghost btn-sm" onclick="saveTimesheetEngineer(\'' + escapeHtml(eid) + '\')">Save</button>' +
+      '<button class="btn-ghost btn-sm" onclick="toggleTimesheetEngineer(\'' + escapeHtml(eid) + '\')">Archive</button>' +
+      '<button class="btn-ghost btn-sm" onclick="resetEngineerDevice(\'' + escapeHtml(eid) + '\',\'' + escapeHtml(name) + '\')">Reset Device</button>' +
+      '<button class="btn-danger btn-sm" onclick="deleteEngineerFromTimesheets(\'' + escapeHtml(eid) + '\',\'' + escapeHtml(name) + '\')">Delete</button>' +
+    '</div></div>';
+}
 
-  const dayCards=Object.keys(byDay).map(day=>{
-    const sessions=byDay[day];
-    const dayLabel=fmtTSDay(day);
-    const isToday=day===todayISO;
-    const isWeekend=[6,0].includes(new Date(day+"T00:00:00").getDay());
+function onTravelStatusChange(id) {
+  const sel = document.querySelector('[data-ts-eng-travel-status="' + escSel(id) + '"]');
+  const grp = document.getElementById("travelCapGroup-" + id);
+  if (grp) grp.style.display = sel && sel.value === "paid" ? "flex" : "none";
+}
 
-    if(!sessions.length){
-      if(isWeekend) return "";
-      return '<div class="ts-day-card ts-day-absent-card"><div class="ts-day-header"><span class="ts-day-name'+(isToday?" ts-today":"")+'">'+escapeHtml(dayLabel)+'</span><span class="ts-day-tag ts-tag-absent">No attendance</span></div></div>';
+function buildWeekTable(visits, name, company, weekKey, eng) {
+  const hasTravelPay = eng && eng.travel_status === "paid";
+  const sorted = visits.slice().sort((a, b) => (a.check_in_at || "").localeCompare(b.check_in_at || ""));
+  let totTotal = 0, totStd = 0, totOT = 0, totTIPaid = 0, totTOPaid = 0;
+
+  const rows = sorted.map(v => {
+    const day = (v.check_in_at || "").slice(0, 10);
+    const totalMins = minutesBetween(v.check_in_at, v.check_out_at);
+    const totalH = totalMins / 60;
+    const stdH = Math.min(totalH, 10);
+    const otH = Math.max(totalH - 10, 0);
+    totTotal += totalH;
+    totStd += stdH;
+    totOT += otH;
+
+    const noteText = !v.check_out_at ? "No check out" : (Number(v.auto_checkout || 0) === 1 ? "Soft/auto sign out" : "-");
+    const noteHtml = noteText === "-" ? '<span style="color:var(--label4);">-</span>' : '<span class="ts-note-bad">' + escapeHtml(noteText) + '</span>';
+    const hasDevice = !!v.device_token;
+    const hasGps = (v.lat != null && v.lng != null);
+
+    let tiHtml = "", toHtml = "";
+    if (hasTravelPay) {
+      if (v.travel_in_mins != null) {
+        const p = calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng);
+        totTIPaid += p;
+        tiHtml = '<span class="ts-travel-cell">' + v.travel_in_mins + 'm' + (v.travel_in_miles != null ? ' (' + v.travel_in_miles + 'mi)' : '') + '<br><span class="ts-travel-paid">Paid: ' + p + 'm</span></span>';
+      } else {
+        tiHtml = '<span style="color:var(--label4);">-</span>';
+      }
+      if (v.travel_out_mins != null) {
+        const p = calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng);
+        totTOPaid += p;
+        toHtml = '<span class="ts-travel-cell">' + v.travel_out_mins + 'm' + (v.travel_out_miles != null ? ' (' + v.travel_out_miles + 'mi)' : '') + '<br><span class="ts-travel-paid">Paid: ' + p + 'm</span></span>';
+      } else {
+        toHtml = '<span style="color:var(--label4);">-</span>';
+      }
     }
 
-    const firstIn=sessions[0].check_in_at;
-    const lastOut=sessions.map(s=>s.check_out_at).filter(Boolean).sort().pop()||null;
-    const dayMins=minutesBetween(firstIn,lastOut);
-    if(lastOut) weekTotalMins+=dayMins;
-    const dayHrs=(dayMins/60).toFixed(2);
-    const isOngoing=!lastOut;
-    const startStr=formatTimeOnly(firstIn);
-    const endStr=lastOut?formatTimeOnly(lastOut):"Ongoing";
-
-    const sessionRows=sessions.map((s,i)=>{
-      const sIn=formatTimeOnly(s.check_in_at);
-      const sOut=s.check_out_at?formatTimeOnly(s.check_out_at):"Ongoing";
-      const sMins=minutesBetween(s.check_in_at,s.check_out_at);
-      const sDur=s.check_out_at?fmtDuration(sMins):"--";
-      const sHrs=s.check_out_at?(sMins/60).toFixed(2):"--";
-      const isSoft=!s.sign_in_confirmed||!s.sign_out_confirmed;
-      const site=s.site_code||"--";
-      const engName=nameOf(s)||"Unknown";
-      return '<tr class="ts-session-row">'
-        +'<td style="padding:6px 12px;font-size:12px;color:var(--label3);">'+(i+1)+'</td>'
-        +'<td style="padding:6px 12px;font-size:12.5px;">'+escapeHtml(site)+'</td>'
-        +'<td style="padding:6px 12px;font-size:12.5px;font-family:monospace;">'+escapeHtml(sIn)+'</td>'
-        +'<td style="padding:6px 12px;font-size:12.5px;font-family:monospace;">'+escapeHtml(sOut)+'</td>'
-        +'<td style="padding:6px 12px;font-size:12.5px;">'+escapeHtml(sDur)+'</td>'
-        +'<td style="padding:6px 12px;font-size:12.5px;font-weight:600;">'+escapeHtml(sHrs)+'h</td>'
-        +'<td style="padding:6px 12px;"><div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">'
-        +(isSoft?'<span style="font-size:10.5px;font-weight:600;color:#92400e;background:#fffbeb;border:1px solid #fde68a;padding:1px 6px;border-radius:4px;">unconfirmed</span>':"")
-        +'<button class="btn-ghost btn-sm" style="height:26px;padding:0 8px;font-size:11.5px;color:var(--red);border-color:rgba(255,59,48,0.25);" onclick="openDeleteModal(\''+escapeHtml(s.visit_id)+'\',\''+escapeHtml(engName)+'\',\''+escapeHtml(site)+'\')">Delete</button>'
-        +'</div></td>'
-        +'</tr>';
-    }).join("");
-
-    return '<div class="ts-day-card">'
-      +'<div class="ts-day-header">'
-      +'<span class="ts-day-name'+(isToday?" ts-today":"")+'">'+escapeHtml(dayLabel)+'</span>'
-      +'<div class="ts-day-summary">'
-      +'<span class="ts-day-time">'+escapeHtml(startStr)+' &#8212; '+escapeHtml(endStr)+'</span>'
-      +'<span class="ts-day-tag '+(isOngoing?"ts-tag-ongoing":"ts-tag-total")+'">'+(isOngoing?"Ongoing":fmtDuration(dayMins))+'</span>'
-      +'<span class="ts-day-hrs">'+(isOngoing?"":dayHrs+"h")+'</span>'
-      +'</div></div>'
-      +'<div class="ts-session-table-wrap"><table class="ts-session-table">'
-      +'<thead><tr><th style="width:28px;">#</th><th>Site</th><th>Start</th><th>Finish</th><th>Duration</th><th>Hours</th><th></th></tr></thead>'
-      +'<tbody>'+sessionRows+'</tbody>'
-      +(sessions.length>1?'<tfoot><tr><td colspan="4" style="padding:6px 12px;font-size:12px;font-weight:700;color:var(--label3);text-transform:uppercase;">Day total</td><td style="padding:6px 12px;font-size:13px;font-weight:700;color:var(--label);">'+(isOngoing?"Ongoing":fmtDuration(dayMins))+'</td><td style="padding:6px 12px;font-size:13px;font-weight:700;color:var(--blue);">'+(isOngoing?"":dayHrs+"h")+'</td><td></td></tr></tfoot>':"")
-      +'</table></div></div>';
+    return '<tr>' +
+      '<td>' + escapeHtml(formatTSDate(day)) + '</td>' +
+      '<td>' + escapeHtml(v.site_code || "-") + '</td>' +
+      '<td>' + escapeHtml(formatTimeOnly(v.check_in_at)) + '</td>' +
+      '<td>' + escapeHtml(v.check_out_at ? formatTimeOnly(v.check_out_at) : "-") + '</td>' +
+      '<td>' + escapeHtml(totalH.toFixed(2)) + '</td>' +
+      '<td>' + escapeHtml(stdH.toFixed(2)) + '</td>' +
+      '<td>' + escapeHtml(otH.toFixed(2)) + '</td>' +
+      (hasTravelPay ? '<td>' + tiHtml + '</td><td>' + toHtml + '</td>' : '') +
+      '<td class="ts-cell-center">' + (hasDevice ? '<span class="check-icon">&#10003;</span>' : '<span class="cross-icon">&#8212;</span>') + '</td>' +
+      '<td class="ts-cell-center">' + (hasGps ? '<span class="check-icon">&#10003;</span> ' + mapPinHtml(v) : '<span class="cross-icon">&#8212;</span>') + '</td>' +
+      '<td>' + noteHtml + '</td>' +
+      '<td><div class="ts-visit-edit">' +
+        '<input data-visit-in="' + escapeHtml(v.visit_id) + '" value="' + escapeHtml(sqlShort(v.check_in_at)) + '" placeholder="YYYY-MM-DD HH:MM">' +
+        '<input data-visit-out="' + escapeHtml(v.visit_id) + '" value="' + escapeHtml(sqlShort(v.check_out_at)) + '" placeholder="YYYY-MM-DD HH:MM">' +
+        '<button class="btn-ghost btn-sm" onclick="saveVisitTimes(\'' + escapeHtml(v.visit_id) + '\')">Save</button>' +
+        '<button class="btn-danger btn-sm" onclick="openDeleteModal(\'' + escapeHtml(v.visit_id) + '\',\'' + escapeHtml(name) + '\',\'' + escapeHtml(v.site_code || "-") + '\')">Del</button>' +
+      '</div></td>' +
+      '</tr>';
   }).join("");
 
-  const weekTotal=weekTotalMins>0?fmtDuration(weekTotalMins):"0m";
-  const weekHrs=(weekTotalMins/60).toFixed(2);
-  const daysWorked=Object.values(byDay).filter(s=>s.length>0).length;
-  return {html:dayCards, weekTotal, weekHrs, weekTotalMins, daysWorked};
+  const th = hasTravelPay ? '<th style="width:110px;">Travel In</th><th style="width:110px;">Travel Out</th>' : '';
+  const tf = hasTravelPay ? '<td>' + totTIPaid + 'm paid</td><td>' + totTOPaid + 'm paid</td>' : '';
+  const ts = hasTravelPay ? '<span class="ts-pill">Travel in paid: ' + totTIPaid + 'm</span><span class="ts-pill">Travel out paid: ' + totTOPaid + 'm</span>' : '';
+
+  return '<div class="ts-week-block">' +
+    '<div class="ts-week-header"><span class="ts-week-text">Week commencing: ' + escapeHtml(formatWeekCommencing(weekKey)) + '</span><span class="ts-pill">' + escapeHtml(company) + '</span></div>' +
+    '<div class="ts-table-wrap"><table class="ts-table">' +
+    '<thead><tr><th style="width:140px;">Date</th><th>Site</th><th style="width:75px;">Start</th><th style="width:75px;">Finish</th><th style="width:90px;">Total hrs</th><th style="width:90px;">Std hrs</th><th style="width:90px;">OT hrs</th>' + th + '<th style="width:80px;">Device</th><th style="width:90px;">Location</th><th style="width:140px;">Notes</th><th>Admin</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody>' +
+    '<tfoot><tr><td colspan="4">Weekly totals</td><td>' + escapeHtml(totTotal.toFixed(2)) + '</td><td>' + escapeHtml(totStd.toFixed(2)) + '</td><td>' + escapeHtml(totOT.toFixed(2)) + '</td>' + tf + '<td colspan="4" style="color:var(--label3);font-size:12px;">Engineer week total</td></tr></tfoot>' +
+    '</table></div>' +
+    '<div class="ts-summary"><span class="ts-pill">Std: ' + escapeHtml(totStd.toFixed(2)) + 'h</span><span class="ts-pill">OT: ' + escapeHtml(totOT.toFixed(2)) + 'h</span><span class="ts-pill">Total: ' + escapeHtml(totTotal.toFixed(2)) + 'h</span>' + ts + '</div>' +
+    '</div>';
 }
 
-function renderTimesheetsModal(){
-  const personSel=document.getElementById("tsPersonFilter");
-  const companySel=document.getElementById("tsCompanyFilter");
-  const currentPerson=personSel.value;
-  const currentCompany=companySel.value;
+function renderTimesheetsModal() {
+  const base = filteredVisits.filter(passFilters);
+  populateTSFilters(base);
 
-  const companies=[...new Set(allVisits.map(v=>(v.company||"").trim()).filter(Boolean))].sort((a,b)=>companySortKey(a).localeCompare(companySortKey(b)));
-  companySel.innerHTML='<option value="">All Companies</option>'+companies.map(c=>'<option value="'+escapeHtml(c)+'">'+escapeHtml(c)+'</option>').join("");
-  if([...companySel.options].some(o=>o.value===currentCompany)) companySel.value=currentCompany;
+  const visits = getTSFiltered();
+  const wrap = document.getElementById("timesheetsBody");
+  const info = document.getElementById("timesheetsMeta");
+  const fr = document.getElementById("tsFromDate").value || "All";
+  const to = document.getElementById("tsToDate").value || "All";
 
-  const companyFilter=companySel.value;
-  const engineers=[...new Set(allVisits.filter(v=>!companyFilter||(v.company||"")===companyFilter).map(v=>nameOf(v)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  personSel.innerHTML='<option value="">Select engineer...</option>'+engineers.map(p=>'<option value="'+escapeHtml(p)+'">'+escapeHtml(p)+'</option>').join("");
-  if([...personSel.options].some(o=>o.value===currentPerson)) personSel.value=currentPerson;
+  info.innerHTML = '<strong>Range:</strong> ' + escapeHtml(fr) + ' to ' + escapeHtml(to) + ' &nbsp;&middot;&nbsp; <strong>Sessions:</strong> ' + escapeHtml(String(visits.length));
 
-  const wrap=document.getElementById("timesheetsBody");
-  if(!personSel.value){ wrap.innerHTML='<div class="ts-empty">Select an engineer above to view their weekly timesheet.</div>'; return; }
+  if (!visits.length) {
+    wrap.innerHTML = '<div class="ts-empty">No timesheets found for the current filters.</div>';
+    return;
+  }
 
-  const visits=tsPersonVisits();
-  const allWeeks=tsGetAllWeeks(visits);
-  if(!allWeeks.length){ wrap.innerHTML='<div class="ts-empty">No attendance records found for this engineer.</div>'; return; }
+  const grouped = {};
+  visits.forEach(v => {
+    const co = (v.company || "No Company").trim() || "No Company";
+    const pe = nameOf(v) || "Unknown";
+    const pid = v.person_id || "";
+    const day = (v.check_in_at || "").slice(0, 10) || "";
+    const wk = startOfWeekMonday(day);
 
-  if(!tsCurrentWeek||!allWeeks.includes(tsCurrentWeek)) tsCurrentWeek=allWeeks[allWeeks.length-1];
+    if (!grouped[co]) grouped[co] = {};
+    if (!grouped[co][pe]) grouped[co][pe] = { pid, weeks: {} };
+    if (!grouped[co][pe].weeks[wk]) grouped[co][pe].weeks[wk] = [];
+    grouped[co][pe].weeks[wk].push(v);
+  });
 
-  const weekIdx=allWeeks.indexOf(tsCurrentWeek);
-  const hasPrev=weekIdx>0;
-  const hasNext=weekIdx<allWeeks.length-1;
-  const weekVisits=visits.filter(v=>mondayOf((v.check_in_at||"").slice(0,10))===tsCurrentWeek);
-  const grid=tsBuildWeekGrid(weekVisits,tsCurrentWeek);
-  const personName=personSel.value;
-  const daysStr=grid.daysWorked+" day"+(grid.daysWorked!==1?"s":"");
+  let html = "";
+  Object.keys(grouped).sort((a, b) => companySortKey(a).localeCompare(companySortKey(b))).forEach(co => {
+    html += '<div class="ts-company-section"><div class="ts-company-title">' + escapeHtml(co) + '</div>';
+    Object.keys(grouped[co]).sort().forEach(pe => {
+      const pid = grouped[co][pe].pid || "";
+      const eng = findEngineer(pid, pe, co);
+      const eid = eng?.id || pid || "";
+      const allV = Object.values(grouped[co][pe].weeks).flat();
+      const closedV = allV.filter(v => v.check_out_at);
+      const durs = closedV.map(v => minutesBetween(v.check_in_at, v.check_out_at)).filter(m => m > 0);
+      const totalHrs = durs.reduce((a, b) => a + b, 0) / 60;
+      const avg = durs.length ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length) : 0;
+      const missed = allV.filter(v => Number(v.auto_checkout || 0) === 1).length;
+      const longest = durs.length ? Math.max(...durs) : 0;
+      const days = new Set(allV.map(v => (v.check_in_at || "").slice(0, 10))).size;
 
-  wrap.innerHTML=
-    '<div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">'
-    +'<div style="font-size:16px;font-weight:700;color:var(--label);letter-spacing:-0.3px;">'+escapeHtml(personName)+'</div>'
-    +'<div style="font-size:12px;color:var(--label3);">'+escapeHtml(String(allWeeks.length))+' week'+(allWeeks.length!==1?"s":"")+" with attendance"+'</div>'
-    +'</div>'
-    +'<div class="ts-week-card" style="margin-bottom:14px;"><div class="ts-week-nav">'
-    +'<button class="btn-ghost btn-sm ts-nav-btn" onclick="tsNavWeek(-1)" '+(hasPrev?"":"disabled")+'>&#8592;</button>'
-    +'<div style="display:flex;align-items:center;gap:10px;flex:1;justify-content:center;flex-wrap:wrap;text-align:center;">'
-    +'<span class="ts-week-title">w/c '+escapeHtml(fmtWeekRange(tsCurrentWeek))+'</span>'
-    +'<span class="ts-week-total">'+escapeHtml(grid.weekTotal)+' &nbsp;&#183;&nbsp; '+escapeHtml(grid.weekHrs)+'h &nbsp;&#183;&nbsp; '+escapeHtml(daysStr)+'</span>'
-    +'</div>'
-    +'<button class="btn-ghost btn-sm ts-nav-btn" onclick="tsNavWeek(1)" '+(hasNext?"":"disabled")+'>&#8594;</button>'
-    +'</div></div>'
-    +'<div id="tsDayCards">'+grid.html+'</div>'
-    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">'
-    +'<span style="font-size:13px;font-weight:700;color:var(--label3);text-transform:uppercase;letter-spacing:0.5px;">Week Total</span>'
-    +'<div style="display:flex;gap:16px;align-items:center;">'
-    +'<div style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--blue);">'+escapeHtml(grid.weekTotal)+'</div><div style="font-size:10px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:2px;">Hours</div></div>'
-    +'<div style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--label);">'+escapeHtml(grid.weekHrs)+'h</div><div style="font-size:10px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:2px;">Decimal</div></div>'
-    +'<div style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--label);">'+escapeHtml(daysStr)+'</div><div style="font-size:10px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:2px;">On site</div></div>'
-    +'</div></div>'
-    +'<div style="display:flex;gap:6px;flex-wrap:wrap;padding:12px 0 2px;"><span style="font-size:11px;color:var(--label3);align-self:center;">Jump:</span>'
-    +allWeeks.map(w=>'<button class="chip'+(w===tsCurrentWeek?" btn-primary":"")+'" onclick="tsJumpWeek(\''+w+'\')" style="'+(w===tsCurrentWeek?"background:var(--blue);color:#fff;border-color:var(--blue);":"")+'font-size:11px;">'+escapeHtml(fmtWeekRange(w))+'</button>').join("")
-    +'</div>';
+      const statsHtml =
+        '<div class="eng-stats">' +
+          '<div class="eng-stat"><span class="eng-stat-val">' + days + '</span><span class="eng-stat-label">Days</span></div>' +
+          '<div class="eng-stat"><span class="eng-stat-val">' + totalHrs.toFixed(1) + 'h</span><span class="eng-stat-label">Total hrs</span></div>' +
+          '<div class="eng-stat"><span class="eng-stat-val">' + (avg ? fmtDuration(avg) : "-") + '</span><span class="eng-stat-label">Avg session</span></div>' +
+          '<div class="eng-stat"><span class="eng-stat-val">' + (longest ? fmtDuration(longest) : "-") + '</span><span class="eng-stat-label">Longest</span></div>' +
+          '<div class="eng-stat"><span class="eng-stat-val ' + (missed > 0 ? "warn" : "good") + '">' + missed + '</span><span class="eng-stat-label">Missed out</span></div>' +
+        '</div>';
+
+      html += '<div class="ts-engineer-block"><div class="ts-engineer-header"><div class="ts-engineer-title">' + escapeHtml(pe) + '</div>' + buildEngineerAdminPanel(eng, pe, co, eid) + '</div>' + statsHtml;
+      Object.keys(grouped[co][pe].weeks).sort().forEach(wk => {
+        html += buildWeekTable(grouped[co][pe].weeks[wk], pe, co, wk, eng);
+      });
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+
+  wrap.innerHTML = html;
 }
 
-function tsNavWeek(dir){
-  const visits=tsPersonVisits();
-  const allWeeks=tsGetAllWeeks(visits);
-  const idx=allWeeks.indexOf(tsCurrentWeek);
-  const newIdx=idx+dir;
-  if(newIdx>=0&&newIdx<allWeeks.length){ tsCurrentWeek=allWeeks[newIdx]; renderTimesheetsModal(); }
-}
-
-function tsJumpWeek(mondayStr){ tsCurrentWeek=mondayStr; renderTimesheetsModal(); }
-
-function openTimesheetsModal(initialPerson){
-  document.getElementById("timesheetsModal").style.display="flex";
-  if(initialPerson){ document.getElementById("tsPersonFilter").value=initialPerson; }
-  tsCurrentWeek=null;
+function openTimesheetsModal() {
+  document.getElementById("timesheetsModal").style.display = "flex";
+  document.getElementById("tsFromDate").value = document.getElementById("fromDate").value || "";
+  document.getElementById("tsToDate").value = document.getElementById("toDate").value || "";
   renderTimesheetsModal();
 }
+function closeTimesheetsModal() {
+  document.getElementById("timesheetsModal").style.display = "none";
+}
+function clearTimesheetFilters() {
+  ["tsCompanyFilter", "tsPersonFilter", "tsSiteFilter"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("tsFromDate").value = document.getElementById("fromDate").value || "";
+  document.getElementById("tsToDate").value = document.getElementById("toDate").value || "";
+  renderTimesheetsModal();
+}
+function exportTimesheetsPdf() {
+  const el = document.getElementById("timesheetsPdfRoot");
+  const mh = el.style.maxHeight;
+  const mo = el.style.overflow;
+  el.style.maxHeight = "none";
+  el.style.overflow = "visible";
 
-function closeTimesheetsModal(){ document.getElementById("timesheetsModal").style.display="none"; }
-
-function exportTimesheetsPdf(){
-  const el=document.getElementById("timesheetsPdfRoot");
-  const origMaxH=el.style.maxHeight, origOverflow=el.style.overflow;
-  el.style.maxHeight="none"; el.style.overflow="visible";
-  html2pdf().set({margin:0.2,filename:"SiteLog_Timesheet.pdf",jsPDF:{unit:"in",format:"a4",orientation:"landscape"},html2canvas:{scale:2,useCORS:true,scrollY:0,windowWidth:el.scrollWidth}}).from(el).save().then(()=>{
-    el.style.maxHeight=origMaxH; el.style.overflow=origOverflow;
+  html2pdf().set({
+    margin: 0.2,
+    filename: "SiteLog_Timesheets.pdf",
+    jsPDF: { unit: "in", format: "a4", orientation: "landscape" },
+    html2canvas: { scale: 2, useCORS: true, scrollY: 0, windowWidth: el.scrollWidth }
+  }).from(el).save().then(() => {
+    el.style.maxHeight = mh;
+    el.style.overflow = mo;
   });
 }
 
-async function openSitesModal(){
-  document.getElementById("sitesModal").style.display="flex";
-  document.getElementById("sitesAdminBody").innerHTML='<p style="color:var(--label3);">Loading...</p>';
-  await fetchSites();
-  await fetchCompaniesMaster();
-  await loadSiteCompanyMap();
-  renderSitesAdminTable();
-}
-function closeSitesModal(){ document.getElementById("sitesModal").style.display="none"; }
-
-function renderSitesAdminTable(){
-  const wrap=document.getElementById("sitesAdminBody");
-  if(!sitesAll.length){
-    wrap.innerHTML='<p style="color:var(--label3);">No sites returned.</p>';
+async function saveTimesheetEngineer(id) {
+  if (!id) {
+    alert("Engineer id not found.");
     return;
   }
 
-  const rows=sitesAll.slice().sort((a,b)=>String(a.site_name||"").localeCompare(String(b.site_name||""))).map(s=>{
-    const isArch=Number(s.archived||0)===1;
-    const pill=isArch?'<span class="pill pill-arch">Archived</span>':'<span class="pill pill-active">Active</span>';
-    const siteCompanyIds=(siteCompanyMap[s.id]||[]);
-    const companyChips=companiesAll.map(c=>{
-      const active=siteCompanyIds.includes(c.id)?"active":"";
-      return '<span class="company-chip-toggle '+active+'" data-site-id="'+escapeHtml(s.id)+'" data-company-id="'+escapeHtml(c.id)+'" onclick="toggleSiteCompanyChip(this)">'+escapeHtml(c.name)+'</span>';
-    }).join("");
+  const firstName = (document.querySelector('[data-ts-eng-first="' + escSel(id) + '"]')?.value || "").trim();
+  const lastName = (document.querySelector('[data-ts-eng-last="' + escSel(id) + '"]')?.value || "").trim();
+  const company = (document.querySelector('[data-ts-eng-company="' + escSel(id) + '"]')?.value || "").trim();
+  const purpose = (document.querySelector('[data-ts-eng-purpose="' + escSel(id) + '"]')?.value || "").trim();
+  const rateRaw = (document.querySelector('[data-ts-eng-rate="' + escSel(id) + '"]')?.value || "").trim();
+  const hourlyRate = rateRaw === "" ? null : Number(rateRaw);
+  const travelStatus = (document.querySelector('[data-ts-eng-travel-status="' + escSel(id) + '"]')?.value || "not_configured");
+  const travelCapType = (document.querySelector('[data-ts-eng-cap-type="' + escSel(id) + '"]')?.value || null);
+  const capValRaw = (document.querySelector('[data-ts-eng-cap-val="' + escSel(id) + '"]')?.value || "").trim();
+  const travelCapValue = capValRaw === "" ? null : Number(capValRaw);
 
-    return '<tr>'
-      +'<td>'+pill+'</td>'
-      +'<td><input data-site-name="'+escapeHtml(s.id)+'" value="'+escapeHtml(s.site_name||"")+'" /></td>'
-      +'<td style="color:var(--label3);font-size:12px;white-space:nowrap;">'+escapeHtml((s.lat??"-")+", "+(s.lng??"-"))+'</td>'
-      +'<td><input data-site-radius="'+escapeHtml(s.id)+'" type="number" min="50" step="10" value="'+escapeHtml(s.radius_m??500)+'" style="width:80px;" /></td>'
-      +'<td><div class="row-btns"><button class="btn-primary btn-sm" onclick="saveSite(\''+escapeHtml(s.id)+'\')">Save</button><button class="btn-ghost btn-sm" onclick="toggleSite(\''+escapeHtml(s.id)+'\')">'+(isArch?"Unarchive":"Archive")+'</button></div></td>'
-      +'</tr>'
-      +'<tr class="site-row-detail"><td colspan="5">'
-      +'<div class="site-rules-wrap">'
-      +'<div class="site-rules-label">Site Rules <span style="font-weight:400;color:var(--label4);">(one rule per line)</span></div>'
-      +'<textarea class="site-rules-textarea" data-site-rules="'+escapeHtml(s.id)+'" rows="4" placeholder="e.g. Hard hats must be worn at all times">'+escapeHtml(s.site_rules||"")+'</textarea>'
-      +'</div>'
-      +'<div class="site-companies-section">'
-      +'<div class="site-companies-label">'+escapeHtml(s.site_name||"Site")+' Companies</div>'
-      +'<div class="company-chip-row" id="chips-'+escapeHtml(s.id)+'">'+(companyChips.length?companyChips:'<span style="color:var(--label4);font-size:12px;">No companies configured</span>')+'</div>'
-      +'<div style="margin-top:8px;"><button class="btn-primary btn-sm" onclick="saveSiteCompanies(\''+escapeHtml(s.id)+'\')">Save company assignments</button></div>'
-      +'</div>'
-      +'</td></tr>';
-  }).join("");
-
-  wrap.innerHTML='<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Status</th><th>Site Name</th><th>Lat / Lng</th><th>Radius (m)</th><th style="text-align:right;">Actions</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
-}
-
-function toggleSiteCompanyChip(el){ el.classList.toggle("active"); }
-
-async function saveSiteCompanies(siteId){
-  const chips=document.querySelectorAll('#chips-'+CSS.escape(siteId)+' .company-chip-toggle');
-  const companyIds=[...chips].filter(c=>c.classList.contains("active")).map(c=>c.dataset.companyId);
-  siteCompanyMap[siteId]=companyIds;
-  try{
-    const res=await fetch(API_BASE+"/update-site-companies",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({[siteId]:companyIds})});
-    const data=await res.json();
-    if(!res.ok||!data.ok){ alert("Failed to save.\n\n"+(data.error||"Unknown error")); return; }
-    const btn=document.querySelector('#chips-'+CSS.escape(siteId)).nextElementSibling.querySelector("button");
-    if(btn){ const orig=btn.textContent; btn.textContent="Saved"; setTimeout(()=>btn.textContent=orig,1500); }
-  }catch(err){
-    alert("Network error.\n\n"+err.message);
-  }
-}
-
-async function saveSite(id){
-  const nameEl=document.querySelector('input[data-site-name="'+CSS.escape(id)+'"]');
-  const radEl=document.querySelector('input[data-site-radius="'+CSS.escape(id)+'"]');
-  const rulesEl=document.querySelector('textarea[data-site-rules="'+CSS.escape(id)+'"]');
-  const siteName=(nameEl?.value||"").trim();
-  const radius=Number(radEl?.value||500);
-  const siteRules=(rulesEl?.value||"").trim()||null;
-  if(!siteName){ alert("Site name cannot be blank."); return; }
-  await fetch(API_BASE+"/update-site",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,siteName,radius,siteRules})});
-  await fetchSites();
-  await loadSiteCompanyMap();
-  renderSitesAdminTable();
-  renderAll();
-}
-
-async function toggleSite(id){
-  await fetch(API_BASE+"/toggle-site",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
-  await fetchSites();
-  renderSitesAdminTable();
-  renderAll();
-}
-
-async function addSite(){
-  const nameEl=document.getElementById("newSiteName");
-  const latEl=document.getElementById("newSiteLat");
-  const lngEl=document.getElementById("newSiteLng");
-  const radEl=document.getElementById("newSiteRadius");
-  const siteName=(nameEl?.value||"").trim();
-  const lat=latEl?.value.trim();
-  const lng=lngEl?.value.trim();
-  const radius=Number(radEl?.value||500);
-  if(!siteName||!lat||!lng){ alert("Site name, latitude and longitude are required."); return; }
-  if(isNaN(Number(lat))||isNaN(Number(lng))){ alert("Latitude and longitude must be numbers."); return; }
-  const res=await fetch(API_BASE+"/add-site",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({siteName,lat:Number(lat),lng:Number(lng),radius})});
-  const data=await res.json();
-  if(!res.ok||!data.ok){ alert("Failed to add site.\n\n"+(data.error||"Unknown error")); return; }
-  nameEl.value=""; latEl.value=""; lngEl.value=""; radEl.value="500";
-  await fetchSites();
-  await loadSiteCompanyMap();
-  renderSitesAdminTable();
-  renderAll();
-}
-
-function openEngineersModal(){
-  document.getElementById("engineersModal").style.display="flex";
-  renderEngineersAdminTable();
-}
-function closeEngineersModal(){ document.getElementById("engineersModal").style.display="none"; }
-
-function renderEngineersAdminTable(){
-  const wrap=document.getElementById("engineersAdminBody");
-  if(!engineersAll.length){
-    wrap.innerHTML='<p style="color:var(--label3);">No engineers returned.</p>';
+  if (!firstName && !lastName) {
+    alert("Engineer must have at least a first or last name.");
     return;
   }
-  const rows=engineersAll.slice().sort((a,b)=>(((a.first_name||"")+" "+(a.last_name||"")).trim()).localeCompare(((b.first_name||"")+" "+(b.last_name||"")).trim())).map(p=>{
-    const isArch=Number(p.archived||0)===1;
-    const pill=isArch?'<span class="pill pill-arch">Archived</span>':'<span class="pill pill-active">Active</span>';
-    return '<tr><td>'+pill+'</td>'
-      +'<td><input data-eng-first="'+escapeHtml(p.id)+'" value="'+escapeHtml(p.first_name||"")+'" /></td>'
-      +'<td><input data-eng-last="'+escapeHtml(p.id)+'" value="'+escapeHtml(p.last_name||"")+'" /></td>'
-      +'<td><input data-eng-company="'+escapeHtml(p.id)+'" value="'+escapeHtml(p.company||"")+'" /></td>'
-      +'<td><input data-eng-purpose="'+escapeHtml(p.id)+'" value="'+escapeHtml(p.purpose||"")+'" /></td>'
-      +'<td><input data-eng-rate="'+escapeHtml(p.id)+'" type="number" step="0.01" min="0" value="'+escapeHtml(p.hourly_rate??p.rate??"")+'" placeholder="--" style="width:90px;" /></td>'
-      +'<td><div class="row-btns"><button class="btn-primary btn-sm" onclick="saveEngineer(\''+escapeHtml(p.id)+'\')">Save</button><button class="btn-ghost btn-sm" onclick="toggleEngineer(\''+escapeHtml(p.id)+'\')">'+(isArch?"Unarchive":"Archive")+'</button></div></td>'
-      +'</tr>';
-  }).join("");
-  wrap.innerHTML='<table class="admin-table"><thead><tr><th>Status</th><th>First</th><th>Last</th><th>Company</th><th>Purpose</th><th>Rate /hr</th><th style="text-align:right;">Actions</th></tr></thead><tbody>'+rows+'</tbody></table>';
-}
 
-async function saveEngineer(id){
-  const firstName=(document.querySelector('input[data-eng-first="'+CSS.escape(id)+'"]')?.value||"").trim();
-  const lastName=(document.querySelector('input[data-eng-last="'+CSS.escape(id)+'"]')?.value||"").trim();
-  const company=(document.querySelector('input[data-eng-company="'+CSS.escape(id)+'"]')?.value||"").trim();
-  const purpose=(document.querySelector('input[data-eng-purpose="'+CSS.escape(id)+'"]')?.value||"").trim();
-  const rateRaw=(document.querySelector('input[data-eng-rate="'+CSS.escape(id)+'"]')?.value||"").trim();
-  const hourlyRate=rateRaw===""?null:Number(rateRaw);
-  if(!firstName&&!lastName){ alert("Engineer must have at least a first or last name."); return; }
-  await fetch(API_BASE+"/update-engineer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,firstName,lastName,company,purpose,hourlyRate})});
-  await fetchEngineers();
-  renderEngineersAdminTable();
-  renderAll();
-}
+  const r = await fetch(API_BASE + "/update-engineer", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, travelStatus, travelCapType: travelCapType || null, travelCapValue })
+  });
+  const d = await r.json();
 
-async function toggleEngineer(id){
-  await fetch(API_BASE+"/toggle-engineer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
-  await fetchEngineers();
-  renderEngineersAdminTable();
-  renderAll();
-}
-
-async function openCompaniesModal(){
-  await fetchSites();
-  await fetchCompaniesMaster();
-  await loadSiteCompanyMap();
-  document.getElementById("companiesModal").style.display="flex";
-  renderCompaniesAdmin();
-}
-function closeCompaniesModal(){ document.getElementById("companiesModal").style.display="none"; }
-
-function renderCompaniesAdmin(){
-  const wrap=document.getElementById("companiesAdminBody");
-  const companyRows=companiesAll.map(c=>'<tr><td style="font-weight:500;">'+escapeHtml(c.name)+'</td><td><div class="row-btns"><button class="btn-danger btn-sm" onclick="deleteCompany(\''+escapeHtml(c.id)+'\',\''+escapeHtml(c.name)+'\')">Delete</button></div></td></tr>').join("");
-  wrap.innerHTML='<div class="add-form" style="margin-bottom:16px;"><div class="add-form-title">Add New Company</div><div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;"><div class="field-stack" style="flex:1;min-width:180px;"><span class="field-label">Company Name</span><input id="newCompanyName" type="text" placeholder="e.g. Acme Ltd" style="width:100%;" /></div><button class="btn-primary" onclick="addCompany()">Add Company</button></div></div>'+(companiesAll.length?'<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Company Name</th><th style="text-align:right;">Actions</th></tr></thead><tbody>'+companyRows+'</tbody></table></div>':'<div class="ts-empty">No companies yet. Add one above.</div>');
-}
-
-async function addCompany(){
-  const nameEl=document.getElementById("newCompanyName");
-  const name=(nameEl?.value||"").trim();
-  if(!name){ alert("Company name is required."); return; }
-  const res=await fetch(API_BASE+"/add-company",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})});
-  const data=await res.json();
-  if(!res.ok||!data.ok){ alert("Failed to add company.\n\n"+(data.error||"Unknown error")); return; }
-  nameEl.value="";
-  await fetchCompaniesMaster();
-  renderCompaniesAdmin();
-}
-
-async function deleteCompany(id, name){
-  if(!confirm('Remove company "'+name+'"? This will not delete any historical visit data.')) return;
-  const res=await fetch(API_BASE+"/delete-company",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
-  const data=await res.json();
-  if(!res.ok||!data.ok){ alert("Failed to delete company.\n\n"+(data.error||"Unknown error")); return; }
-  await fetchCompaniesMaster();
-  renderCompaniesAdmin();
-}
-
-function tsUpdateBulkBtn(){
-  const checked=document.querySelectorAll(".ts-visit-cb:checked");
-  const btn=document.getElementById("tsBulkDeleteBtn");
-  if(btn){ btn.style.display=checked.length>0?"inline-flex":"none"; btn.textContent="Delete selected ("+checked.length+")"; }
-}
-function tsToggleAll(cb){
-  document.querySelectorAll(".ts-visit-cb").forEach(function(c){ c.checked=cb.checked; });
-  tsUpdateBulkBtn();
-}
-async function tsBulkDelete(){
-  const checked=document.querySelectorAll(".ts-visit-cb:checked");
-  if(!checked.length) return;
-  if(!confirm("Delete "+checked.length+" visit"+(checked.length>1?"s":"")+"? This cannot be undone.")) return;
-  const ids=Array.from(checked).map(function(c){ return c.dataset.visitId; });
-  let failed=0;
-  for(const visitId of ids){
-    try{
-      const res=await fetch(API_BASE+"/delete-visit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({visitId})});
-      const data=await res.json();
-      if(!res.ok||!data.ok) failed++;
-    }catch(e){ failed++; }
+  if (!r.ok || !d.ok) {
+    alert(d.error || "Failed to save.");
+    return;
   }
-  if(failed>0) alert(failed+" deletion(s) failed.");
+
+  await loadData();
+  renderTimesheetsModal();
+}
+async function toggleTimesheetEngineer(id) {
+  if (!id) return;
+  const r = await fetch(API_BASE + "/toggle-engineer", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ id })
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) {
+    alert(d.error || "Failed.");
+    return;
+  }
+  await loadData();
+  renderTimesheetsModal();
+}
+async function deleteEngineerFromTimesheets(id, name) {
+  if (!id) return;
+  if (!confirm("Delete engineer " + name + "? If visit history exists they will be archived instead.")) return;
+  const r = await fetch(API_BASE + "/delete-engineer", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ id })
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) {
+    alert(d.error || "Failed.");
+    return;
+  }
+  alert(d.message || "Done.");
+  await loadData();
+  renderTimesheetsModal();
+}
+async function resetEngineerDevice(id, name) {
+  if (!id) return;
+  if (!confirm("Reset device for " + name + "? They will need to register again on next scan.")) return;
+  const r = await fetch(API_BASE + "/reset-device", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ personId: id })
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) {
+    alert(d.error || "Failed.");
+    return;
+  }
+  alert("Removed " + (d.removedDevices || 0) + " device link(s).");
+  await loadData();
+  renderTimesheetsModal();
+}
+async function saveVisitTimes(visitId) {
+  const inEl = document.querySelector('[data-visit-in="' + escSel(visitId) + '"]');
+  const outEl = document.querySelector('[data-visit-out="' + escSel(visitId) + '"]');
+  const checkInAt = (inEl?.value || "").trim();
+  const checkOutAt = (outEl?.value || "").trim();
+
+  if (!checkInAt) {
+    alert("Check-in time is required.");
+    return;
+  }
+
+  const r = await fetch(API_BASE + "/update-visit-times", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ visitId, checkInAt, checkOutAt: checkOutAt || null })
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) {
+    alert(d.error || "Failed.");
+    return;
+  }
   await loadData();
   renderTimesheetsModal();
 }
 
-function toggleNavDrawer(){
+/* ── SITES MODAL ── */
+async function openSitesModal() {
+  document.getElementById("sitesModal").style.display = "flex";
+  document.getElementById("sitesAdminBody").innerHTML = '<p style="color:var(--label3);">Loading...</p>';
+  await fetchSites();
+  await fetchCompaniesMaster();
+  await loadSiteCompanyMap();
+  renderSitesAdminTable();
+}
+function closeSitesModal() {
+  document.getElementById("sitesModal").style.display = "none";
+}
+function renderSitesAdminTable() {
+  const wrap = document.getElementById("sitesAdminBody");
+  if (!sitesAll.length) {
+    wrap.innerHTML = '<p style="color:var(--label3);">No sites.</p>';
+    return;
+  }
+
+  const rows = sitesAll.slice().sort((a, b) => String(a.site_name || "").localeCompare(String(b.site_name || ""))).map(s => {
+    const isArch = Number(s.archived || 0) === 1;
+    const pill = isArch ? '<span class="pill pill-arch">Archived</span>' : '<span class="pill pill-active">Active</span>';
+    const chips = companiesAll.map(c => {
+      const active = (siteCompanyMap[s.id] || []).includes(c.id) ? "active" : "";
+      return '<span class="company-chip-toggle ' + active + '" data-site-id="' + escapeHtml(s.id) + '" data-company-id="' + escapeHtml(c.id) + '" onclick="toggleSiteCompanyChip(this)">' + escapeHtml(c.name) + '</span>';
+    }).join("");
+
+    return '<tr><td>' + pill + '</td><td><input data-site-name="' + escapeHtml(s.id) + '" value="' + escapeHtml(s.site_name || "") + '"/></td><td style="color:var(--label3);font-size:12px;">' + escapeHtml((s.lat ?? "-") + ", " + (s.lng ?? "-")) + '</td><td><input data-site-radius="' + escapeHtml(s.id) + '" type="number" min="50" step="10" value="' + escapeHtml(s.radius_m ?? 500) + '" style="width:80px;"/></td><td><div class="row-btns"><button class="btn-primary btn-sm" onclick="saveSite(\'' + escapeHtml(s.id) + '\')">Save</button><button class="btn-ghost btn-sm" onclick="toggleSite(\'' + escapeHtml(s.id) + '\')">' + (isArch ? "Unarchive" : "Archive") + '</button></div></td></tr>' +
+      '<tr class="site-row-detail"><td colspan="5"><div class="site-companies-section"><div class="site-companies-label">' + escapeHtml(s.site_name || "Site") + '</div><div class="company-chip-row" id="chips-' + escapeHtml(s.id) + '">' + (chips || '<span style="color:var(--label4);font-size:12px;">No companies</span>') + '</div><div style="margin-top:8px;"><button class="btn-primary btn-sm" onclick="saveSiteCompanies(\'' + escapeHtml(s.id) + '\')">Save company assignments</button></div></div></td></tr>';
+  }).join("");
+
+  wrap.innerHTML = '<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Status</th><th>Name</th><th>Lat/Lng</th><th>Radius(m)</th><th style="text-align:right;">Actions</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+function toggleSiteCompanyChip(el) {
+  el.classList.toggle("active");
+}
+async function saveSiteCompanies(siteId) {
+  const chips = document.querySelectorAll('#chips-' + escSel(siteId) + ' .company-chip-toggle');
+  const ids = [...chips].filter(c => c.classList.contains("active")).map(c => c.dataset.companyId);
+  siteCompanyMap[siteId] = ids;
+
+  try {
+    const r = await fetch(API_BASE + "/update-site-companies", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ [siteId]: ids })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) {
+      alert("Failed.\n\n" + (d.error || "Unknown error"));
+      return;
+    }
+    const btn = document.querySelector('#chips-' + escSel(siteId))?.nextElementSibling?.querySelector("button");
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = "Saved";
+      setTimeout(() => btn.textContent = orig, 1500);
+    }
+  } catch (err) {
+    alert("Network error.\n\n" + err.message);
+  }
+}
+async function saveSite(id) {
+  const n = (document.querySelector('[data-site-name="' + escSel(id) + '"]')?.value || "").trim();
+  const radius = Number(document.querySelector('[data-site-radius="' + escSel(id) + '"]')?.value || 500);
+
+  if (!n) {
+    alert("Site name cannot be blank.");
+    return;
+  }
+
+  const r = await fetch(API_BASE + "/update-site", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ id, siteName: n, radius })
+  });
+
+  let d = {};
+  try { d = await r.json(); } catch (e) {}
+  if (!r.ok || (d.ok === false)) {
+    alert(d.error || "Failed to save site.");
+    return;
+  }
+
+  await fetchSites();
+  await loadSiteCompanyMap();
+  renderSitesAdminTable();
+  renderAll();
+}
+async function toggleSite(id) {
+  const r = await fetch(API_BASE + "/toggle-site", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ id })
+  });
+  let d = {};
+  try { d = await r.json(); } catch (e) {}
+  if (!r.ok || (d.ok === false)) {
+    alert(d.error || "Failed.");
+    return;
+  }
+  await fetchSites();
+  renderSitesAdminTable();
+  renderAll();
+}
+async function addSite() {
+  const n = (document.getElementById("newSiteName")?.value || "").trim();
+  const lat = document.getElementById("newSiteLat")?.value.trim();
+  const lng = document.getElementById("newSiteLng")?.value.trim();
+  const radius = Number(document.getElementById("newSiteRadius")?.value || 500);
+
+  if (!n || !lat || !lng) {
+    alert("Name, lat and lng required.");
+    return;
+  }
+  if (isNaN(Number(lat)) || isNaN(Number(lng))) {
+    alert("Lat/lng must be numbers.");
+    return;
+  }
+
+  const r = await fetch(API_BASE + "/add-site", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ siteName: n, lat: Number(lat), lng: Number(lng), radius })
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) {
+    alert("Failed.\n\n" + (d.error || "Unknown"));
+    return;
+  }
+
+  ["newSiteName", "newSiteLat", "newSiteLng"].forEach(id => { document.getElementById(id).value = ""; });
+  document.getElementById("newSiteRadius").value = "500";
+
+  await fetchSites();
+  await loadSiteCompanyMap();
+  renderSitesAdminTable();
+  renderAll();
+}
+
+/* ── ENGINEERS MODAL ── */
+async function openEngineersModal() {
+  await fetchEngineers();
+  document.getElementById("engineersModal").style.display = "flex";
+  renderEngineersTable();
+}
+function closeEngineersModal() {
+  document.getElementById("engineersModal").style.display = "none";
+}
+function renderEngineersTable() {
+  const wrap = document.getElementById("engineersAdminBody");
+  if (!engineersAll.length) {
+    wrap.innerHTML = '<p style="color:var(--label3);">No engineers.</p>';
+    return;
+  }
+
+  const rows = engineersAll.slice().sort((a, b) => nameOf(a).localeCompare(nameOf(b))).map(p => {
+    const isArch = Number(p.archived || 0) === 1;
+    const pill = isArch ? '<span class="pill pill-arch">Archived</span>' : '<span class="pill pill-active">Active</span>';
+    const ts = p.travel_status || "not_configured";
+    const ct = p.travel_cap_type || "";
+    const cv = p.travel_cap_value != null ? p.travel_cap_value : "";
+
+    return '<tr><td>' + pill + '</td>' +
+      '<td><input data-eng-first="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.first_name || "") + '"/></td>' +
+      '<td><input data-eng-last="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.last_name || "") + '"/></td>' +
+      '<td><input data-eng-company="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.company || "") + '"/></td>' +
+      '<td><input data-eng-purpose="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.purpose || "") + '"/></td>' +
+      '<td><input data-eng-rate="' + escapeHtml(p.id) + '" type="number" step="0.01" min="0" value="' + escapeHtml(p.hourly_rate != null ? String(p.hourly_rate) : "") + '" placeholder="-" style="width:80px;"/></td>' +
+      '<td>' +
+        '<div class="travel-section" style="min-width:260px;">' +
+          '<div class="travel-section-label">Travel</div>' +
+          '<div class="travel-fields">' +
+            '<select data-eng-travel-status="' + escapeHtml(p.id) + '" onchange="onEngTravelChange(\'' + escapeHtml(p.id) + '\')">' +
+              '<option value="not_configured"' + (ts === "not_configured" ? " selected" : "") + '>Not configured</option>' +
+              '<option value="no_allowance"' + (ts === "no_allowance" ? " selected" : "") + '>No allowance</option>' +
+              '<option value="paid"' + (ts === "paid" ? " selected" : "") + '>Paid</option>' +
+            '</select>' +
+            '<div id="engCapGroup-' + escapeHtml(p.id) + '" style="display:' + (ts === "paid" ? "flex" : "none") + ';gap:6px;flex-wrap:wrap;">' +
+              '<select data-eng-cap-type="' + escapeHtml(p.id) + '">' +
+                '<option value="none"' + ((ct === "none" || ct === "") ? " selected" : "") + '>No cap</option>' +
+                '<option value="time"' + (ct === "time" ? " selected" : "") + '>Time (mins)</option>' +
+                '<option value="distance"' + (ct === "distance" ? " selected" : "") + '>Distance (mi)</option>' +
+              '</select>' +
+              '<input type="number" data-eng-cap-val="' + escapeHtml(p.id) + '" value="' + escapeHtml(String(cv)) + '" placeholder="e.g. 30" style="width:70px;" min="0" step="1">' +
+            '</div></div></div>' +
+      '</td>' +
+      '<td><div class="row-btns"><button class="btn-primary btn-sm" onclick="saveEngineer(\'' + escapeHtml(p.id) + '\')">Save</button><button class="btn-ghost btn-sm" onclick="toggleEngineer(\'' + escapeHtml(p.id) + '\')">' + (isArch ? "Unarchive" : "Archive") + '</button></div></td>' +
+      '</tr>';
+  }).join("");
+
+  wrap.innerHTML = '<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Status</th><th>First</th><th>Last</th><th>Company</th><th>Purpose</th><th>Rate/hr</th><th>Travel</th><th style="text-align:right;">Actions</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+function onEngTravelChange(id) {
+  const sel = document.querySelector('[data-eng-travel-status="' + escSel(id) + '"]');
+  const grp = document.getElementById("engCapGroup-" + id);
+  if (grp) grp.style.display = sel && sel.value === "paid" ? "flex" : "none";
+}
+async function saveEngineer(id) {
+  const firstName = (document.querySelector('[data-eng-first="' + escSel(id) + '"]')?.value || "").trim();
+  const lastName = (document.querySelector('[data-eng-last="' + escSel(id) + '"]')?.value || "").trim();
+  const company = (document.querySelector('[data-eng-company="' + escSel(id) + '"]')?.value || "").trim();
+  const purpose = (document.querySelector('[data-eng-purpose="' + escSel(id) + '"]')?.value || "").trim();
+  const rateRaw = (document.querySelector('[data-eng-rate="' + escSel(id) + '"]')?.value || "").trim();
+  const hourlyRate = rateRaw === "" ? null : Number(rateRaw);
+  const travelStatus = (document.querySelector('[data-eng-travel-status="' + escSel(id) + '"]')?.value || "not_configured");
+  const travelCapType = (document.querySelector('[data-eng-cap-type="' + escSel(id) + '"]')?.value || null);
+  const capValRaw = (document.querySelector('[data-eng-cap-val="' + escSel(id) + '"]')?.value || "").trim();
+  const travelCapValue = capValRaw === "" ? null : Number(capValRaw);
+
+  if (!firstName && !lastName) {
+    alert("Name required.");
+    return;
+  }
+
+  const r = await fetch(API_BASE + "/update-engineer", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, travelStatus, travelCapType: travelCapType || null, travelCapValue })
+  });
+  const d = await r.json();
+
+  if (!r.ok || !d.ok) {
+    alert(d.error || "Failed.");
+    return;
+  }
+
+  await fetchEngineers();
+  renderEngineersTable();
+  renderAll();
+}
+async function toggleEngineer(id) {
+  const r = await fetch(API_BASE + "/toggle-engineer", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ id })
+  });
+  let d = {};
+  try { d = await r.json(); } catch (e) {}
+  if (!r.ok || (d.ok === false)) {
+    alert(d.error || "Failed.");
+    return;
+  }
+  await fetchEngineers();
+  renderEngineersTable();
+  renderAll();
+}
+
+/* ── COMPANIES MODAL ── */
+async function openCompaniesModal() {
+  await fetchSites();
+  await fetchCompaniesMaster();
+  await loadSiteCompanyMap();
+  document.getElementById("companiesModal").style.display = "flex";
+  renderCompaniesAdmin();
+}
+function closeCompaniesModal() {
+  document.getElementById("companiesModal").style.display = "none";
+}
+function renderCompaniesAdmin() {
+  const wrap = document.getElementById("companiesAdminBody");
+  const rows = companiesAll.map(c => '<tr><td style="font-weight:500;">' + escapeHtml(c.name) + '</td><td><div class="row-btns"><button class="btn-danger btn-sm" onclick="deleteCompany(\'' + escapeHtml(c.id) + '\',\'' + escapeHtml(c.name) + '\')">Delete</button></div></td></tr>').join("");
+  wrap.innerHTML =
+    '<div class="add-form" style="margin-bottom:16px;"><div class="add-form-title">Add New Company</div><div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;"><div class="field-stack" style="flex:1;min-width:180px;"><span class="field-label">Company Name</span><input id="newCompanyName" type="text" placeholder="e.g. Acme Ltd" style="width:100%;"/></div><button class="btn-primary" onclick="addCompany()">Add Company</button></div></div>' +
+    (companiesAll.length
+      ? '<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Company Name</th><th style="text-align:right;">Actions</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+      : '<div class="ts-empty">No companies yet.</div>');
+}
+async function addCompany() {
+  const n = (document.getElementById("newCompanyName")?.value || "").trim();
+  if (!n) {
+    alert("Name required.");
+    return;
+  }
+  const r = await fetch(API_BASE + "/add-company", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ name: n })
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) {
+    alert("Failed.\n\n" + (d.error || "Unknown"));
+    return;
+  }
+  document.getElementById("newCompanyName").value = "";
+  await fetchCompaniesMaster();
+  renderCompaniesAdmin();
+}
+async function deleteCompany(id, name) {
+  if (!confirm('Remove company "' + name + '"?')) return;
+  const r = await fetch(API_BASE + "/delete-company", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ id })
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) {
+    alert("Failed.");
+    return;
+  }
+  await fetchCompaniesMaster();
+  renderCompaniesAdmin();
+}
+
+/* ── NAV DRAWER ── */
+function toggleNavDrawer() {
   document.getElementById("navDrawer").classList.toggle("open");
 }
-function closeNavDrawer(){
+function closeNavDrawer() {
   document.getElementById("navDrawer").classList.remove("open");
 }
 
-function setPreset(type){
-  if(type==="all"){ document.getElementById("fromDate").value=""; document.getElementById("toDate").value=""; loadData(); return; }
-  let fromDate=null;
-  if(type==="week"){
-    const now=new Date(), day=now.getDay(), diff=now.getDate()-day+(day===0?-6:1);
-    fromDate=new Date(now.getFullYear(),now.getMonth(),diff);
-  } else {
-    const now=new Date();
-    fromDate=new Date(now.getFullYear(),now.getMonth(),now.getDate()-type);
+document.addEventListener("click", function(e) {
+  const dr = document.getElementById("navDrawer");
+  const btn = document.getElementById("navMenuBtn");
+  if (dr.classList.contains("open") && !dr.contains(e.target) && !btn.contains(e.target)) {
+    dr.classList.remove("open");
   }
-  const fmt=d=>d.toISOString().slice(0,10);
-  document.getElementById("fromDate").value=fmt(fromDate);
-  document.getElementById("toDate").value=fmt(new Date());
+});
+
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Escape") {
+    closeNavDrawer();
+    [
+      "deleteModal",
+      "manualCheckoutModal",
+      "exportModal",
+      "transfersModal",
+      "approveTransferModal",
+      "sitesModal",
+      "engineersModal",
+      "companiesModal",
+      "timesheetsModal"
+    ].forEach(closeModalById);
+  }
+});
+
+document.querySelectorAll(".modal").forEach(modal => {
+  modal.addEventListener("click", function(e) {
+    if (e.target === modal) modal.style.display = "none";
+  });
+});
+
+function setPreset(type) {
+  if (type === "all") {
+    document.getElementById("fromDate").value = "";
+    document.getElementById("toDate").value = "";
+    loadData();
+    return;
+  }
+
+  let from;
+  if (type === "week") {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    from = new Date(now.getFullYear(), now.getMonth(), diff);
+  } else {
+    const now = new Date();
+    from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - type);
+  }
+
+  const fmt = d => d.toISOString().slice(0, 10);
+  document.getElementById("fromDate").value = fmt(from);
+  document.getElementById("toDate").value = fmt(new Date());
   loadData();
 }
+
+/* ── EVENTS ── */
+["search", "personFilter", "companyFilter", "purposeFilter", "siteFilter"].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener(id === "search" ? "input" : "change", renderAll);
+});
+["fromDate", "toDate"].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("change", loadData);
+});
+
+/* ── INIT ── */
+loadData();
 </script>
-
-<div id="deleteModal" class="modal">
-  <div class="modal-content" style="width:min(400px,100%);">
-    <div class="modal-header"><div><div class="modal-title">Delete Visit</div><div class="modal-subtitle">This action cannot be undone</div></div></div>
-    <div class="modal-body"><p id="deleteText" style="color:var(--label2);font-size:14px;line-height:1.5;"></p></div>
-    <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeDeleteModal()">Cancel</button>
-      <button class="btn-danger" onclick="confirmDelete()">Delete Visit</button>
-    </div>
-  </div>
-</div>
-
-<div id="exportModal" class="modal">
-  <div class="modal-content" style="width:min(560px,100%);">
-    <div class="modal-header">
-      <div><div class="modal-title">Export PDF Report</div><div class="modal-subtitle" id="exportPreviewRange"></div></div>
-      <button class="btn-ghost btn-sm" onclick="closeExportModal()">Cancel</button>
-    </div>
-    <div class="modal-body">
-      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:6px;">
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;"><div style="font-size:22px;font-weight:700;" id="exportPreviewSessions">--</div><div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:3px;">Total Sessions</div></div>
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;"><div style="font-size:22px;font-weight:700;" id="exportPreviewHours">--</div><div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:3px;">Total Hours</div></div>
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;"><div style="font-size:22px;font-weight:700;" id="exportPreviewPeople">--</div><div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:3px;">People</div></div>
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;"><div style="font-size:22px;font-weight:700;" id="exportPreviewSites">--</div><div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:3px;">Sites</div></div>
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;"><div style="font-size:22px;font-weight:700;" id="exportPreviewAvg">--</div><div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:3px;">Avg Session</div></div>
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;"><div style="font-size:22px;font-weight:700;" id="exportPreviewMissed">--</div><div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:3px;">Missed Sign-outs</div></div>
-      </div>
-      <div style="display:flex;gap:10px;"><div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;"><div style="font-size:22px;font-weight:700;color:var(--green);" id="exportPreviewLive">--</div><div style="font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;margin-top:3px;">Live on Site Now</div></div></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeExportModal()">Cancel</button>
-      <button class="btn-primary" onclick="generatePDF()">Generate PDF</button>
-    </div>
-  </div>
-</div>
-
-<div id="sitesModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <div><div class="modal-title">Sites</div><div class="modal-subtitle">Add, edit, archive and assign companies</div></div>
-      <button class="btn-ghost btn-sm" onclick="closeSitesModal()">Close</button>
-    </div>
-    <div class="modal-body">
-      <div class="modal-note">Archived sites are hidden from scan matching. Historical logs still reference archived site names.</div>
-      <div class="add-form">
-        <div class="add-form-title">Add New Site</div>
-        <div class="add-form-grid">
-          <div class="field-stack"><span class="field-label">Site Name</span><input id="newSiteName" type="text" placeholder="e.g. Warehouse A" /></div>
-          <div class="field-stack"><span class="field-label">Latitude</span><input id="newSiteLat" type="text" placeholder="51.5074" /></div>
-          <div class="field-stack"><span class="field-label">Longitude</span><input id="newSiteLng" type="text" placeholder="-0.1278" /></div>
-          <div class="field-stack"><span class="field-label">Radius (m)</span><input id="newSiteRadius" type="number" value="500" min="50" step="10" /></div>
-        </div>
-        <div style="margin-top:10px;"><button class="btn-primary btn-sm" onclick="addSite()">Add Site</button></div>
-      </div>
-      <div id="sitesAdminBody"></div>
-    </div>
-  </div>
-</div>
-
-<div id="engineersModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <div><div class="modal-title">Engineers</div><div class="modal-subtitle">View, edit, archive and set rates</div></div>
-      <button class="btn-ghost btn-sm" onclick="closeEngineersModal()">Close</button>
-    </div>
-    <div class="modal-body">
-      <div class="modal-note">Archived engineers are hidden from filters. Rates are stored for timesheet calculations.</div>
-      <div id="engineersAdminBody"></div>
-    </div>
-  </div>
-</div>
-
-<div id="companiesModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <div><div class="modal-title">Companies</div><div class="modal-subtitle">Add or remove companies. Assign them to sites in the Sites modal.</div></div>
-      <button class="btn-ghost btn-sm" onclick="closeCompaniesModal()">Close</button>
-    </div>
-    <div class="modal-body"><div id="companiesAdminBody"></div></div>
-  </div>
-</div>
-
-<div id="manualCheckoutModal" class="modal checkout-modal">
-  <div class="modal-content" style="width:min(420px,100%);">
-    <div class="modal-header"><div><div class="modal-title">Manual Sign Out</div><div class="modal-subtitle" id="manualCheckoutText"></div></div></div>
-    <div class="modal-body">
-      <div class="checkout-field"><label>Sign out time</label><input type="time" id="manualCheckoutTime" style="width:100%;" /></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeManualCheckoutModal()">Cancel</button>
-      <button class="btn-danger" onclick="confirmManualCheckout()">Confirm Sign Out</button>
-    </div>
-  </div>
-</div>
-
-<div id="timesheetsModal" class="modal">
-  <div class="ts-modal-content" id="timesheetsPdfRoot">
-    <div class="modal-header" style="border-radius:20px 20px 0 0;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <img src="Mostlane Logo.jpg" alt="Mostlane" style="height:24px;width:auto;border-radius:4px;" onerror="this.style.display='none'" />
-        <div class="modal-title">Weekly Timesheets</div>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn-ghost btn-sm" onclick="exportTimesheetsPdf()">Export PDF</button>
-        <button class="btn-ghost btn-sm" onclick="closeTimesheetsModal()">Close</button>
-      </div>
-    </div>
-    <div class="ts-filter-bar">
-      <div class="field-stack">
-        <span class="field-label">Company</span>
-        <select id="tsCompanyFilter" onchange="renderTimesheetsModal()" style="width:160px;">
-          <option value="">All Companies</option>
-        </select>
-      </div>
-      <div class="field-stack">
-        <span class="field-label">Engineer</span>
-        <select id="tsPersonFilter" onchange="tsCurrentWeek=null;renderTimesheetsModal()" style="width:200px;">
-          <option value="">Select engineer...</option>
-        </select>
-      </div>
-    </div>
-    <div class="ts-body">
-      <div id="timesheetsBody"></div>
-    </div>
-  </div>
-</div>
 
 </body>
 </html>

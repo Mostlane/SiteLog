@@ -8,10 +8,17 @@
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
 
-body {
-background:#060c1e;
+html {
 width:1280px; height:720px;
 overflow:hidden;
+margin:0; padding:0;
+}
+
+body {
+width:1280px; height:720px;
+overflow:hidden;
+margin:0; padding:0;
+background:#060c1e;
 font-family:‘Inter’,sans-serif;
 display:flex; align-items:center; justify-content:center;
 position:relative;
@@ -151,11 +158,19 @@ to { opacity:1; transform:translateY(0) scale(1); }
 }
 
 .tag {
-font-size:11.5px; font-weight:500;
-color:rgba(160,200,255,.55);
-letter-spacing:4.5px; text-transform:uppercase;
+display:flex; flex-direction:column; align-items:center; gap:6px;
 opacity:0;
 animation:fadeIn .5s ease 2.0s forwards;
+}
+.tag-line1 {
+font-size:13px; font-weight:600;
+color:rgba(180,215,255,.75);
+letter-spacing:4px; text-transform:uppercase;
+}
+.tag-line2 {
+font-size:11px; font-weight:400;
+color:rgba(140,185,255,.45);
+letter-spacing:3px; text-transform:uppercase;
 }
 
 /* ── BADGE ── */
@@ -232,7 +247,10 @@ animation:float linear infinite;
     <div class="word-wrap"><span class="t-log">Log</span></div>
   </div>
   <div class="pin">📍</div>
-  <div class="tag">Site Attendance &nbsp;·&nbsp; Powered by Mostlane</div>
+  <div class="tag">
+    <span class="tag-line1">Site Attendance</span>
+    <span class="tag-line2">Powered by Mostlane</span>
+  </div>
 </div>
 
 <div class="badge">

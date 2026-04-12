@@ -1717,38 +1717,60 @@ async function exportPdf() {
 
   const fn = docFileName(viewDocData) + ".pdf";
 
-  // Clean up any old export host
   const oldHost = document.getElementById("pdfExportHost");
   if (oldHost) oldHost.remove();
 
-  // Build a real in-DOM render target that html2canvas can actually see on iPhone
+  const oldCover = document.getElementById("pdfExportCover");
+  if (oldCover) oldCover.remove();
+
+  const viewModal = document.getElementById("viewModal");
+  const previousModalDisplay = viewModal ? viewModal.style.display : "";
+
+  // Hide the modal so it does not interfere with capture
+  if (viewModal) viewModal.style.display = "none";
+
+  // White cover so user does not see the export content flash
+  const cover = document.createElement("div");
+  cover.id = "pdfExportCover";
+  cover.style.position = "fixed";
+  cover.style.inset = "0";
+  cover.style.background = "#ffffff";
+  cover.style.zIndex = "99998";
+  document.body.appendChild(cover);
+
+  // Render target must be IN the viewport on iPhone Safari
   const host = document.createElement("div");
   host.id = "pdfExportHost";
-  host.style.position = "absolute";
+  host.style.position = "fixed";
   host.style.top = "0";
-  host.style.left = "-10000px";
-  host.style.width = "794px"; // close to A4 at 96dpi
+  host.style.left = "0";
+  host.style.width = "794px";
   host.style.background = "#ffffff";
   host.style.padding = "0";
   host.style.margin = "0";
-  host.style.zIndex = "1";
+  host.style.zIndex = "99999";
   host.style.display = "block";
   host.style.visibility = "visible";
   host.style.opacity = "1";
+  host.style.pointerEvents = "none";
+  host.style.transform = "none";
   host.innerHTML = buildPreview(viewDocData);
   document.body.appendChild(host);
 
-  // Wait a moment for layout and images to fully resolve
+  // Let layout settle
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
+  // Wait for images
   const images = Array.from(host.querySelectorAll("img"));
-  await Promise.all(images.map(img => {
-    if (img.complete) return Promise.resolve();
-    return new Promise(resolve => {
-      img.onload = resolve;
-      img.onerror = resolve;
-    });
-  }));
+  await Promise.all(
+    images.map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise(resolve => {
+        img.onload = resolve;
+        img.onerror = resolve;
+      });
+    })
+  );
 
   try {
     await html2pdf().set({
@@ -1761,6 +1783,7 @@ async function exportPdf() {
         logging: false,
         backgroundColor: "#ffffff",
         windowWidth: 794,
+        windowHeight: host.scrollHeight || host.offsetHeight || 1123,
         scrollX: 0,
         scrollY: 0
       },
@@ -1775,6 +1798,8 @@ async function exportPdf() {
     }).from(host).save();
   } finally {
     host.remove();
+    cover.remove();
+    if (viewModal) viewModal.style.display = previousModalDisplay;
   }
 }
 // ──────────────────────────────────────────────

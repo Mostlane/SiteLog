@@ -557,90 +557,106 @@ const API = "https://sitelog-api.jamie-def.workers.dev";
 // ──────────────────────────────────────────────
 // STATE
 // ──────────────────────────────────────────────
-let sitesData     = [];
-let onSitePeople  = [];
-let attendees     = [];       // [{personId, personName, company, trade, contact, cscs}]
-let sigQueue      = [];       // [{type, idx, name, company, declaration}]
-let sigIndex      = 0;
-let capturedSigs  = {};       // sigIndex -> base64
-let currentDocType  = "";
+let sitesData = [];
+let onSitePeople = [];
+let attendees = [];
+let sigQueue = [];
+let sigIndex = 0;
+let capturedSigs = {};
+let currentDocType = "";
 let currentSiteName = "";
 let currentSiteAddr = "";
-let closeoutDocId   = null;
-let viewDocData     = null;
-let logoDataUrl     = null;
+let closeoutDocId = null;
+let viewDocData = null;
+let logoDataUrl = null;
 
 // ──────────────────────────────────────────────
 // INIT
 // ──────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', async () => {
+window.addEventListener("DOMContentLoaded", async () => {
   await preloadLogo();
   await loadSites();
-  initSigCanvas(document.getElementById('sigCanvas'), 'sigPlaceholder');
-  initSigCanvas(document.getElementById('coCanvas'), 'coPlaceholder');
+  initSigCanvas(document.getElementById("sigCanvas"), "sigPlaceholder");
+  initSigCanvas(document.getElementById("coCanvas"), "coPlaceholder");
 });
 
 async function preloadLogo() {
   try {
-    const res  = await fetch('Mostlane Logo.jpg');
+    const res = await fetch("Mostlane Logo.jpg");
     const blob = await res.blob();
     logoDataUrl = await new Promise(resolve => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
       reader.readAsDataURL(blob);
     });
-  } catch(e) { logoDataUrl = null; }
+  } catch (e) {
+    logoDataUrl = null;
+  }
 }
 
 async function loadSites() {
   try {
-    const res  = await fetch(API + '/sites');
+    const res = await fetch(API + "/sites");
     const data = await res.json();
-    sitesData  = (data.sites || []).filter(s => !Number(s.archived));
-    const sel  = document.getElementById('issueSite');
-    sel.innerHTML = '<option value="">Select site…</option>' +
-      sitesData.map(s => `<option value="${esc(s.site_name)}">${esc(s.site_name)}</option>`).join('');
-    // Records site filter
-    const rsel = document.getElementById('recSite');
-    rsel.innerHTML = '<option value="">All Sites</option>' +
-      sitesData.map(s => `<option value="${esc(s.site_name)}">${esc(s.site_name)}</option>`).join('');
-  } catch(e) { console.error(e); }
+    sitesData = (data.sites || []).filter(s => !Number(s.archived));
+
+    const sel = document.getElementById("issueSite");
+    sel.innerHTML =
+      '<option value="">Select site…</option>' +
+      sitesData.map(s => `<option value="${escAttr(s.site_name)}">${escHtml(s.site_name)}</option>`).join("");
+
+    const rsel = document.getElementById("recSite");
+    rsel.innerHTML =
+      '<option value="">All Sites</option>' +
+      sitesData.map(s => `<option value="${escAttr(s.site_name)}">${escHtml(s.site_name)}</option>`).join("");
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 // ──────────────────────────────────────────────
 // TABS
 // ──────────────────────────────────────────────
 function switchTab(tab) {
-  ['issue','records'].forEach(t => {
-    document.getElementById(`panel-${t}`).style.display = t === tab ? '' : 'none';
-    document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+  ["issue", "records"].forEach(t => {
+    document.getElementById(`panel-${t}`).style.display = t === tab ? "" : "none";
+    document.getElementById(`tab-${t}`).classList.toggle("active", t === tab);
   });
-  if (tab === 'records') loadRecords();
+  if (tab === "records") loadRecords();
 }
 
 // ──────────────────────────────────────────────
 // SITE / TYPE CHANGE
 // ──────────────────────────────────────────────
 async function onSiteChange() {
-  currentSiteName = document.getElementById('issueSite').value;
-  const siteObj   = sitesData.find(s => s.site_name === currentSiteName);
-  currentSiteAddr = siteObj?.address || '';
-  attendees = []; capturedSigs = {};
+  currentSiteName = document.getElementById("issueSite").value;
+  const siteObj = sitesData.find(s => s.site_name === currentSiteName);
+  currentSiteAddr = siteObj?.address || "";
+  attendees = [];
+  capturedSigs = {};
+
   if (currentSiteName) {
     try {
-      const res  = await fetch(`${API}/on-site?site=${enc(currentSiteName)}`);
+      const res = await fetch(`${API}/on-site?site=${enc(currentSiteName)}`);
       const data = await res.json();
       onSitePeople = data.people || [];
-    } catch(e) { onSitePeople = []; }
-  } else { onSitePeople = []; }
+    } catch (e) {
+      onSitePeople = [];
+    }
+  } else {
+    onSitePeople = [];
+  }
+
   onTypeChange();
 }
 
 function onTypeChange() {
-  currentDocType = document.getElementById('issueType').value;
-  attendees = []; capturedSigs = {};
+  currentDocType = document.getElementById("issueType").value;
+  attendees = [];
+  capturedSigs = {};
   if (!currentSiteName || !currentDocType) {
-    document.getElementById('formContainer').innerHTML = ''; return;
+    document.getElementById("formContainer").innerHTML = "";
+    return;
   }
   renderForm();
 }
@@ -649,14 +665,19 @@ function onTypeChange() {
 // FORM RENDERING
 // ──────────────────────────────────────────────
 function renderForm() {
-  const c = document.getElementById('formContainer');
-  if (currentDocType === 'induction') renderInduction(c);
-  else if (currentDocType === 'hwp')  renderHWP(c);
-  else if (currentDocType === 'tbt')  renderTBT(c);
+  const c = document.getElementById("formContainer");
+  if (currentDocType === "induction") renderInduction(c);
+  else if (currentDocType === "hwp") renderHWP(c);
+  else if (currentDocType === "tbt") renderTBT(c);
 }
 
-function today() { return new Date().toISOString().slice(0,10); }
-function nowTime() { return new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function nowTime() {
+  return new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
 
 /* ── INDUCTION ── */
 function renderInduction(c) {
@@ -667,9 +688,9 @@ function renderInduction(c) {
       <div class="sec-div">Site Details</div>
       <div class="form-row">
         <div class="field-group"><label class="field-label">Project Name</label>
-          <input type="text" id="i_proj" value="${esc(currentSiteName)}" list="dl_i_proj"><datalist id="dl_i_proj"></datalist></div>
+          <input type="text" id="i_proj" value="${escAttr(currentSiteName)}" list="dl_i_proj"><datalist id="dl_i_proj"></datalist></div>
         <div class="field-group"><label class="field-label">Site Address</label>
-          <input type="text" id="i_addr" value="${esc(currentSiteAddr)}" list="dl_i_addr"><datalist id="dl_i_addr"></datalist></div>
+          <input type="text" id="i_addr" value="${escAttr(currentSiteAddr)}" list="dl_i_addr"><datalist id="dl_i_addr"></datalist></div>
       </div>
       <div class="form-row">
         <div class="field-group"><label class="field-label">Site Manager</label>
@@ -709,23 +730,24 @@ function renderInduction(c) {
     </div>
   </div>`;
 
-  fetchMem('i_proj',  'dl_i_proj');
-  fetchMem('i_addr',  'dl_i_addr');
-  fetchMem('i_mgr',   'dl_i_mgr');
-  fetchMem('i_giver', 'dl_i_giver');
+  fetchMem("i_proj", "dl_i_proj");
+  fetchMem("i_addr", "dl_i_addr");
+  fetchMem("i_mgr", "dl_i_mgr");
+  fetchMem("i_giver", "dl_i_giver");
   addIndAtt();
 }
 
 function addIndAtt() {
   const idx = attendees.length;
-  attendees.push({personId:'', personName:'', company:'', trade:'', contact:'', cscs:''});
-  const opts = onSitePeople.map(p => `<option value="${esc(p.name)}">`).join('');
-  const el = document.createElement('div');
-  el.className = 'att-block'; el.id = `attb_${idx}`;
+  attendees.push({ personId: "", personName: "", company: "", trade: "", contact: "", cscs: "" });
+  const opts = onSitePeople.map(p => `<option value="${escAttr(p.name)}">`).join("");
+  const el = document.createElement("div");
+  el.className = "att-block";
+  el.id = `attb_${idx}`;
   el.innerHTML = `
     <div class="att-header">
       <div class="att-name">Contractor ${idx + 1}</div>
-      ${idx > 0 ? `<button class="btn-danger btn-sm" onclick="removeAtt(${idx})">Remove</button>` : ''}
+      ${idx > 0 ? `<button class="btn-danger btn-sm" onclick="removeAtt(${idx})">Remove</button>` : ""}
     </div>
     <div class="form-row">
       <div class="field-group"><label class="field-label">Full Name</label>
@@ -742,9 +764,9 @@ function addIndAtt() {
       <div class="field-group"><label class="field-label">CSCS Number</label>
         <input type="text" id="acscs_${idx}"></div>
     </div>`;
-  document.getElementById('ind_atts').appendChild(el);
-  fetchMem('att_co', 'dl_att_co');
-  fetchMem('att_tr', 'dl_att_tr');
+  document.getElementById("ind_atts").appendChild(el);
+  fetchMem("att_co", "dl_att_co");
+  fetchMem("att_tr", "dl_att_tr");
 }
 
 /* ── HWP ── */
@@ -754,15 +776,15 @@ function renderHWP(c) {
   <div class="card">
     <div class="card-header">
       <div class="card-title">🔥 Hot Works Permit</div>
-      <div class="card-subtitle">Permit No: <strong>${esc(pno)}</strong></div>
+      <div class="card-subtitle">Permit No: <strong>${escHtml(pno)}</strong></div>
     </div>
     <div class="card-body">
-      <input type="hidden" id="h_pno" value="${esc(pno)}">
+      <input type="hidden" id="h_pno" value="${escAttr(pno)}">
       <div class="form-row">
         <div class="field-group"><label class="field-label">Project</label>
-          <input type="text" id="h_proj" value="${esc(currentSiteName)}" list="dl_h_proj"><datalist id="dl_h_proj"></datalist></div>
+          <input type="text" id="h_proj" value="${escAttr(currentSiteName)}" list="dl_h_proj"><datalist id="dl_h_proj"></datalist></div>
         <div class="field-group"><label class="field-label">Site</label>
-          <div class="readonly-field">${esc(currentSiteName)}</div></div>
+          <div class="readonly-field">${escHtml(currentSiteName)}</div></div>
       </div>
       <div class="form-row">
         <div class="field-group"><label class="field-label">Client / PC</label>
@@ -783,10 +805,10 @@ function renderHWP(c) {
       <div class="field-group">
         <label class="field-label">Nature of Works</label>
         <div class="nature-chips">
-          ${['Welding','Cutting','Grinding','Solder/Braze','Bitumen','Blow Torch','Other'].map(n=>`
-          <label class="n-chip" id="nc_${n.replace(/[^a-zA-Z]/g,'_')}">
-            <input type="checkbox" id="hn_${n.replace(/[^a-zA-Z]/g,'_')}" onchange="toggleChip(this)"> ${n}
-          </label>`).join('')}
+          ${["Welding", "Cutting", "Grinding", "Solder/Braze", "Bitumen", "Blow Torch", "Other"].map(n => `
+          <label class="n-chip" id="nc_${n.replace(/[^a-zA-Z]/g, "_")}">
+            <input type="checkbox" id="hn_${n.replace(/[^a-zA-Z]/g, "_")}" onchange="toggleChip(this)"> ${escHtml(n)}
+          </label>`).join("")}
         </div>
       </div>
       <div class="field-group"><label class="field-label">Equipment</label>
@@ -798,24 +820,26 @@ function renderHWP(c) {
 
       <div class="sec-div" style="margin-top:20px;">2. Fire &amp; Safety Precautions</div>
       <div class="chk-list">
-        ${[['hc1','Area inspected and deemed safe'],
-           ['hc2','Combustibles removed (10m where possible)'],
-           ['hc3','Combustibles protected with fire blankets'],
-           ['hc4','Openings / voids sealed or protected'],
-           ['hc5','Minimum 2 fire extinguishers present'],
-           ['hc6','Fire alarm isolation agreed (if required)'],
-           ['hc7','Fire watch appointed during works'],
-           ['hc8','Gas cylinders secured &amp; flashback arrestors fitted'],
-           ['hc9','Adequate ventilation confirmed']
-          ].map(([id,lbl])=>`<div class="chk-item"><input type="checkbox" id="${id}"><label for="${id}">${lbl}</label></div>`).join('')}
+        ${[
+          ["hc1", "Area inspected and deemed safe"],
+          ["hc2", "Combustibles removed (10m where possible)"],
+          ["hc3", "Combustibles protected with fire blankets"],
+          ["hc4", "Openings / voids sealed or protected"],
+          ["hc5", "Minimum 2 fire extinguishers present"],
+          ["hc6", "Fire alarm isolation agreed (if required)"],
+          ["hc7", "Fire watch appointed during works"],
+          ["hc8", "Gas cylinders secured &amp; flashback arrestors fitted"],
+          ["hc9", "Adequate ventilation confirmed"]
+        ].map(([id, lbl]) => `<div class="chk-item"><input type="checkbox" id="${id}"><label for="${id}">${lbl}</label></div>`).join("")}
       </div>
 
       <div class="sec-div" style="margin-top:16px;">3. Fire Watch Requirements</div>
       <div class="chk-list">
-        ${[['fw1','Continuous fire watch during works'],
-           ['fw2','Fire watch to remain minimum 60 minutes after completion'],
-           ['fw3','Area re-inspected after 1 hour']
-          ].map(([id,lbl])=>`<div class="chk-item"><input type="checkbox" id="${id}"><label for="${id}">${lbl}</label></div>`).join('')}
+        ${[
+          ["fw1", "Continuous fire watch during works"],
+          ["fw2", "Fire watch to remain minimum 60 minutes after completion"],
+          ["fw3", "Area re-inspected after 1 hour"]
+        ].map(([id, lbl]) => `<div class="chk-item"><input type="checkbox" id="${id}"><label for="${id}">${lbl}</label></div>`).join("")}
       </div>
       <div class="field-group" style="margin-top:12px;"><label class="field-label">Fire Watch Name</label>
         <input type="text" id="h_fwname" list="dl_h_fw"><datalist id="dl_h_fw"></datalist></div>
@@ -826,25 +850,26 @@ function renderHWP(c) {
     </div>
   </div>`;
 
-  ['h_proj','h_client','h_issby','h_loc','h_equip','h_fwname'].forEach(k=>fetchMem(k,`dl_${k}`));
+  ["h_proj", "h_client", "h_issby", "h_loc", "h_equip", "h_fwname"].forEach(k => fetchMem(k, `dl_${k}`));
   addHWPAtt();
 }
 
 function toggleChip(cb) {
-  const lbl = cb.closest('.n-chip');
-  if (lbl) lbl.classList.toggle('on', cb.checked);
+  const lbl = cb.closest(".n-chip");
+  if (lbl) lbl.classList.toggle("on", cb.checked);
 }
 
 function addHWPAtt() {
   const idx = attendees.length;
-  attendees.push({personId:'', personName:'', company:''});
-  const opts = onSitePeople.map(p=>`<option value="${esc(p.name)}">`).join('');
-  const el = document.createElement('div');
-  el.className = 'att-block'; el.id = `attb_${idx}`;
+  attendees.push({ personId: "", personName: "", company: "" });
+  const opts = onSitePeople.map(p => `<option value="${escAttr(p.name)}">`).join("");
+  const el = document.createElement("div");
+  el.className = "att-block";
+  el.id = `attb_${idx}`;
   el.innerHTML = `
     <div class="att-header">
-      <div class="att-name">Operative ${idx+1}</div>
-      ${idx>0?`<button class="btn-danger btn-sm" onclick="removeAtt(${idx})">Remove</button>`:''}
+      <div class="att-name">Operative ${idx + 1}</div>
+      ${idx > 0 ? `<button class="btn-danger btn-sm" onclick="removeAtt(${idx})">Remove</button>` : ""}
     </div>
     <div class="form-row">
       <div class="field-group"><label class="field-label">Name</label>
@@ -853,7 +878,7 @@ function addHWPAtt() {
       <div class="field-group"><label class="field-label">Company</label>
         <input type="text" id="ac_${idx}"></div>
     </div>`;
-  document.getElementById('hwp_atts').appendChild(el);
+  document.getElementById("hwp_atts").appendChild(el);
 }
 
 /* ── TBT ── */
@@ -864,9 +889,9 @@ function renderTBT(c) {
     <div class="card-body">
       <div class="form-row">
         <div class="field-group"><label class="field-label">Project Name</label>
-          <input type="text" id="t_proj" value="${esc(currentSiteName)}" list="dl_t_proj"><datalist id="dl_t_proj"></datalist></div>
+          <input type="text" id="t_proj" value="${escAttr(currentSiteName)}" list="dl_t_proj"><datalist id="dl_t_proj"></datalist></div>
         <div class="field-group"><label class="field-label">Site Address</label>
-          <input type="text" id="t_addr" value="${esc(currentSiteAddr)}" list="dl_t_addr"><datalist id="dl_t_addr"></datalist></div>
+          <input type="text" id="t_addr" value="${escAttr(currentSiteAddr)}" list="dl_t_addr"><datalist id="dl_t_addr"></datalist></div>
       </div>
       <div class="form-row">
         <div class="field-group"><label class="field-label">Site Manager</label>
@@ -892,7 +917,7 @@ function renderTBT(c) {
       <div class="field-group"><label class="field-label">Key Points Raised</label>
         <textarea id="t_keypts" rows="3" placeholder="Discussions, questions raised…"></textarea></div>
       <div class="field-group"><label class="field-label">Site-Specific Hazards Discussed</label>
-        <textarea id="t_hazards" rows="2" list="dl_t_hz" placeholder="Any hazards specific to this site…"></textarea>
+        <textarea id="t_hazards" rows="2" placeholder="Any hazards specific to this site…"></textarea>
         <datalist id="dl_t_hz"></datalist></div>
 
       <div class="sec-div">Attendees</div>
@@ -905,27 +930,39 @@ function renderTBT(c) {
     </div>
   </div>`;
 
-  ['t_proj','t_addr','t_mgr','t_title','t_dlvby','t_hz'].forEach(k=>fetchMem(k,`dl_${k}`));
+  ["t_proj", "t_addr", "t_mgr", "t_title", "t_dlvby", "t_hz"].forEach(k => fetchMem(k, `dl_${k}`));
   addTBTAtt();
 }
 
 function addTBTAtt() {
   const idx = attendees.length;
-  attendees.push({personId:'', personName:'', company:''});
-  const opts = onSitePeople.map(p=>`<option value="${esc(p.name)}">`).join('');
-  const el = document.createElement('div');
-  el.className = 'att-block'; el.id = `attb_${idx}`;
-  el.innerHTML = ` <div class="att-header"> <div class="att-name">Attendee ${idx+1}</div> ${idx>0?`<button class="btn-danger btn-sm" onclick="removeAtt(${idx})">Remove</button>`:''} </div> <div class="form-row"> <div class="field-group"><label class="field-label">Name</label> <input type="text" id="an_${idx}" list="aol_${idx}" oninput="attNameChange(${idx})"> <datalist id="aol_${idx}">${opts}</datalist></div> <div class="field-group"><label class="field-label">Company</label> <input type="text" id="ac_${idx}"></div> </div>`;
-  document.getElementById('tbt_atts').appendChild(el);
+  attendees.push({ personId: "", personName: "", company: "" });
+  const opts = onSitePeople.map(p => `<option value="${escAttr(p.name)}">`).join("");
+  const el = document.createElement("div");
+  el.className = "att-block";
+  el.id = `attb_${idx}`;
+  el.innerHTML = `
+    <div class="att-header">
+      <div class="att-name">Attendee ${idx + 1}</div>
+      ${idx > 0 ? `<button class="btn-danger btn-sm" onclick="removeAtt(${idx})">Remove</button>` : ""}
+    </div>
+    <div class="form-row">
+      <div class="field-group"><label class="field-label">Name</label>
+        <input type="text" id="an_${idx}" list="aol_${idx}" oninput="attNameChange(${idx})">
+        <datalist id="aol_${idx}">${opts}</datalist></div>
+      <div class="field-group"><label class="field-label">Company</label>
+        <input type="text" id="ac_${idx}"></div>
+    </div>`;
+  document.getElementById("tbt_atts").appendChild(el);
 }
 
 function attNameChange(idx) {
-  const name = document.getElementById(`an_${idx}`)?.value || '';
+  const name = document.getElementById(`an_${idx}`)?.value || "";
   const p = onSitePeople.find(p => p.name === name);
   if (p) {
-    attendees[idx].personId = p.person_id || '';
+    attendees[idx].personId = p.person_id || "";
     const co = document.getElementById(`ac_${idx}`);
-    if (co && !co.value) co.value = p.company || '';
+    if (co && !co.value) co.value = p.company || "";
   }
 }
 
@@ -938,9 +975,9 @@ function removeAtt(idx) {
 // PERMIT NO
 // ──────────────────────────────────────────────
 function genPermitNo() {
-  const s = currentSiteName.replace(/[^A-Z0-9]/gi,'').toUpperCase().slice(0,6);
-  const d = today().replace(/-/g,'');
-  const n = String(Math.floor(Math.random()*900)+100);
+  const s = currentSiteName.replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 6);
+  const d = today().replace(/-/g, "");
+  const n = String(Math.floor(Math.random() * 900) + 100);
   return `HWP-${s}-${d}-${n}`;
 }
 
@@ -949,21 +986,24 @@ function genPermitNo() {
 // ──────────────────────────────────────────────
 async function fetchMem(key, dlId) {
   try {
-    const res  = await fetch(`${API}/field-memory/suggest?key=${key}&site=${enc(currentSiteName)}`);
+    const res = await fetch(`${API}/field-memory/suggest?key=${key}&site=${enc(currentSiteName)}`);
     const data = await res.json();
-    const dl   = document.getElementById(dlId);
-    if (dl && data.suggestions) dl.innerHTML = data.suggestions.map(s=>`<option value="${esc(s.value)}">`).join('');
-  } catch(e) {}
+    const dl = document.getElementById(dlId);
+    if (dl && data.suggestions) {
+      dl.innerHTML = data.suggestions.map(s => `<option value="${escAttr(s.value)}">`).join("");
+    }
+  } catch (e) {}
 }
 
 async function saveMem(key, value) {
   if (!value || !String(value).trim()) return;
   try {
     await fetch(`${API}/field-memory/save`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({key, value:String(value).trim(), site:currentSiteName})
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value: String(value).trim(), site: currentSiteName })
     });
-  } catch(e) {}
+  } catch (e) {}
 }
 
 // ──────────────────────────────────────────────
@@ -971,12 +1011,12 @@ async function saveMem(key, value) {
 // ──────────────────────────────────────────────
 function collectAttendees() {
   for (let i = 0; i < attendees.length; i++) {
-    attendees[i].personName = (document.getElementById(`an_${i}`)?.value || '').trim();
-    attendees[i].company    = (document.getElementById(`ac_${i}`)?.value || '').trim();
-    if (currentDocType === 'induction') {
-      attendees[i].trade   = (document.getElementById(`at_${i}`)?.value   || '').trim();
-      attendees[i].contact = (document.getElementById(`atel_${i}`)?.value || '').trim();
-      attendees[i].cscs    = (document.getElementById(`acscs_${i}`)?.value|| '').trim();
+    attendees[i].personName = (document.getElementById(`an_${i}`)?.value || "").trim();
+    attendees[i].company = (document.getElementById(`ac_${i}`)?.value || "").trim();
+    if (currentDocType === "induction") {
+      attendees[i].trade = (document.getElementById(`at_${i}`)?.value || "").trim();
+      attendees[i].contact = (document.getElementById(`atel_${i}`)?.value || "").trim();
+      attendees[i].cscs = (document.getElementById(`acscs_${i}`)?.value || "").trim();
     }
   }
 }
@@ -984,84 +1024,111 @@ function collectAttendees() {
 function startSigning() {
   collectAttendees();
 
-  // Validate
   const valid = attendees.filter(a => a.personName);
-  if (!valid.length) { alert('Please add at least one person.'); return; }
+  if (!valid.length) {
+    alert("Please add at least one person.");
+    return;
+  }
 
-  if (currentDocType === 'induction' && !document.getElementById('i_giver')?.value.trim()) {
-    alert('Please enter the induction giver name.'); return;
+  if (currentDocType === "induction" && !document.getElementById("i_giver")?.value.trim()) {
+    alert("Please enter the induction giver name.");
+    return;
   }
-  if (currentDocType === 'hwp' && !document.getElementById('h_loc')?.value.trim()) {
-    alert('Please enter the location of hot works.'); return;
+  if (currentDocType === "hwp" && !document.getElementById("h_loc")?.value.trim()) {
+    alert("Please enter the location of hot works.");
+    return;
   }
-  if (currentDocType === 'tbt' && !document.getElementById('t_title')?.value.trim()) {
-    alert('Please enter the talk title.'); return;
+  if (currentDocType === "tbt" && !document.getElementById("t_title")?.value.trim()) {
+    alert("Please enter the talk title.");
+    return;
   }
 
   const decs = {
-    induction: 'I confirm I have received a site-specific induction and fully understand the safety rules and procedures outlined above. I agree to work in accordance with the site RAMS, follow safe systems of work, wear appropriate PPE, and report unsafe acts or conditions immediately.',
-    hwp: 'I confirm I have read and understood this Hot Works Permit and will comply with all safety precautions listed. I accept responsibility for carrying out works safely in accordance with CDM Regulations and approved RAMS.',
-    tbt: 'I confirm I attended this toolbox talk, understood the content, and will apply it to my work on site.'
+    induction: "I confirm I have received a site-specific induction and fully understand the safety rules and procedures outlined above. I agree to work in accordance with the site RAMS, follow safe systems of work, wear appropriate PPE, and report unsafe acts or conditions immediately.",
+    hwp: "I confirm I have read and understood this Hot Works Permit and will comply with all safety precautions listed. I accept responsibility for carrying out works safely in accordance with CDM Regulations and approved RAMS.",
+    tbt: "I confirm I attended this toolbox talk, understood the content, and will apply it to my work on site."
   };
   const mgrLabels = {
-    induction: 'Induction Given By',
-    hwp: 'Permit Issued By (Manager)',
-    tbt: 'Delivered By (Manager)'
+    induction: "Induction Given By",
+    hwp: "Permit Issued By (Manager)",
+    tbt: "Delivered By (Manager)"
   };
 
   sigQueue = [];
   capturedSigs = {};
 
   valid.forEach((att, i) => {
-    sigQueue.push({ type:'attendee', idx:i, name:att.personName, company:att.company, declaration:decs[currentDocType] });
+    sigQueue.push({
+      type: "attendee",
+      idx: i,
+      name: att.personName,
+      company: att.company,
+      declaration: decs[currentDocType]
+    });
   });
-  sigQueue.push({ type:'manager', idx:-1, name:mgrLabels[currentDocType], company:'', declaration:'I confirm this document is accurate and all precautions are in place.' });
+
+  sigQueue.push({
+    type: "manager",
+    idx: -1,
+    name: mgrLabels[currentDocType],
+    company: "",
+    declaration: "I confirm this document is accurate and all precautions are in place."
+  });
 
   sigIndex = 0;
   showSig();
 }
 
 function showSig() {
-  if (sigIndex >= sigQueue.length) { submitDocument(); return; }
+  if (sigIndex >= sigQueue.length) {
+    submitDocument();
+    return;
+  }
   const s = sigQueue[sigIndex];
-  document.getElementById('sigTitle').textContent = s.type === 'manager' ? `${s.name} — Sign Below` : `${s.name} — Please Sign`;
-  document.getElementById('sigSub').textContent   = s.company ? `${s.company}` : '';
-  document.getElementById('sigDec').textContent   = s.declaration;
-  document.getElementById('sigProgress').textContent = `${sigIndex + 1} / ${sigQueue.length}`;
+  document.getElementById("sigTitle").textContent = s.type === "manager" ? `${s.name} — Sign Below` : `${s.name} — Please Sign`;
+  document.getElementById("sigSub").textContent = s.company ? `${s.company}` : "";
+  document.getElementById("sigDec").textContent = s.declaration;
+  document.getElementById("sigProgress").textContent = `${sigIndex + 1} / ${sigQueue.length}`;
   clearMainCanvas();
-  document.getElementById('sigModal').classList.add('open');
+  document.getElementById("sigModal").classList.add("open");
 }
 
 function confirmSig() {
-  const canvas  = document.getElementById('sigCanvas');
-  const ctx     = canvas.getContext('2d');
-  const pixels  = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-  const hasSig  = pixels.some((v, i) => i % 4 === 3 && v > 10);
-  if (!hasSig)  { alert('Please sign before continuing.'); return; }
-  capturedSigs[sigIndex] = canvas.toDataURL('image/png');
-  document.getElementById('sigModal').classList.remove('open');
+  const canvas = document.getElementById("sigCanvas");
+  const ctx = canvas.getContext("2d");
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const hasSig = pixels.some((v, i) => i % 4 === 3 && v > 10);
+  if (!hasSig) {
+    alert("Please sign before continuing.");
+    return;
+  }
+  capturedSigs[sigIndex] = canvas.toDataURL("image/png");
+  document.getElementById("sigModal").classList.remove("open");
   sigIndex++;
   setTimeout(showSig, 180);
 }
 
 function skipSig() {
-  document.getElementById('sigModal').classList.remove('open');
+  document.getElementById("sigModal").classList.remove("open");
   sigIndex++;
   setTimeout(showSig, 180);
 }
 
 function clearMainCanvas() {
-  const c = document.getElementById('sigCanvas');
-  c.getContext('2d').clearRect(0,0,c.width,c.height);
-  document.getElementById('sigPlaceholder').style.display = '';
+  const c = document.getElementById("sigCanvas");
+  c.getContext("2d").clearRect(0, 0, c.width, c.height);
+  document.getElementById("sigPlaceholder").style.display = "";
 }
 
 // ──────────────────────────────────────────────
 // CANVAS DRAWING
 // ──────────────────────────────────────────────
 function initSigCanvas(canvas, placeholderId) {
-  const ctx = canvas.getContext('2d');
-  ctx.strokeStyle = '#1d1d1f'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const ctx = canvas.getContext("2d");
+  ctx.strokeStyle = "#1d1d1f";
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
   let drawing = false;
 
   const pos = e => {
@@ -1069,105 +1136,174 @@ function initSigCanvas(canvas, placeholderId) {
     const t = e.touches ? e.touches[0] : e;
     return {
       x: (t.clientX - r.left) * (canvas.width / r.width),
-      y: (t.clientY - r.top)  * (canvas.height / r.height)
+      y: (t.clientY - r.top) * (canvas.height / r.height)
     };
   };
+
   const hide = () => {
     const pl = document.getElementById(placeholderId);
-    if (pl) pl.style.display = 'none';
+    if (pl) pl.style.display = "none";
   };
 
-  canvas.addEventListener('mousedown', e => { drawing=true; const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); hide(); });
-  canvas.addEventListener('mousemove', e => { if(!drawing) return; const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); });
-  canvas.addEventListener('mouseup',   () => drawing=false);
-  canvas.addEventListener('mouseleave',() => drawing=false);
-  canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing=true; const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); hide(); }, {passive:false});
-  canvas.addEventListener('touchmove',  e => { e.preventDefault(); if(!drawing) return; const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); }, {passive:false});
-  canvas.addEventListener('touchend',   () => drawing=false);
+  canvas.addEventListener("mousedown", e => {
+    drawing = true;
+    const p = pos(e);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    hide();
+  });
+
+  canvas.addEventListener("mousemove", e => {
+    if (!drawing) return;
+    const p = pos(e);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  });
+
+  canvas.addEventListener("mouseup", () => drawing = false);
+  canvas.addEventListener("mouseleave", () => drawing = false);
+
+  canvas.addEventListener("touchstart", e => {
+    e.preventDefault();
+    drawing = true;
+    const p = pos(e);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    hide();
+  }, { passive: false });
+
+  canvas.addEventListener("touchmove", e => {
+    e.preventDefault();
+    if (!drawing) return;
+    const p = pos(e);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }, { passive: false });
+
+  canvas.addEventListener("touchend", () => drawing = false);
 }
 
 // ──────────────────────────────────────────────
 // SUBMIT DOCUMENT
 // ──────────────────────────────────────────────
 async function submitDocument() {
-  document.getElementById('sigModal').classList.remove('open');
+  document.getElementById("sigModal").classList.remove("open");
 
   const validAtts = attendees.filter(a => a.personName);
-  const mgrSigIdx = sigQueue.findIndex(s => s.type === 'manager');
-  const mgrSig    = mgrSigIdx >= 0 ? (capturedSigs[mgrSigIdx] || null) : null;
+  const mgrSigIdx = sigQueue.findIndex(s => s.type === "manager");
+  const mgrSig = mgrSigIdx >= 0 ? (capturedSigs[mgrSigIdx] || null) : null;
 
   const attData = validAtts.map((a, i) => ({
-    personId: a.personId || null, personName: a.personName, company: a.company,
-    trade: a.trade || null, contact: a.contact || null, cscs: a.cscs || null,
+    personId: a.personId || null,
+    personName: a.personName,
+    company: a.company,
+    trade: a.trade || null,
+    contact: a.contact || null,
+    cscs: a.cscs || null,
     signature: capturedSigs[i] || null
   }));
 
   let formData = {};
 
-  if (currentDocType === 'induction') {
+  if (currentDocType === "induction") {
     formData = {
-      project:     val('i_proj'),  address: val('i_addr'),
-      site_manager:val('i_mgr'),   date:    val('i_date'),
-      giver_name:  val('i_giver')
+      project: val("i_proj"),
+      address: val("i_addr"),
+      site_manager: val("i_mgr"),
+      date: val("i_date"),
+      giver_name: val("i_giver")
     };
-    saveMem('i_proj', formData.project); saveMem('i_addr', formData.address);
-    saveMem('i_mgr',  formData.site_manager); saveMem('i_giver', formData.giver_name);
-    validAtts.forEach(a=>{ saveMem('att_co',a.company); saveMem('att_tr',a.trade||''); });
+    saveMem("i_proj", formData.project);
+    saveMem("i_addr", formData.address);
+    saveMem("i_mgr", formData.site_manager);
+    saveMem("i_giver", formData.giver_name);
+    validAtts.forEach(a => {
+      saveMem("att_co", a.company);
+      saveMem("att_tr", a.trade || "");
+    });
   }
 
-  if (currentDocType === 'hwp') {
-    const natures = ['Welding','Cutting','Grinding','Solder_Braze','Bitumen','Blow_Torch','Other']
+  if (currentDocType === "hwp") {
+    const natureKeys = ["Welding", "Cutting", "Grinding", "Solder_Braze", "Bitumen", "Blow_Torch", "Other"];
+    const natures = natureKeys
       .filter(n => document.getElementById(`hn_${n}`)?.checked)
-      .map(n => n.replace('_','/'));
+      .map(n => n.replace("_", "/"));
+
     formData = {
-      project:   val('h_proj'),  client:      val('h_client'),
-      date:      val('h_date'),  issued_by:   val('h_issby'),
-      valid_from:val('h_from'),  permit_no:   val('h_pno'),
-      location:  val('h_loc'),   nature:      natures,
-      equipment: val('h_equip'),
-      precautions:[1,2,3,4,5,6,7,8,9].map(n=>!!document.getElementById(`hc${n}`)?.checked),
-      fire_watch: [1,2,3].map(n=>!!document.getElementById(`fw${n}`)?.checked),
-      fire_watch_name: val('h_fwname')
+      project: val("h_proj"),
+      client: val("h_client"),
+      date: val("h_date"),
+      issued_by: val("h_issby"),
+      valid_from: val("h_from"),
+      permit_no: val("h_pno"),
+      location: val("h_loc"),
+      nature: natures,
+      equipment: val("h_equip"),
+      precautions: [1,2,3,4,5,6,7,8,9].map(n => !!document.getElementById(`hc${n}`)?.checked),
+      fire_watch: [1,2,3].map(n => !!document.getElementById(`fw${n}`)?.checked),
+      fire_watch_name: val("h_fwname")
     };
-    saveMem('h_proj',  formData.project); saveMem('h_client', formData.client);
-    saveMem('h_issby', formData.issued_by); saveMem('h_loc', formData.location);
-    saveMem('h_equip', formData.equipment); saveMem('h_fwname', formData.fire_watch_name);
+
+    saveMem("h_proj", formData.project);
+    saveMem("h_client", formData.client);
+    saveMem("h_issby", formData.issued_by);
+    saveMem("h_loc", formData.location);
+    saveMem("h_equip", formData.equipment);
+    saveMem("h_fwname", formData.fire_watch_name);
   }
 
-  if (currentDocType === 'tbt') {
+  if (currentDocType === "tbt") {
     formData = {
-      project:    val('t_proj'),   address:    val('t_addr'),
-      site_manager:val('t_mgr'),  date:       val('t_date'),
-      title:      val('t_title'),  delivered_by:val('t_dlvby'),
-      duration:   val('t_dur'),   summary:    val('t_summary'),
-      key_points: val('t_keypts'), hazards:   val('t_hazards')
+      project: val("t_proj"),
+      address: val("t_addr"),
+      site_manager: val("t_mgr"),
+      date: val("t_date"),
+      title: val("t_title"),
+      delivered_by: val("t_dlvby"),
+      duration: val("t_dur"),
+      summary: val("t_summary"),
+      key_points: val("t_keypts"),
+      hazards: val("t_hazards")
     };
-    saveMem('t_proj',  formData.project); saveMem('t_addr',  formData.address);
-    saveMem('t_mgr',   formData.site_manager); saveMem('t_title', formData.title);
-    saveMem('t_dlvby', formData.delivered_by); saveMem('t_hz',    formData.hazards);
+
+    saveMem("t_proj", formData.project);
+    saveMem("t_addr", formData.address);
+    saveMem("t_mgr", formData.site_manager);
+    saveMem("t_title", formData.title);
+    saveMem("t_dlvby", formData.delivered_by);
+    saveMem("t_hz", formData.hazards);
   }
 
   try {
     const res = await fetch(`${API}/documents/create`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: currentDocType,
-        site_name:  currentSiteName,
+        site_name: currentSiteName,
         site_address: currentSiteAddr,
-        form_data:  formData,
-        attendees:  attData,
-        permit_no:  formData.permit_no || null,
+        form_data: formData,
+        attendees: attData,
+        permit_no: formData.permit_no || null,
         manager_signature: mgrSig,
-        issued_at:  new Date().toISOString().replace('T',' ').slice(0,19)
+        issued_at: new Date().toISOString().replace("T", " ").slice(0, 19)
       })
     });
+
     const data = await res.json();
-    if (!res.ok || !data.ok) { alert(data.error || 'Save failed.'); return; }
-    alert('✅ Document saved successfully.');
-    attendees = []; capturedSigs = {};
-    document.getElementById('issueType').value = '';
-    document.getElementById('formContainer').innerHTML = '';
-  } catch(e) { alert('Network error — please try again.'); }
+    if (!res.ok || !data.ok) {
+      alert(data.error || "Save failed.");
+      return;
+    }
+
+    alert("✅ Document saved successfully.");
+    attendees = [];
+    capturedSigs = {};
+    document.getElementById("issueType").value = "";
+    document.getElementById("formContainer").innerHTML = "";
+  } catch (e) {
+    alert("Network error — please try again.");
+  }
 }
 
 // ──────────────────────────────────────────────
@@ -1175,69 +1311,88 @@ async function submitDocument() {
 // ──────────────────────────────────────────────
 async function loadRecords() {
   const qs = new URLSearchParams();
-  const type   = document.getElementById('recType').value;
-  const status = document.getElementById('recStatus').value;
-  const site   = document.getElementById('recSite').value;
-  const person = document.getElementById('recPerson').value.trim();
-  const from   = document.getElementById('recFrom').value;
-  const to     = document.getElementById('recTo').value;
-  if (type)   qs.set('type',   type);
-  if (status) qs.set('status', status);
-  if (site)   qs.set('site',   site);
-  if (person) qs.set('person', person);
-  if (from)   qs.set('from',   from);
-  if (to)     qs.set('to',     to);
+  const type = document.getElementById("recType").value;
+  const status = document.getElementById("recStatus").value;
+  const site = document.getElementById("recSite").value;
+  const person = document.getElementById("recPerson").value.trim();
+  const from = document.getElementById("recFrom").value;
+  const to = document.getElementById("recTo").value;
 
-  const container = document.getElementById('recordsList');
+  if (type) qs.set("type", type);
+  if (status) qs.set("status", status);
+  if (site) qs.set("site", site);
+  if (person) qs.set("person", person);
+  if (from) qs.set("from", from);
+  if (to) qs.set("to", to);
+
+  const container = document.getElementById("recordsList");
   container.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><p>Loading…</p></div>';
 
   try {
-    const res  = await fetch(`${API}/documents?${qs.toString()}`);
+    const res = await fetch(`${API}/documents?${qs.toString()}`);
     const data = await res.json();
     const docs = data.documents || [];
+
     if (!docs.length) {
       container.innerHTML = '<div class="empty"><div class="empty-ico">🗂</div><p>No documents found.</p></div>';
       return;
     }
-    container.innerHTML = '<div class="doc-list">' + docs.map(docItem).join('') + '</div>';
-  } catch(e) {
+
+    container.innerHTML = '<div class="doc-list">' + docs.map(docItem).join("") + "</div>";
+  } catch (e) {
     container.innerHTML = '<div class="empty"><div class="empty-ico">⚠️</div><p>Failed to load.</p></div>';
   }
 }
 
 function docItem(doc) {
-  const tl = {induction:'📋 Site Induction', hwp:'🔥 Hot Works Permit', tbt:'💬 Toolbox Talk'};
-  const tp = {induction:'pill-ind', hwp:'pill-hwp', tbt:'pill-tbt'};
-  const date = (doc.issued_at || '').slice(0,10);
+  const tl = { induction: "📋 Site Induction", hwp: "🔥 Hot Works Permit", tbt: "💬 Toolbox Talk" };
+  const tp = { induction: "pill-ind", hwp: "pill-hwp", tbt: "pill-tbt" };
+  const date = (doc.issued_at || "").slice(0, 10);
   const fname = docFileName(doc);
 
-  let statusPill = '';
-  if (doc.type === 'hwp') {
-    statusPill = doc.status === 'closed'
+  let statusPill = "";
+  if (doc.type === "hwp") {
+    statusPill = doc.status === "closed"
       ? `<span class="pill pill-closed">Closed Out</span>`
       : `<span class="pill pill-open">Open</span>`;
   }
 
-  const closeoutBtn = (doc.type === 'hwp' && doc.status !== 'closed')
-    ? `<button class="btn-ghost btn-sm" onclick="openCloseout('${esc(doc.id)}')">Close Out</button>`
-    : '';
+  const safeId = String(doc.id || "").replace(/'/g, "\\'");
+  const closeoutBtn = (doc.type === "hwp" && doc.status !== "closed")
+    ? `<button class="btn-ghost btn-sm" onclick="openCloseout('${safeId}')">Close Out</button>`
+    : "";
 
-  return `<div class="doc-item"> <div class="doc-item-info"> <div class="doc-item-title">${esc(fname)}</div> <div class="doc-item-meta"> <span class="pill ${tp[doc.type]||''}">${tl[doc.type]||doc.type}</span> ${statusPill} <span>${esc(doc.site_name||'—')}</span> <span>${esc(date)}</span> ${doc.attendee_names ?`<span style="color:var(--label2);">${esc(doc.attendee_names)}</span>` : ''} </div> </div> <div class="doc-item-actions"> ${closeoutBtn} <button class="btn-primary btn-sm" onclick="viewDoc('${esc(doc.id)}')">View</button> </div> </div>`;
+  return `<div class="doc-item">
+    <div class="doc-item-info">
+      <div class="doc-item-title">${escHtml(fname)}</div>
+      <div class="doc-item-meta">
+        <span class="pill ${tp[doc.type] || ""}">${tl[doc.type] || doc.type}</span>
+        ${statusPill}
+        <span>${escHtml(doc.site_name || "—")}</span>
+        <span>${escHtml(date)}</span>
+        ${doc.attendee_names ? `<span style="color:var(--label2);">${escHtml(doc.attendee_names)}</span>` : ""}
+      </div>
+    </div>
+    <div class="doc-item-actions">
+      ${closeoutBtn}
+      <button class="btn-primary btn-sm" onclick="viewDoc('${safeId}')">View</button>
+    </div>
+  </div>`;
 }
 
 function docFileName(doc) {
-  const tc = {induction:'Induction', hwp:'HWP', tbt:'TBT'}[doc.type] || doc.type.toUpperCase();
-  const si = (doc.site_name||'Site').replace(/[^A-Za-z0-9]/g,'');
-  const dt = (doc.issued_at||'').slice(0,10);
-  const nm = (doc.attendee_names||'').split(',')[0].trim().split(' ').pop() || 'Unknown';
+  const tc = { induction: "Induction", hwp: "HWP", tbt: "TBT" }[doc.type] || String(doc.type || "").toUpperCase();
+  const si = (doc.site_name || "Site").replace(/[^A-Za-z0-9]/g, "");
+  const dt = (doc.issued_at || "").slice(0, 10);
+  const nm = (doc.attendee_names || "").split(",")[0].trim().split(" ").pop() || "Unknown";
   return `${tc}_${nm}_${si}_${dt}`;
 }
 
 function clearFilters() {
-  ['recType','recStatus','recSite'].forEach(id => document.getElementById(id).value='');
-  document.getElementById('recPerson').value='';
-  document.getElementById('recFrom').value='';
-  document.getElementById('recTo').value='';
+  ["recType", "recStatus", "recSite"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("recPerson").value = "";
+  document.getElementById("recFrom").value = "";
+  document.getElementById("recTo").value = "";
   loadRecords();
 }
 
@@ -1246,39 +1401,42 @@ function clearFilters() {
 // ──────────────────────────────────────────────
 async function viewDoc(id) {
   try {
-    const res  = await fetch(`${API}/documents/single?id=${id}`);
+    const res = await fetch(`${API}/documents/single?id=${id}`);
     const data = await res.json();
-    const doc  = data.document;
-    if (!doc) { alert('Document not found.'); return; }
+    const doc = data.document;
+    if (!doc) {
+      alert("Document not found.");
+      return;
+    }
     viewDocData = doc;
-    document.getElementById('viewTitle').textContent = docFileName(doc);
-    document.getElementById('viewSub').textContent   = (doc.site_name||'') + ' · ' + (doc.issued_at||'').slice(0,10);
-    document.getElementById('viewBody').innerHTML    = buildPreview(doc);
-    document.getElementById('viewModal').classList.add('open');
-  } catch(e) { alert('Failed to load document.'); }
+    document.getElementById("viewTitle").textContent = docFileName(doc);
+    document.getElementById("viewSub").textContent = (doc.site_name || "") + " · " + (doc.issued_at || "").slice(0, 10);
+    document.getElementById("viewBody").innerHTML = buildPreview(doc);
+    document.getElementById("viewModal").classList.add("open");
+  } catch (e) {
+    alert("Failed to load document.");
+  }
 }
 
 function closeView() {
-  document.getElementById('viewModal').classList.remove('open');
+  document.getElementById("viewModal").classList.remove("open");
   viewDocData = null;
 }
 
 function buildPreview(doc) {
   const fd = doc.form_data || {};
   const at = doc.attendees || [];
-  if (doc.type === 'induction') return previewInduction(doc, fd, at);
-  if (doc.type === 'hwp')       return previewHWP(doc, fd, at);
-  if (doc.type === 'tbt')       return previewTBT(doc, fd, at);
-  return '<p>Unknown document type.</p>';
+  if (doc.type === "induction") return previewInduction(doc, fd, at);
+  if (doc.type === "hwp") return previewHWP(doc, fd, at);
+  if (doc.type === "tbt") return previewTBT(doc, fd, at);
+  return "<p>Unknown document type.</p>";
 }
 
 // PDF FIXED LAYOUT SYSTEM
-// Rigid table-based templates — only field values and engineer rows vary.
-
-const PF  = 'font-family:Arial,Helvetica,sans-serif;';
-const PB  = '#004a99';
-const PLB = '#eaeff7';
-const PBD = '1px solid #b8c4d4';
+const PF = "font-family:Arial,Helvetica,sans-serif;";
+const PB = "#004a99";
+const PLB = "#eaeff7";
+const PBD = "1px solid #b8c4d4";
 
 function pdfLogo() {
   return logoDataUrl
@@ -1287,7 +1445,21 @@ function pdfLogo() {
 }
 
 function pdfDocHeader(title, sub) {
-  return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:0;"><tr><td style="background:${PB};padding:7px 10px;border-radius:3px 3px 0 0;"><table cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr><td style="vertical-align:middle;">${pdfLogo()}</td><td style="vertical-align:middle;padding-left:10px;"><div style="${PF}font-size:13px;font-weight:700;color:#fff;line-height:1.2;">${title}</div>${sub ? `<div style="${PF}font-size:10px;color:rgba(255,255,255,0.75);margin-top:1px;">${sub}</div>` : ''}</td></tr></table></td></tr></table>`;
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:0;">
+    <tr>
+      <td style="background:${PB};padding:7px 10px;border-radius:3px 3px 0 0;">
+        <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+          <tr>
+            <td style="vertical-align:middle;">${pdfLogo()}</td>
+            <td style="vertical-align:middle;padding-left:10px;">
+              <div style="${PF}font-size:13px;font-weight:700;color:#fff;line-height:1.2;">${title}</div>
+              ${sub ? `<div style="${PF}font-size:10px;color:rgba(255,255,255,0.75);margin-top:1px;">${sub}</div>` : ""}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>`;
 }
 
 function pdfSecHead(text) {
@@ -1297,27 +1469,51 @@ function pdfSecHead(text) {
 function pdfGrid2(pairs) {
   const rows = [];
   for (let i = 0; i < pairs.length; i += 2) {
-    const [l1,v1] = pairs[i];
-    const [l2,v2] = pairs[i+1] || ['',''];
-    rows.push(`<tr> <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:17%;white-space:nowrap;">${l1}</td> <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;width:33%;">${esc(String(v1||''))||'&mdash;'}</td> <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:17%;white-space:nowrap;">${l2}</td> <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;width:33%;">${l2 ? (esc(String(v2||''))||'&mdash;') : '&nbsp;'}</td> </tr>`);
+    const [l1, v1] = pairs[i];
+    const [l2, v2] = pairs[i + 1] || ["", ""];
+    rows.push(`<tr>
+      <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:17%;white-space:nowrap;">${escHtml(l1)}</td>
+      <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;width:33%;">${escHtml(String(v1 || "")) || "&mdash;"}</td>
+      <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:17%;white-space:nowrap;">${escHtml(l2)}</td>
+      <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;width:33%;">${l2 ? (escHtml(String(v2 || "")) || "&mdash;") : "&nbsp;"}</td>
+    </tr>`);
   }
-  return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows.join('')}</table>`;
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows.join("")}</table>`;
 }
 
 function pdfGrid1(pairs) {
-  return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${pairs.map(([l,v]) => `<tr><td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:26%;white-space:nowrap;">${l}</td><td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;">${esc(String(v||''))||'—'}</td></tr>`).join('')}</table>`;
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${
+    pairs.map(([l, v]) => `<tr>
+      <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:26%;white-space:nowrap;">${escHtml(l)}</td>
+      <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;">${escHtml(String(v || "")) || "—"}</td>
+    </tr>`).join("")
+  }</table>`;
 }
 
 function pdfSigRow(label, name, b64) {
-  return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr><td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:26%;white-space:nowrap;">Print Name</td><td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;">${esc(name||'')}&nbsp;</td></tr><tr><td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;">${label||'Signature'}</td><td style="border:${PBD};height:48px;background:#fff;padding:4px;">${b64 ? `<img src="${b64}" style="max-height:40px;max-width:220px;display:block;">` : '&nbsp;'}</td></tr></table>`;
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:26%;white-space:nowrap;">Print Name</td>
+      <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;">${escHtml(name || "")}&nbsp;</td>
+    </tr>
+    <tr>
+      <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;">${escHtml(label || "Signature")}</td>
+      <td style="border:${PBD};height:48px;background:#fff;padding:4px;">${b64 ? `<img src="${b64}" style="max-height:40px;max-width:220px;display:block;">` : "&nbsp;"}</td>
+    </tr>
+  </table>`;
 }
 
 function pdfBullets2Col(items) {
   const half = Math.ceil(items.length / 2);
   const c1 = items.slice(0, half);
   const c2 = items.slice(half);
-  const li = t => `<div style="${PF}font-size:11px;padding:2px 0;line-height:1.35;">&#8226;&nbsp;${t}</div>`;
-  return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:${PBD};background:#f6f8fb;"><tr><td style="padding:6px 9px;vertical-align:top;width:50%;border-right:${PBD};">${c1.map(li).join('')}</td><td style="padding:6px 9px;vertical-align:top;width:50%;">${c2.map(li).join('')}</td></tr></table>`;
+  const li = t => `<div style="${PF}font-size:11px;padding:2px 0;line-height:1.35;">&#8226;&nbsp;${escHtml(t)}</div>`;
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:${PBD};background:#f6f8fb;">
+    <tr>
+      <td style="padding:6px 9px;vertical-align:top;width:50%;border-right:${PBD};">${c1.map(li).join("")}</td>
+      <td style="padding:6px 9px;vertical-align:top;width:50%;">${c2.map(li).join("")}</td>
+    </tr>
+  </table>`;
 }
 
 function pdfCheckboxes2Col(labels, checked) {
@@ -1325,104 +1521,232 @@ function pdfCheckboxes2Col(labels, checked) {
   const c1 = labels.slice(0, half);
   const c2 = labels.slice(half);
   const cb = (l, i, offset) => {
-    const on = !!(checked[i + (offset||0)]);
-    return `<div style="${PF}font-size:11px;padding:2px 0;line-height:1.35;">${on?'&#9745;':'&#9744;'}&nbsp;${l}</div>`;
+    const on = !!(checked[i + (offset || 0)]);
+    return `<div style="${PF}font-size:11px;padding:2px 0;line-height:1.35;">${on ? "&#9745;" : "&#9744;"}&nbsp;${escHtml(l)}</div>`;
   };
-  return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:${PBD};background:#f6f8fb;"><tr><td style="padding:5px 8px;vertical-align:top;width:50%;border-right:${PBD};">${c1.map((l,i)=>cb(l,i,0)).join('')}</td><td style="padding:5px 8px;vertical-align:top;width:50%;">${c2.map((l,i)=>cb(l,i,half)).join('')}</td></tr></table>`;
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:${PBD};background:#f6f8fb;">
+    <tr>
+      <td style="padding:5px 8px;vertical-align:top;width:50%;border-right:${PBD};">${c1.map((l, i) => cb(l, i, 0)).join("")}</td>
+      <td style="padding:5px 8px;vertical-align:top;width:50%;">${c2.map((l, i) => cb(l, i, half)).join("")}</td>
+    </tr>
+  </table>`;
 }
 
 const pdfGap = `<div style="height:8px;"></div>`;
 
 // INDUCTION
 function previewInduction(doc, fd, atts) {
-  const contractorRows = atts.map((a, i) => `<div style="margin-bottom:6px;"> <div style="${PF}font-size:10px;font-weight:700;background:#dde5f0;padding:3px 8px;border:${PBD};border-bottom:none;letter-spacing:0.3px;">CONTRACTOR ${i+1}: ${esc((a.person_name||'').toUpperCase())}</div> ${pdfGrid2([ ['Full Name',a.person_name],['Company',a.company], ['Trade / Role',a.trade],['Contact Number',a.contact_number], ['CSCS No.',a.cscs_number],['Date',(doc.issued_at||'').slice(0,10)] ])} <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr><td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:26%;">Contractor Signature</td><td style="border:${PBD};height:48px;background:#fff;padding:4px;">${a.signature ?`<img src="${a.signature}" style="max-height:40px;max-width:220px;display:block;">` : '&nbsp;'}</td></tr></table> </div>`).join('');
+  const contractorRows = atts.map((a, i) => `<div style="margin-bottom:6px;">
+    <div style="${PF}font-size:10px;font-weight:700;background:#dde5f0;padding:3px 8px;border:${PBD};border-bottom:none;letter-spacing:0.3px;">CONTRACTOR ${i + 1}: ${escHtml((a.person_name || "").toUpperCase())}</div>
+    ${pdfGrid2([
+      ["Full Name", a.person_name],
+      ["Company", a.company],
+      ["Trade / Role", a.trade],
+      ["Contact Number", a.contact_number],
+      ["CSCS No.", a.cscs_number],
+      ["Date", (doc.issued_at || "").slice(0, 10)]
+    ])}
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+      <tr>
+        <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:26%;">Contractor Signature</td>
+        <td style="border:${PBD};height:48px;background:#fff;padding:4px;">${a.signature ? `<img src="${a.signature}" style="max-height:40px;max-width:220px;display:block;">` : "&nbsp;"}</td>
+      </tr>
+    </table>
+  </div>`).join("");
 
   return `<div style="${PF}font-size:11px;color:#1d1d1f;">
-${pdfDocHeader('Contractor Site Induction Form')}
-${pdfSecHead('Site Details')}
-${pdfGrid2([['Project',fd.project],['Site Address',fd.address||doc.site_address||''],['Site Manager',fd.site_manager],['Start Date',fd.date]])}
-${pdfGap}
-${pdfSecHead('Site Induction Briefing Includes')}
-${pdfBullets2Col(['Site rules and expected conduct','PPE requirements (hi-vis, boots, gloves, etc.)','Welfare arrangements (toilets, mess area)','Emergency procedures and muster point','Location of fire extinguishers and first aid kit','Site hazards (asbestos, live services, etc.)','Requirement to follow RAMS and safe systems of work','Permit-to-work systems (hot works, roof access, confined space)','Working at height procedures','Housekeeping and material storage','Accident / near miss reporting procedure'])}
-${pdfGap}
-${pdfSecHead('Contractor Details')}
-${contractorRows}
-${pdfGap}
-${pdfSecHead('Induction Given By')}
-${pdfSigRow('Signature', fd.giver_name, doc.manager_signature)}
+    ${pdfDocHeader("Contractor Site Induction Form")}
+    ${pdfSecHead("Site Details")}
+    ${pdfGrid2([
+      ["Project", fd.project],
+      ["Site Address", fd.address || doc.site_address || ""],
+      ["Site Manager", fd.site_manager],
+      ["Start Date", fd.date]
+    ])}
+    ${pdfGap}
+    ${pdfSecHead("Site Induction Briefing Includes")}
+    ${pdfBullets2Col([
+      "Site rules and expected conduct",
+      "PPE requirements (hi-vis, boots, gloves, etc.)",
+      "Welfare arrangements (toilets, mess area)",
+      "Emergency procedures and muster point",
+      "Location of fire extinguishers and first aid kit",
+      "Site hazards (asbestos, live services, etc.)",
+      "Requirement to follow RAMS and safe systems of work",
+      "Permit-to-work systems (hot works, roof access, confined space)",
+      "Working at height procedures",
+      "Housekeeping and material storage",
+      "Accident / near miss reporting procedure"
+    ])}
+    ${pdfGap}
+    ${pdfSecHead("Contractor Details")}
+    ${contractorRows}
+    ${pdfGap}
+    ${pdfSecHead("Induction Given By")}
+    ${pdfSigRow("Signature", fd.giver_name, doc.manager_signature)}
   </div>`;
 }
 
 // HWP
 function previewHWP(doc, fd, atts) {
-  const precLabels = ['Area inspected and deemed safe','Combustibles removed (10m where possible)','Combustibles protected with fire blankets','Openings / voids sealed or protected','Minimum 2 fire extinguishers present','Fire alarm isolation agreed (if required)','Fire watch appointed during works','Gas cylinders secured & flashback arrestors fitted','Adequate ventilation confirmed'];
-  const fwLabels = ['Continuous fire watch during works','Fire watch to remain minimum 60 minutes after completion','Area re-inspected after 1 hour'];
+  const precLabels = [
+    "Area inspected and deemed safe",
+    "Combustibles removed (10m where possible)",
+    "Combustibles protected with fire blankets",
+    "Openings / voids sealed or protected",
+    "Minimum 2 fire extinguishers present",
+    "Fire alarm isolation agreed (if required)",
+    "Fire watch appointed during works",
+    "Gas cylinders secured & flashback arrestors fitted",
+    "Adequate ventilation confirmed"
+  ];
+  const fwLabels = [
+    "Continuous fire watch during works",
+    "Fire watch to remain minimum 60 minutes after completion",
+    "Area re-inspected after 1 hour"
+  ];
 
-  const operativeRows = atts.map((a, i) => `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;"> <tr> <td style="${PF}padding:3px 7px;border:${PBD};background:#dde5f0;font-size:10px;font-weight:700;width:17%;">Operative ${i+1}</td> <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;width:33%;">${esc(a.person_name||'')}</td> <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:17%;">Company</td> <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;width:33%;">${esc(a.company||'')}</td> </tr> <tr> <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;">Signature</td> <td colspan="3" style="border:${PBD};height:48px;background:#fff;padding:4px;">${a.signature ?`<img src="${a.signature}" style="max-height:40px;max-width:280px;display:block;">` : '&nbsp;'}</td> </tr> </table>`).join('');
+  const operativeRows = atts.map((a, i) => `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;">
+    <tr>
+      <td style="${PF}padding:3px 7px;border:${PBD};background:#dde5f0;font-size:10px;font-weight:700;width:17%;">Operative ${i + 1}</td>
+      <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;width:33%;">${escHtml(a.person_name || "")}</td>
+      <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:17%;">Company</td>
+      <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;width:33%;">${escHtml(a.company || "")}</td>
+    </tr>
+    <tr>
+      <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;">Signature</td>
+      <td colspan="3" style="border:${PBD};height:48px;background:#fff;padding:4px;">${a.signature ? `<img src="${a.signature}" style="max-height:40px;max-width:280px;display:block;">` : "&nbsp;"}</td>
+    </tr>
+  </table>`).join("");
 
-  const closeoutSection = doc.status === 'closed'
-    ? `${pdfGap}${pdfSecHead('Close Out')}${pdfGrid2([['Completion Time',doc.completion_time],['Final Area',doc.final_area_safe===1?'Area declared SAFE':'Area declared NOT SAFE']])}<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr><td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:26%;">Manager Signature</td><td style="border:${PBD};height:48px;background:#fff;padding:4px;">${doc.manager_signature?`<img src="${doc.manager_signature}" style="max-height:40px;max-width:220px;display:block;">`:'&nbsp;'}</td></tr></table>`
+  const closeoutSection = doc.status === "closed"
+    ? `${pdfGap}${pdfSecHead("Close Out")}${pdfGrid2([
+        ["Completion Time", doc.completion_time],
+        ["Final Area", doc.final_area_safe === 1 ? "Area declared SAFE" : "Area declared NOT SAFE"]
+      ])}<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr><td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:26%;">Manager Signature</td><td style="border:${PBD};height:48px;background:#fff;padding:4px;">${doc.manager_signature ? `<img src="${doc.manager_signature}" style="max-height:40px;max-width:220px;display:block;">` : "&nbsp;"}</td></tr></table>`
     : `${pdfGap}<div style="${PF}padding:5px 8px;background:#fffbeb;border:1px solid #f0d060;border-radius:2px;font-size:11px;color:#7a5800;"><strong>Open Permit</strong> &mdash; Close out required after works complete.</div>`;
 
   return `<div style="${PF}font-size:11px;color:#1d1d1f;">
-${pdfDocHeader('Hot Works Permit','Permit No: '+esc(fd.permit_no||doc.permit_no||''))}
-${pdfSecHead('Project Details')}
-${pdfGrid2([['Project',fd.project],['Site',fd.site||doc.site_name],['Client / PC',fd.client],['Date',fd.date],['Issued By',fd.issued_by],['Valid From',fd.valid_from]])}
-${pdfGap}
-${pdfSecHead('1. Description of Hot Works')}
-${pdfGrid1([['Location',fd.location],['Nature of Works',(fd.nature||[]).join(', ')],['Equipment',fd.equipment]])}
-${pdfGap}
-${pdfSecHead('2. Fire & Safety Precautions')}
-${pdfCheckboxes2Col(precLabels,fd.precautions||[])}
-${pdfGap}
-${pdfSecHead('3. Fire Watch Requirements')}
-${pdfCheckboxes2Col(fwLabels,fd.fire_watch||[])}
-<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr><td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:26%;">Fire Watch Name</td><td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;">${esc(fd.fire_watch_name||'')}&nbsp;</td></tr></table>
-${pdfGap}
-${pdfSecHead('4. Operatives')}
-${operativeRows}
-${pdfGap}
-${pdfSecHead('5. Permit Issued By')}
-${pdfSigRow('Signature',fd.issued_by,doc.manager_signature)}
-${closeoutSection}
-<div style="margin-top:10px;border-top:1px solid #ccc;padding-top:5px;${PF}font-size:9px;color:#888;line-height:1.4;">Permit valid for one shift only. Must be displayed at work location. Void if works stop for more than 2 hours. All works must comply with CDM Regulations and approved RAMS.</div>
+    ${pdfDocHeader("Hot Works Permit", "Permit No: " + escHtml(fd.permit_no || doc.permit_no || ""))}
+    ${pdfSecHead("Project Details")}
+    ${pdfGrid2([
+      ["Project", fd.project],
+      ["Site", fd.site || doc.site_name],
+      ["Client / PC", fd.client],
+      ["Date", fd.date],
+      ["Issued By", fd.issued_by],
+      ["Valid From", fd.valid_from]
+    ])}
+    ${pdfGap}
+    ${pdfSecHead("1. Description of Hot Works")}
+    ${pdfGrid1([
+      ["Location", fd.location],
+      ["Nature of Works", (fd.nature || []).join(", ")],
+      ["Equipment", fd.equipment]
+    ])}
+    ${pdfGap}
+    ${pdfSecHead("2. Fire & Safety Precautions")}
+    ${pdfCheckboxes2Col(precLabels, fd.precautions || [])}
+    ${pdfGap}
+    ${pdfSecHead("3. Fire Watch Requirements")}
+    ${pdfCheckboxes2Col(fwLabels, fd.fire_watch || [])}
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+      <tr>
+        <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:26%;">Fire Watch Name</td>
+        <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;">${escHtml(fd.fire_watch_name || "")}&nbsp;</td>
+      </tr>
+    </table>
+    ${pdfGap}
+    ${pdfSecHead("4. Operatives")}
+    ${operativeRows}
+    ${pdfGap}
+    ${pdfSecHead("5. Permit Issued By")}
+    ${pdfSigRow("Signature", fd.issued_by, doc.manager_signature)}
+    ${closeoutSection}
+    <div style="margin-top:10px;border-top:1px solid #ccc;padding-top:5px;${PF}font-size:9px;color:#888;line-height:1.4;">Permit valid for one shift only. Must be displayed at work location. Void if works stop for more than 2 hours. All works must comply with CDM Regulations and approved RAMS.</div>
   </div>`;
 }
 
 // TBT
 function previewTBT(doc, fd, atts) {
-  const attendeeRows = atts.map((a, i) => `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;"> <tr> <td style="${PF}padding:3px 7px;border:${PBD};background:#dde5f0;font-size:10px;font-weight:700;width:17%;">Attendee ${i+1}</td> <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;width:33%;">${esc(a.person_name||'')}</td> <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:17%;">Company</td> <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;width:33%;">${esc(a.company||'')}</td> </tr> <tr> <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;">Signature</td> <td colspan="3" style="border:${PBD};height:48px;background:#fff;padding:4px;">${a.signature ?`<img src="${a.signature}" style="max-height:40px;max-width:280px;display:block;">` : '&nbsp;'}</td> </tr> </table>`).join('');
+  const attendeeRows = atts.map((a, i) => `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;">
+    <tr>
+      <td style="${PF}padding:3px 7px;border:${PBD};background:#dde5f0;font-size:10px;font-weight:700;width:17%;">Attendee ${i + 1}</td>
+      <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;width:33%;">${escHtml(a.person_name || "")}</td>
+      <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;width:17%;">Company</td>
+      <td style="${PF}padding:3px 7px;border:${PBD};font-size:11px;width:33%;">${escHtml(a.company || "")}</td>
+    </tr>
+    <tr>
+      <td style="${PF}padding:3px 7px;border:${PBD};background:${PLB};font-size:10px;font-weight:700;">Signature</td>
+      <td colspan="3" style="border:${PBD};height:48px;background:#fff;padding:4px;">${a.signature ? `<img src="${a.signature}" style="max-height:40px;max-width:280px;display:block;">` : "&nbsp;"}</td>
+    </tr>
+  </table>`).join("");
 
   return `<div style="${PF}font-size:11px;color:#1d1d1f;">
-${pdfDocHeader('Toolbox Talk')}
-${pdfSecHead('Session Details')}
-${pdfGrid2([['Project',fd.project],['Site Address',fd.address||doc.site_address||''],['Site Manager',fd.site_manager],['Date',fd.date],['Talk Title',fd.title],['Delivered By',fd.delivered_by],['Duration',fd.duration?fd.duration+' mins':''],['','']])}
-${pdfGap}
-${pdfSecHead('Talk Content')}
-${pdfGrid1([['Summary of Talk',fd.summary],['Key Points Raised',fd.key_points],['Site-Specific Hazards',fd.hazards]])}
-${pdfGap}
-${pdfSecHead('Attendees')}
-${attendeeRows}
-${pdfGap}
-${pdfSecHead('Delivered By — Manager Sign-Off')}
-${pdfSigRow('Signature',fd.delivered_by,doc.manager_signature)}
+    ${pdfDocHeader("Toolbox Talk")}
+    ${pdfSecHead("Session Details")}
+    ${pdfGrid2([
+      ["Project", fd.project],
+      ["Site Address", fd.address || doc.site_address || ""],
+      ["Site Manager", fd.site_manager],
+      ["Date", fd.date],
+      ["Talk Title", fd.title],
+      ["Delivered By", fd.delivered_by],
+      ["Duration", fd.duration ? fd.duration + " mins" : ""],
+      ["", ""]
+    ])}
+    ${pdfGap}
+    ${pdfSecHead("Talk Content")}
+    ${pdfGrid1([
+      ["Summary of Talk", fd.summary],
+      ["Key Points Raised", fd.key_points],
+      ["Site-Specific Hazards", fd.hazards]
+    ])}
+    ${pdfGap}
+    ${pdfSecHead("Attendees")}
+    ${attendeeRows}
+    ${pdfGap}
+    ${pdfSecHead("Delivered By — Manager Sign-Off")}
+    ${pdfSigRow("Signature", fd.delivered_by, doc.manager_signature)}
   </div>`;
 }
 
-// PDF EXPORT — renders off-screen to avoid modal scroll clipping
+// PDF EXPORT
 function exportPdf() {
   if (!viewDocData) return;
-  const tmp = document.createElement('div');
-  tmp.style.cssText = 'position:fixed;left:-9999px;top:0;width:740px;background:#fff;padding:0;margin:0;';
+
+  const cover = document.createElement("div");
+  cover.style.cssText = "position:fixed;inset:0;background:#fff;z-index:99998;";
+  document.body.appendChild(cover);
+
+  const tmp = document.createElement("div");
+  tmp.style.cssText = "position:fixed;left:0;top:0;width:750px;background:#fff;z-index:99999;padding:0;margin:0;";
   tmp.innerHTML = buildPreview(viewDocData);
   document.body.appendChild(tmp);
-  const fn = docFileName(viewDocData) + '.pdf';
-  html2pdf().set({
-    margin: [0.4, 0.45, 0.4, 0.45],
-    filename: fn,
-    jsPDF: { unit:'in', format:'a4', orientation:'portrait' },
-    html2canvas: { scale:2, useCORS:true, logging:false, windowWidth:740 }
-  }).from(tmp).save().then(() => { document.body.removeChild(tmp); });
+
+  const fn = docFileName(viewDocData) + ".pdf";
+
+  setTimeout(() => {
+    html2pdf().set({
+      margin: [0.4, 0.45, 0.4, 0.45],
+      filename: fn,
+      jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        windowWidth: 750,
+        scrollX: 0,
+        scrollY: 0
+      }
+    }).from(tmp).save().then(() => {
+      document.body.removeChild(tmp);
+      document.body.removeChild(cover);
+    }).catch(() => {
+      if (document.body.contains(tmp)) document.body.removeChild(tmp);
+      if (document.body.contains(cover)) document.body.removeChild(cover);
+    });
+  }, 150);
 }
 
 // ──────────────────────────────────────────────
@@ -1430,68 +1754,93 @@ function exportPdf() {
 // ──────────────────────────────────────────────
 function openCloseout(docId) {
   closeoutDocId = docId;
-  document.getElementById('coTime').value = nowTime();
+  document.getElementById("coTime").value = nowTime();
   document.querySelectorAll('input[name="areaSafe"]').forEach(r => r.checked = false);
   clearCoCanvas();
-  document.getElementById('closeoutModal').classList.add('open');
+  document.getElementById("closeoutModal").classList.add("open");
 }
 
 function closeCloseout() {
-  document.getElementById('closeoutModal').classList.remove('open');
+  document.getElementById("closeoutModal").classList.remove("open");
   closeoutDocId = null;
 }
 
 function clearCoCanvas() {
-  const c = document.getElementById('coCanvas');
-  c.getContext('2d').clearRect(0,0,c.width,c.height);
-  document.getElementById('coPlaceholder').style.display = '';
+  const c = document.getElementById("coCanvas");
+  c.getContext("2d").clearRect(0, 0, c.width, c.height);
+  document.getElementById("coPlaceholder").style.display = "";
 }
 
 async function submitCloseout() {
-  const time  = document.getElementById('coTime').value;
-  const safe  = document.querySelector('input[name="areaSafe"]:checked');
-  if (!time)  { alert('Please enter completion time.'); return; }
-  if (!safe)  { alert('Please select area status.'); return; }
+  const time = document.getElementById("coTime").value;
+  const safe = document.querySelector('input[name="areaSafe"]:checked');
+  if (!time) {
+    alert("Please enter completion time.");
+    return;
+  }
+  if (!safe) {
+    alert("Please select area status.");
+    return;
+  }
 
-  const canvas = document.getElementById('coCanvas');
-  const ctx    = canvas.getContext('2d');
-  const pix    = ctx.getImageData(0,0,canvas.width,canvas.height).data;
-  const hasSig = pix.some((v,i) => i%4===3 && v>10);
-  if (!hasSig) { alert('Please sign the close out.'); return; }
+  const canvas = document.getElementById("coCanvas");
+  const ctx = canvas.getContext("2d");
+  const pix = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const hasSig = pix.some((v, i) => i % 4 === 3 && v > 10);
+  if (!hasSig) {
+    alert("Please sign the close out.");
+    return;
+  }
 
-  const sig = canvas.toDataURL('image/png');
+  const sig = canvas.toDataURL("image/png");
   try {
     const res = await fetch(`${API}/documents/closeout`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         docId: closeoutDocId,
         completionTime: time,
-        finalAreaSafe:  parseInt(safe.value),
+        finalAreaSafe: parseInt(safe.value, 10),
         managerSignature: sig,
-        closedAt: new Date().toISOString().replace('T',' ').slice(0,19)
+        closedAt: new Date().toISOString().replace("T", " ").slice(0, 19)
       })
     });
     const data = await res.json();
-    if (!res.ok || !data.ok) { alert(data.error || 'Close out failed.'); return; }
-    alert('✅ HWP closed out successfully.');
+    if (!res.ok || !data.ok) {
+      alert(data.error || "Close out failed.");
+      return;
+    }
+    alert("✅ HWP closed out successfully.");
     closeCloseout();
     loadRecords();
-  } catch(e) { alert('Network error.'); }
+  } catch (e) {
+    alert("Network error.");
+  }
 }
 
 // ──────────────────────────────────────────────
 // UTILITIES
 // ──────────────────────────────────────────────
-function esc(s) {
-  return String(s || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+function escHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
-function enc(s) { return encodeURIComponent(s||''); }
-function val(id) { return (document.getElementById(id)?.value||'').trim(); }
+
+function escAttr(s) {
+  return escHtml(s);
+}
+
+function enc(s) {
+  return encodeURIComponent(s || "");
+}
+
+function val(id) {
+  return (document.getElementById(id)?.value || "").trim();
+}
 </script>
 
 </body>

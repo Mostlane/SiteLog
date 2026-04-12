@@ -1,0 +1,1670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SiteLog — Documents</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    :root {
+      --bg: #f2f2f7;
+      --surface: #ffffff;
+      --surface2: #f9f9fb;
+      --surface3: #f2f2f7;
+      --border: rgba(0,0,0,0.08);
+      --border-heavy: rgba(0,0,0,0.13);
+      --blue: #0071e3;
+      --blue-dark: #0058b0;
+      --blue-soft: rgba(0,113,227,0.10);
+      --red: #ff3b30;
+      --red-soft: rgba(255,59,48,0.10);
+      --green: #34c759;
+      --green-soft: rgba(52,199,89,0.10);
+      --amber: #ff9f0a;
+      --amber-soft: rgba(255,159,10,0.10);
+      --label: #1d1d1f;
+      --label2: #48484a;
+      --label3: #6e6e73;
+      --label4: #aeaeb2;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+      --shadow-xl: 0 20px 60px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; }
+
+    body {
+      font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--label);
+      min-height: 100vh;
+      padding-bottom: 60px;
+    }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(20px) saturate(180%);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+      padding: 0 20px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .topbar-brand { display: flex; align-items: center; gap: 10px; }
+    .topbar-logo img { height: 28px; border-radius: 5px; display: block; }
+    .topbar-title { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
+    .topbar-subtitle { font-size: 12px; color: var(--label3); }
+
+    /* ── TABS ── */
+    .tab-bar {
+      display: flex;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      position: sticky; top: 52px; z-index: 90;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .tab-btn {
+      padding: 13px 18px;
+      font-size: 14px; font-weight: 500;
+      color: var(--label3);
+      border: none; background: none; cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+
+    /* ── PAGE ── */
+    .page { max-width: 820px; margin: 0 auto; padding: 24px 20px 0; }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .card-title { font-size: 15px; font-weight: 600; }
+    .card-subtitle { font-size: 12px; color: var(--label3); margin-top: 3px; }
+    .card-body { padding: 20px; }
+
+    /* ── FORM ── */
+    .field-group { margin-bottom: 14px; }
+    .field-label {
+      display: block;
+      font-size: 11px; font-weight: 600;
+      color: var(--label3);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 5px;
+    }
+
+    input[type="text"],
+    input[type="date"],
+    input[type="time"],
+    input[type="number"],
+    input[type="tel"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border-heavy);
+      border-radius: var(--radius-sm);
+      font-size: 14px; font-family: inherit;
+      color: var(--label); background: var(--surface);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      -webkit-appearance: none; appearance: none;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-soft);
+    }
+    select { -webkit-appearance: menulist; appearance: menulist; }
+    textarea { resize: vertical; min-height: 72px; line-height: 1.5; }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+    .form-row.three { grid-template-columns: 1fr 1fr 1fr; }
+    .form-row .field-group { margin-bottom: 0; }
+
+    /* ── BUTTONS ── */
+    button {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 38px; padding: 0 16px;
+      border: none; border-radius: var(--radius-sm);
+      font-size: 13.5px; font-family: inherit; font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.12s, transform 0.1s;
+      white-space: nowrap; outline: none;
+    }
+    button:active { transform: scale(0.97); }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-primary:hover { background: var(--blue-dark); }
+    .btn-ghost { background: var(--surface3); color: var(--label2); border: 1px solid var(--border-heavy); }
+    .btn-ghost:hover { background: #e8e8ed; }
+    .btn-danger { background: var(--red-soft); color: var(--red); border: 1px solid rgba(255,59,48,0.2); }
+    .btn-sm { height: 30px; padding: 0 12px; font-size: 12.5px; border-radius: 6px; }
+    .btn-full { width: 100%; justify-content: center; height: 44px; font-size: 15px; }
+
+    /* ── SECTION DIVIDER ── */
+    .sec-div {
+      font-size: 11.5px; font-weight: 700;
+      color: var(--label3); text-transform: uppercase; letter-spacing: 0.6px;
+      padding: 18px 0 10px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+
+    /* ── CHECKBOX LIST ── */
+    .chk-list { background: var(--surface2); border-radius: var(--radius-md); padding: 4px 14px; }
+    .chk-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .chk-item:last-child { border-bottom: none; }
+    .chk-item input[type="checkbox"] {
+      width: 20px; height: 20px; margin: 0; padding: 0; flex-shrink: 0; margin-top: 1px;
+      -webkit-appearance: auto; appearance: auto;
+    }
+    .chk-item label { font-size: 13.5px; color: var(--label2); line-height: 1.4; cursor: pointer; }
+
+    /* ── NATURE CHIPS ── */
+    .nature-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+    .n-chip {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 12px;
+      border: 1px solid var(--border-heavy);
+      border-radius: 999px;
+      font-size: 13px; cursor: pointer;
+      background: var(--surface); color: var(--label2);
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+      user-select: none;
+    }
+    .n-chip input[type="checkbox"] {
+      width: 15px; height: 15px; margin: 0; padding: 0;
+      -webkit-appearance: auto; appearance: auto;
+    }
+    .n-chip.on { background: var(--blue-soft); border-color: var(--blue); color: var(--blue); }
+
+    /* ── ATTENDEE BLOCK ── */
+    .att-block {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px; margin-bottom: 10px;
+    }
+    .att-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .att-name { font-size: 14px; font-weight: 600; color: var(--label); }
+
+    /* ── BRIEFING BOX ── */
+    .briefing-box {
+      background: var(--surface2);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      font-size: 13px; color: var(--label2); line-height: 2;
+    }
+    .briefing-box div::before { content: "— "; }
+
+    /* ── FILTER BAR ── */
+    .filter-bar {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+      padding: 14px 16px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      margin-bottom: 16px;
+    }
+    .filter-bar select,
+    .filter-bar input[type="text"],
+    .filter-bar input[type="date"] {
+      width: auto; height: 34px; padding: 0 10px; font-size: 13px;
+    }
+
+    /* ── DOC LIST ── */
+    .doc-list { display: flex; flex-direction: column; gap: 10px; }
+    .doc-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px;
+      transition: background 0.12s;
+    }
+    .doc-item:hover { background: var(--surface2); }
+    .doc-item-info { flex: 1; min-width: 0; }
+    .doc-item-title { font-size: 14px; font-weight: 600; color: var(--label); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .doc-item-meta { font-size: 12px; color: var(--label3); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .doc-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+    /* ── PILLS ── */
+    .pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11px; font-weight: 600;
+      padding: 3px 8px; border-radius: 999px;
+    }
+    .pill-ind { background: var(--blue-soft); color: var(--blue); }
+    .pill-hwp { background: var(--amber-soft); color: #92400e; }
+    .pill-tbt { background: var(--green-soft); color: #1a7f3c; }
+    .pill-open { background: var(--amber-soft); color: #92400e; }
+    .pill-closed { background: var(--surface3); color: var(--label3); }
+
+    /* ── MODAL ── */
+    .modal {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.48);
+      backdrop-filter: blur(4px);
+      display: none; justify-content: center; align-items: center;
+      z-index: 9000; padding: 20px;
+    }
+    .modal.open { display: flex; }
+    .modal-box {
+      width: min(580px, 100%);
+      max-height: 90vh; overflow-y: auto;
+      background: var(--surface);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-xl);
+    }
+    .modal-box.wide { width: min(840px, 100%); }
+    .modal-hdr {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      padding: 18px 20px; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: var(--surface); z-index: 2;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      gap: 12px;
+    }
+    .modal-title { font-size: 16px; font-weight: 600; }
+    .modal-sub { font-size: 12px; color: var(--label3); margin-top: 3px; }
+    .modal-body { padding: 20px; }
+    .modal-footer {
+      display: flex; gap: 8px; justify-content: flex-end;
+      padding: 14px 20px; border-top: 1px solid var(--border);
+    }
+
+    /* ── SIGNATURE CANVAS ── */
+    .sig-wrap {
+      border: 2px dashed var(--border-heavy);
+      border-radius: var(--radius-md);
+      overflow: hidden; background: #fff;
+      position: relative; cursor: crosshair;
+    }
+    .sig-wrap canvas { display: block; width: 100%; touch-action: none; }
+    .sig-placeholder {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      font-size: 13px; color: var(--label4);
+      pointer-events: none;
+    }
+    .sig-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 6px 0 0; }
+
+    /* ── EMPTY STATE ── */
+    .empty { padding: 40px 20px; text-align: center; color: var(--label3); }
+    .empty-ico { font-size: 32px; margin-bottom: 8px; opacity: 0.4; }
+
+    /* ── DECLARATION BOX ── */
+    .dec-box {
+      background: rgba(0,113,227,0.05);
+      border: 1px solid rgba(0,113,227,0.15);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      font-size: 13px; color: var(--label2); line-height: 1.5;
+      margin-bottom: 14px;
+    }
+
+    /* ── READONLY FIELD ── */
+    .readonly-field {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      font-size: 14px; color: var(--label2);
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 600px) {
+      .form-row { grid-template-columns: 1fr; }
+      .form-row.three { grid-template-columns: 1fr 1fr; }
+      .page { padding: 14px 12px 0; }
+      .modal { padding: 0; align-items: flex-end; }
+      .modal-box { border-radius: var(--radius-xl) var(--radius-xl) 0 0; max-height: 92vh; }
+      .modal-hdr { border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+      .filter-bar { flex-direction: column; }
+      .filter-bar select,
+      .filter-bar input { width: 100% !important; }
+      .doc-item { flex-direction: column; align-items: flex-start; }
+      .doc-item-actions { width: 100%; }
+      .doc-item-actions button { flex: 1; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-logo">
+      <img src="Mostlane Logo.jpg" alt="Mostlane" onerror="this.style.display='none'">
+    </div>
+    <div>
+      <div class="topbar-title">SiteLog</div>
+      <div class="topbar-subtitle">Documents</div>
+    </div>
+  </div>
+  <button class="btn-ghost btn-sm" onclick="location.href='admin.html'">⬅ Admin</button>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" id="tab-issue" onclick="switchTab('issue')">📋 Issue Document</button>
+  <button class="tab-btn" id="tab-records" onclick="switchTab('records')">🗂 Records</button>
+</div>
+
+<div class="page">
+
+  <div id="panel-issue">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Issue New Document</div>
+        <div class="card-subtitle">Select site and document type to begin</div>
+      </div>
+      <div class="card-body">
+        <div class="form-row">
+          <div class="field-group">
+            <label class="field-label">Site</label>
+            <select id="issueSite" onchange="onSiteChange()">
+              <option value="">Select site…</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Document Type</label>
+            <select id="issueType" onchange="onTypeChange()">
+              <option value="">Select type…</option>
+              <option value="induction">📋 Site Induction</option>
+              <option value="hwp">🔥 Hot Works Permit</option>
+              <option value="tbt">💬 Toolbox Talk</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="formContainer"></div>
+  </div>
+
+  <div id="panel-records" style="display:none;">
+    <div class="filter-bar">
+      <div>
+        <label class="field-label">Type</label>
+        <select id="recType" onchange="loadRecords()" style="width:150px;">
+          <option value="">All Types</option>
+          <option value="induction">Site Induction</option>
+          <option value="hwp">Hot Works Permit</option>
+          <option value="tbt">Toolbox Talk</option>
+        </select>
+      </div>
+      <div>
+        <label class="field-label">HWP Status</label>
+        <select id="recStatus" onchange="loadRecords()" style="width:130px;">
+          <option value="">All</option>
+          <option value="issued">Current / Open</option>
+          <option value="closed">Closed Out</option>
+        </select>
+      </div>
+      <div>
+        <label class="field-label">Site</label>
+        <select id="recSite" onchange="loadRecords()" style="width:150px;">
+          <option value="">All Sites</option>
+        </select>
+      </div>
+      <div>
+        <label class="field-label">Person</label>
+        <input type="text" id="recPerson" placeholder="Search name…" oninput="loadRecords()" style="width:140px;">
+      </div>
+      <div>
+        <label class="field-label">From</label>
+        <input type="date" id="recFrom" onchange="loadRecords()">
+      </div>
+      <div>
+        <label class="field-label">To</label>
+        <input type="date" id="recTo" onchange="loadRecords()">
+      </div>
+      <button class="btn-ghost btn-sm" onclick="clearFilters()">Reset</button>
+    </div>
+    <div id="recordsList">
+      <div class="empty"><div class="empty-ico">🗂</div><p>Loading…</p></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="modal" id="sigModal">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title" id="sigTitle">Signature Required</div>
+        <div class="modal-sub" id="sigSub"></div>
+      </div>
+      <span id="sigProgress" style="font-size:12px;color:var(--label3);flex-shrink:0;"></span>
+    </div>
+    <div class="modal-body">
+      <div class="dec-box" id="sigDec"></div>
+      <div class="sig-wrap">
+        <canvas id="sigCanvas" width="540" height="180"></canvas>
+        <div class="sig-placeholder" id="sigPlaceholder">Sign here with your finger</div>
+      </div>
+      <div class="sig-toolbar">
+        <button class="btn-ghost btn-sm" onclick="clearMainCanvas()">✕ Clear</button>
+        <span style="font-size:12px;color:var(--label3);">Pass device to signer</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="skipSig()">Skip</button>
+      <button class="btn-primary" onclick="confirmSig()">Confirm →</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="viewModal">
+  <div class="modal-box wide">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title" id="viewTitle">Document</div>
+        <div class="modal-sub" id="viewSub"></div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="closeView()">✕</button>
+    </div>
+    <div class="modal-body" id="viewBody"></div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeView()">Close</button>
+      <button class="btn-primary" onclick="exportPdf()">↑ Export PDF</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="closeoutModal">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <div class="modal-title">🔥 HWP Close Out</div>
+    </div>
+    <div class="modal-body">
+      <div class="field-group">
+        <label class="field-label">Completion Time</label>
+        <input type="time" id="coTime">
+      </div>
+      <div class="field-group">
+        <label class="field-label">Final Area Check</label>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+          <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);">
+            <input type="radio" name="areaSafe" value="1" style="width:18px;height:18px;"> <span style="color:#1a7f3c;font-weight:600;">✅ Area declared SAFE</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);">
+            <input type="radio" name="areaSafe" value="0" style="width:18px;height:18px;"> <span style="color:var(--red);font-weight:600;">⚠️ Area declared NOT SAFE</span>
+          </label>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Manager Signature</label>
+        <div class="sig-wrap">
+          <canvas id="coCanvas" width="540" height="140"></canvas>
+          <div class="sig-placeholder" id="coPlaceholder">Sign here</div>
+        </div>
+        <div class="sig-toolbar">
+          <button class="btn-ghost btn-sm" onclick="clearCoCanvas()">✕ Clear</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeCloseout()">Cancel</button>
+      <button class="btn-primary" onclick="submitCloseout()">Submit Close Out</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "https://sitelog-api.jamie-def.workers.dev";
+
+// ──────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────
+let sitesData = [];
+let onSitePeople = [];
+let attendees = [];
+let sigQueue = [];
+let sigIndex = 0;
+let capturedSigs = {};
+let currentDocType = "";
+let currentSiteName = "";
+let currentSiteAddr = "";
+let closeoutDocId = null;
+let viewDocData = null;
+
+// ──────────────────────────────────────────────
+// INIT
+// ──────────────────────────────────────────────
+window.addEventListener("DOMContentLoaded", async () => {
+  await loadSites();
+  initSigCanvas(document.getElementById("sigCanvas"), "sigPlaceholder");
+  initSigCanvas(document.getElementById("coCanvas"), "coPlaceholder");
+});
+
+async function loadSites() {
+  try {
+    const res = await fetch(API + "/sites");
+    const data = await res.json();
+    sitesData = (data.sites || []).filter(s => !Number(s.archived));
+
+    const sel = document.getElementById("issueSite");
+    sel.innerHTML = '<option value="">Select site…</option>' +
+      sitesData.map(s => `<option value="${escAttr(s.site_name)}">${escHtml(s.site_name)}</option>`).join("");
+
+    const rsel = document.getElementById("recSite");
+    rsel.innerHTML = '<option value="">All Sites</option>' +
+      sitesData.map(s => `<option value="${escAttr(s.site_name)}">${escHtml(s.site_name)}</option>`).join("");
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+// ──────────────────────────────────────────────
+// TABS
+// ──────────────────────────────────────────────
+function switchTab(tab) {
+  ["issue", "records"].forEach(t => {
+    document.getElementById(`panel-${t}`).style.display = t === tab ? "" : "none";
+    document.getElementById(`tab-${t}`).classList.toggle("active", t === tab);
+  });
+  if (tab === "records") loadRecords();
+}
+
+// ──────────────────────────────────────────────
+// SITE / TYPE CHANGE
+// ──────────────────────────────────────────────
+async function onSiteChange() {
+  currentSiteName = document.getElementById("issueSite").value;
+  const siteObj = sitesData.find(s => s.site_name === currentSiteName);
+  currentSiteAddr = siteObj?.address || "";
+  attendees = [];
+  capturedSigs = {};
+
+  if (currentSiteName) {
+    try {
+      const res = await fetch(`${API}/on-site?site=${enc(currentSiteName)}`);
+      const data = await res.json();
+      onSitePeople = data.people || [];
+    } catch (e) {
+      onSitePeople = [];
+    }
+  } else {
+    onSitePeople = [];
+  }
+
+  onTypeChange();
+}
+
+function onTypeChange() {
+  currentDocType = document.getElementById("issueType").value;
+  attendees = [];
+  capturedSigs = {};
+
+  if (!currentSiteName || !currentDocType) {
+    document.getElementById("formContainer").innerHTML = "";
+    return;
+  }
+
+  renderForm();
+}
+
+// ──────────────────────────────────────────────
+// FORM RENDERING
+// ──────────────────────────────────────────────
+function renderForm() {
+  const c = document.getElementById("formContainer");
+  if (currentDocType === "induction") renderInduction(c);
+  else if (currentDocType === "hwp") renderHWP(c);
+  else if (currentDocType === "tbt") renderTBT(c);
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function nowTime() {
+  return new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+/* ── INDUCTION ── */
+function renderInduction(c) {
+  c.innerHTML = `
+  <div class="card">
+    <div class="card-header"><div class="card-title">📋 Contractor Site Induction Form</div></div>
+    <div class="card-body">
+      <div class="sec-div">Site Details</div>
+      <div class="form-row">
+        <div class="field-group"><label class="field-label">Project Name</label>
+          <input type="text" id="i_proj" value="${escAttr(currentSiteName)}" list="dl_i_proj"><datalist id="dl_i_proj"></datalist></div>
+        <div class="field-group"><label class="field-label">Site Address</label>
+          <input type="text" id="i_addr" value="${escAttr(currentSiteAddr)}" list="dl_i_addr"><datalist id="dl_i_addr"></datalist></div>
+      </div>
+      <div class="form-row">
+        <div class="field-group"><label class="field-label">Site Manager</label>
+          <input type="text" id="i_mgr" list="dl_i_mgr"><datalist id="dl_i_mgr"></datalist></div>
+        <div class="field-group"><label class="field-label">Start Date</label>
+          <input type="date" id="i_date" value="${today()}"></div>
+      </div>
+
+      <div class="sec-div">Contractor Details</div>
+      <div id="ind_atts"></div>
+      <button class="btn-ghost btn-sm" onclick="addIndAtt()" style="margin-top:4px;">+ Add Contractor</button>
+
+      <div class="sec-div" style="margin-top:20px;">Site Induction Briefing Includes</div>
+      <div class="briefing-box">
+        <div>Site rules and expected conduct</div>
+        <div>PPE requirements (hi-vis, boots, gloves, etc.)</div>
+        <div>Welfare arrangements (toilets, mess area)</div>
+        <div>Emergency procedures and muster point</div>
+        <div>Location of fire extinguishers and first aid kit</div>
+        <div>Site hazards (asbestos, live services, etc.)</div>
+        <div>Requirement to follow RAMS and safe systems of work</div>
+        <div>Permit-to-work systems (hot works, roof access, confined space)</div>
+        <div>Working at height procedures</div>
+        <div>Housekeeping and material storage</div>
+        <div>Accident / near miss reporting procedure</div>
+      </div>
+
+      <div class="sec-div" style="margin-top:20px;">Induction Given By</div>
+      <div class="form-row" style="margin-bottom:0;">
+        <div class="field-group"><label class="field-label">Print Name</label>
+          <input type="text" id="i_giver" list="dl_i_giver"><datalist id="dl_i_giver"></datalist></div>
+      </div>
+
+      <div style="margin-top:22px;">
+        <button class="btn-primary btn-full" onclick="startSigning()">✍️ Collect Signatures &amp; Submit</button>
+      </div>
+    </div>
+  </div>`;
+
+  fetchMem("i_proj", "dl_i_proj");
+  fetchMem("i_addr", "dl_i_addr");
+  fetchMem("i_mgr", "dl_i_mgr");
+  fetchMem("i_giver", "dl_i_giver");
+  addIndAtt();
+}
+
+function addIndAtt() {
+  const idx = attendees.length;
+  attendees.push({ personId: "", personName: "", company: "", trade: "", contact: "", cscs: "" });
+  const opts = onSitePeople.map(p => `<option value="${escAttr(p.name)}"></option>`).join("");
+  const el = document.createElement("div");
+  el.className = "att-block";
+  el.id = `attb_${idx}`;
+  el.innerHTML = `
+    <div class="att-header">
+      <div class="att-name">Contractor ${idx + 1}</div>
+      ${idx > 0 ? `<button class="btn-danger btn-sm" onclick="removeAtt(${idx})">Remove</button>` : ""}
+    </div>
+    <div class="form-row">
+      <div class="field-group"><label class="field-label">Full Name</label>
+        <input type="text" id="an_${idx}" list="aol_${idx}" oninput="attNameChange(${idx})">
+        <datalist id="aol_${idx}">${opts}</datalist></div>
+      <div class="field-group"><label class="field-label">Company</label>
+        <input type="text" id="ac_${idx}" list="dl_att_co"><datalist id="dl_att_co"></datalist></div>
+    </div>
+    <div class="form-row three">
+      <div class="field-group"><label class="field-label">Trade / Role</label>
+        <input type="text" id="at_${idx}" list="dl_att_tr"><datalist id="dl_att_tr"></datalist></div>
+      <div class="field-group"><label class="field-label">Contact Number</label>
+        <input type="tel" id="atel_${idx}"></div>
+      <div class="field-group"><label class="field-label">CSCS Number</label>
+        <input type="text" id="acscs_${idx}"></div>
+    </div>`;
+  document.getElementById("ind_atts").appendChild(el);
+  fetchMem("att_co", "dl_att_co");
+  fetchMem("att_tr", "dl_att_tr");
+}
+
+/* ── HWP ── */
+function renderHWP(c) {
+  const pno = genPermitNo();
+  c.innerHTML = `
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🔥 Hot Works Permit</div>
+      <div class="card-subtitle">Permit No: <strong>${escHtml(pno)}</strong></div>
+    </div>
+    <div class="card-body">
+      <input type="hidden" id="h_pno" value="${escAttr(pno)}">
+      <div class="form-row">
+        <div class="field-group"><label class="field-label">Project</label>
+          <input type="text" id="h_proj" value="${escAttr(currentSiteName)}" list="dl_h_proj"><datalist id="dl_h_proj"></datalist></div>
+        <div class="field-group"><label class="field-label">Site</label>
+          <div class="readonly-field">${escHtml(currentSiteName)}</div></div>
+      </div>
+      <div class="form-row">
+        <div class="field-group"><label class="field-label">Client / PC</label>
+          <input type="text" id="h_client" list="dl_h_client"><datalist id="dl_h_client"></datalist></div>
+        <div class="field-group"><label class="field-label">Date</label>
+          <input type="date" id="h_date" value="${today()}"></div>
+      </div>
+      <div class="form-row">
+        <div class="field-group"><label class="field-label">Issued By</label>
+          <input type="text" id="h_issby" list="dl_h_issby"><datalist id="dl_h_issby"></datalist></div>
+        <div class="field-group"><label class="field-label">Valid From Time</label>
+          <input type="time" id="h_from" value="${nowTime()}"></div>
+      </div>
+
+      <div class="sec-div">1. Description of Hot Works</div>
+      <div class="field-group"><label class="field-label">Location on Site</label>
+        <input type="text" id="h_loc" list="dl_h_loc"><datalist id="dl_h_loc"></datalist></div>
+      <div class="field-group">
+        <label class="field-label">Nature of Works</label>
+        <div class="nature-chips">
+          ${["Welding","Cutting","Grinding","Solder/Braze","Bitumen","Blow Torch","Other"].map(n => `
+          <label class="n-chip" id="nc_${n.replace(/[^a-zA-Z]/g, "_")}">
+            <input type="checkbox" id="hn_${n.replace(/[^a-zA-Z]/g, "_")}" onchange="toggleChip(this)"> ${n}
+          </label>`).join("")}
+        </div>
+      </div>
+      <div class="field-group"><label class="field-label">Equipment</label>
+        <input type="text" id="h_equip" list="dl_h_equip"><datalist id="dl_h_equip"></datalist></div>
+
+      <div class="sec-div">Operatives</div>
+      <div id="hwp_atts"></div>
+      <button class="btn-ghost btn-sm" onclick="addHWPAtt()" style="margin-top:4px;">+ Add Engineer</button>
+
+      <div class="sec-div" style="margin-top:20px;">2. Fire &amp; Safety Precautions</div>
+      <div class="chk-list">
+        ${[
+          ["hc1","Area inspected and deemed safe"],
+          ["hc2","Combustibles removed (10m where possible)"],
+          ["hc3","Combustibles protected with fire blankets"],
+          ["hc4","Openings / voids sealed or protected"],
+          ["hc5","Minimum 2 fire extinguishers present"],
+          ["hc6","Fire alarm isolation agreed (if required)"],
+          ["hc7","Fire watch appointed during works"],
+          ["hc8","Gas cylinders secured &amp; flashback arrestors fitted"],
+          ["hc9","Adequate ventilation confirmed"]
+        ].map(([id, lbl]) => `<div class="chk-item"><input type="checkbox" id="${id}"><label for="${id}">${lbl}</label></div>`).join("")}
+      </div>
+
+      <div class="sec-div" style="margin-top:16px;">3. Fire Watch Requirements</div>
+      <div class="chk-list">
+        ${[
+          ["fw1","Continuous fire watch during works"],
+          ["fw2","Fire watch to remain minimum 60 minutes after completion"],
+          ["fw3","Area re-inspected after 1 hour"]
+        ].map(([id, lbl]) => `<div class="chk-item"><input type="checkbox" id="${id}"><label for="${id}">${lbl}</label></div>`).join("")}
+      </div>
+      <div class="field-group" style="margin-top:12px;"><label class="field-label">Fire Watch Name</label>
+        <input type="text" id="h_fwname" list="dl_h_fw"><datalist id="dl_h_fw"></datalist></div>
+
+      <div style="margin-top:22px;">
+        <button class="btn-primary btn-full" onclick="startSigning()">✍️ Collect Signatures &amp; Issue Permit</button>
+      </div>
+    </div>
+  </div>`;
+
+  ["h_proj","h_client","h_issby","h_loc","h_equip","h_fwname"].forEach(k => fetchMem(k, `dl_${k}`));
+  addHWPAtt();
+}
+
+function toggleChip(cb) {
+  const lbl = cb.closest(".n-chip");
+  if (lbl) lbl.classList.toggle("on", cb.checked);
+}
+
+function addHWPAtt() {
+  const idx = attendees.length;
+  attendees.push({ personId: "", personName: "", company: "" });
+  const opts = onSitePeople.map(p => `<option value="${escAttr(p.name)}"></option>`).join("");
+  const el = document.createElement("div");
+  el.className = "att-block";
+  el.id = `attb_${idx}`;
+  el.innerHTML = `
+    <div class="att-header">
+      <div class="att-name">Operative ${idx + 1}</div>
+      ${idx > 0 ? `<button class="btn-danger btn-sm" onclick="removeAtt(${idx})">Remove</button>` : ""}
+    </div>
+    <div class="form-row">
+      <div class="field-group"><label class="field-label">Name</label>
+        <input type="text" id="an_${idx}" list="aol_${idx}" oninput="attNameChange(${idx})">
+        <datalist id="aol_${idx}">${opts}</datalist></div>
+      <div class="field-group"><label class="field-label">Company</label>
+        <input type="text" id="ac_${idx}"></div>
+    </div>`;
+  document.getElementById("hwp_atts").appendChild(el);
+}
+
+/* ── TBT ── */
+function renderTBT(c) {
+  c.innerHTML = `
+  <div class="card">
+    <div class="card-header"><div class="card-title">💬 Toolbox Talk</div></div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="field-group"><label class="field-label">Project Name</label>
+          <input type="text" id="t_proj" value="${escAttr(currentSiteName)}" list="dl_t_proj"><datalist id="dl_t_proj"></datalist></div>
+        <div class="field-group"><label class="field-label">Site Address</label>
+          <input type="text" id="t_addr" value="${escAttr(currentSiteAddr)}" list="dl_t_addr"><datalist id="dl_t_addr"></datalist></div>
+      </div>
+      <div class="form-row">
+        <div class="field-group"><label class="field-label">Site Manager</label>
+          <input type="text" id="t_mgr" list="dl_t_mgr"><datalist id="dl_t_mgr"></datalist></div>
+        <div class="field-group"><label class="field-label">Date</label>
+          <input type="date" id="t_date" value="${today()}"></div>
+      </div>
+      <div class="form-row">
+        <div class="field-group"><label class="field-label">Talk Title / Topic</label>
+          <input type="text" id="t_title" list="dl_t_title"><datalist id="dl_t_title"></datalist></div>
+        <div class="field-group"><label class="field-label">Delivered By</label>
+          <input type="text" id="t_dlvby" list="dl_t_dlvby"><datalist id="dl_t_dlvby"></datalist></div>
+      </div>
+      <div class="form-row">
+        <div class="field-group"><label class="field-label">Duration (minutes)</label>
+          <input type="number" id="t_dur" min="1" placeholder="e.g. 15" style="max-width:140px;"></div>
+      </div>
+
+      <div class="sec-div">Talk Content</div>
+      <div class="field-group"><label class="field-label">Summary of Talk Delivered</label>
+        <textarea id="t_summary" rows="3" placeholder="Brief overview of what was covered…"></textarea></div>
+
+      <div class="field-group"><label class="field-label">Key Points Raised</label>
+        <textarea id="t_keypts" rows="3" placeholder="Discussions, questions raised…"></textarea></div>
+      <div class="field-group"><label class="field-label">Site-Specific Hazards Discussed</label>
+        <textarea id="t_hazards" rows="2" placeholder="Any hazards specific to this site…"></textarea>
+        <datalist id="dl_t_hz"></datalist></div>
+
+      <div class="sec-div">Attendees</div>
+      <div id="tbt_atts"></div>
+      <button class="btn-ghost btn-sm" onclick="addTBTAtt()" style="margin-top:4px;">+ Add Engineer</button>
+
+      <div style="margin-top:22px;">
+        <button class="btn-primary btn-full" onclick="startSigning()">✍️ Collect Signatures &amp; Submit</button>
+      </div>
+    </div>
+  </div>`;
+
+  ["t_proj","t_addr","t_mgr","t_title","t_dlvby","t_hz"].forEach(k => fetchMem(k, `dl_${k}`));
+  addTBTAtt();
+}
+
+function addTBTAtt() {
+  const idx = attendees.length;
+  attendees.push({ personId: "", personName: "", company: "" });
+  const opts = onSitePeople.map(p => `<option value="${escAttr(p.name)}"></option>`).join("");
+  const el = document.createElement("div");
+  el.className = "att-block";
+  el.id = `attb_${idx}`;
+  el.innerHTML = `
+    <div class="att-header">
+      <div class="att-name">Attendee ${idx + 1}</div>
+      ${idx > 0 ? `<button class="btn-danger btn-sm" onclick="removeAtt(${idx})">Remove</button>` : ""}
+    </div>
+    <div class="form-row">
+      <div class="field-group"><label class="field-label">Name</label>
+        <input type="text" id="an_${idx}" list="aol_${idx}" oninput="attNameChange(${idx})">
+        <datalist id="aol_${idx}">${opts}</datalist></div>
+      <div class="field-group"><label class="field-label">Company</label>
+        <input type="text" id="ac_${idx}"></div>
+    </div>`;
+  document.getElementById("tbt_atts").appendChild(el);
+}
+
+function attNameChange(idx) {
+  const name = document.getElementById(`an_${idx}`)?.value || "";
+  const p = onSitePeople.find(p => p.name === name);
+  if (p) {
+    attendees[idx].personId = p.person_id || "";
+    const co = document.getElementById(`ac_${idx}`);
+    if (co && !co.value) co.value = p.company || "";
+  }
+}
+
+function removeAtt(idx) {
+  attendees.splice(idx, 1);
+  renderForm();
+}
+
+// ──────────────────────────────────────────────
+// PERMIT NO
+// ──────────────────────────────────────────────
+function genPermitNo() {
+  const s = currentSiteName.replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 6);
+  const d = today().replace(/-/g, "");
+  const n = String(Math.floor(Math.random() * 900) + 100);
+  return `HWP-${s}-${d}-${n}`;
+}
+
+// ──────────────────────────────────────────────
+// FIELD MEMORY
+// ──────────────────────────────────────────────
+async function fetchMem(key, dlId) {
+  try {
+    const res = await fetch(`${API}/field-memory/suggest?key=${key}&site=${enc(currentSiteName)}`);
+    const data = await res.json();
+    const dl = document.getElementById(dlId);
+    if (dl && data.suggestions) {
+      dl.innerHTML = data.suggestions.map(s => `<option value="${escAttr(s.value)}"></option>`).join("");
+    }
+  } catch (e) {}
+}
+
+async function saveMem(key, value) {
+  if (!value || !String(value).trim()) return;
+  try {
+    await fetch(`${API}/field-memory/save`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, value: String(value).trim(), site: currentSiteName })
+    });
+  } catch (e) {}
+}
+
+// ──────────────────────────────────────────────
+// SIGNING FLOW
+// ──────────────────────────────────────────────
+function collectAttendees() {
+  for (let i = 0; i < attendees.length; i++) {
+    attendees[i].personName = (document.getElementById(`an_${i}`)?.value || "").trim();
+    attendees[i].company = (document.getElementById(`ac_${i}`)?.value || "").trim();
+    if (currentDocType === "induction") {
+      attendees[i].trade = (document.getElementById(`at_${i}`)?.value || "").trim();
+      attendees[i].contact = (document.getElementById(`atel_${i}`)?.value || "").trim();
+      attendees[i].cscs = (document.getElementById(`acscs_${i}`)?.value || "").trim();
+    }
+  }
+}
+
+function startSigning() {
+  collectAttendees();
+
+  const valid = attendees.filter(a => a.personName);
+  if (!valid.length) {
+    alert("Please add at least one person.");
+    return;
+  }
+
+  if (currentDocType === "induction" && !document.getElementById("i_giver")?.value.trim()) {
+    alert("Please enter the induction giver name.");
+    return;
+  }
+  if (currentDocType === "hwp" && !document.getElementById("h_loc")?.value.trim()) {
+    alert("Please enter the location of hot works.");
+    return;
+  }
+  if (currentDocType === "tbt" && !document.getElementById("t_title")?.value.trim()) {
+    alert("Please enter the talk title.");
+    return;
+  }
+
+  const decs = {
+    induction: "I confirm I have received a site-specific induction and fully understand the safety rules and procedures outlined above. I agree to work in accordance with the site RAMS, follow safe systems of work, wear appropriate PPE, and report unsafe acts or conditions immediately.",
+    hwp: "I confirm I have read and understood this Hot Works Permit and will comply with all safety precautions listed. I accept responsibility for carrying out works safely in accordance with CDM Regulations and approved RAMS.",
+    tbt: "I confirm I attended this toolbox talk, understood the content, and will apply it to my work on site."
+  };
+
+  const mgrLabels = {
+    induction: "Induction Given By",
+    hwp: "Permit Issued By (Manager)",
+    tbt: "Delivered By (Manager)"
+  };
+
+  sigQueue = [];
+  capturedSigs = {};
+
+  valid.forEach((att, i) => {
+    sigQueue.push({
+      type: "attendee",
+      idx: i,
+      name: att.personName,
+      company: att.company,
+      declaration: decs[currentDocType]
+    });
+  });
+
+  sigQueue.push({
+    type: "manager",
+    idx: -1,
+    name: mgrLabels[currentDocType],
+    company: "",
+    declaration: "I confirm this document is accurate and all precautions are in place."
+  });
+
+  sigIndex = 0;
+  showSig();
+}
+
+function showSig() {
+  if (sigIndex >= sigQueue.length) {
+    submitDocument();
+    return;
+  }
+
+  const s = sigQueue[sigIndex];
+  document.getElementById("sigTitle").textContent = s.type === "manager" ? `${s.name} — Sign Below` : `${s.name} — Please Sign`;
+  document.getElementById("sigSub").textContent = s.company ? `${s.company}` : "";
+  document.getElementById("sigDec").textContent = s.declaration;
+  document.getElementById("sigProgress").textContent = `${sigIndex + 1} / ${sigQueue.length}`;
+  clearMainCanvas();
+  document.getElementById("sigModal").classList.add("open");
+}
+
+function confirmSig() {
+  const canvas = document.getElementById("sigCanvas");
+  const ctx = canvas.getContext("2d");
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const hasSig = pixels.some((v, i) => i % 4 === 3 && v > 10);
+
+  if (!hasSig) {
+    alert("Please sign before continuing.");
+    return;
+  }
+
+  capturedSigs[sigIndex] = canvas.toDataURL("image/png");
+  document.getElementById("sigModal").classList.remove("open");
+  sigIndex++;
+  setTimeout(showSig, 180);
+}
+
+function skipSig() {
+  document.getElementById("sigModal").classList.remove("open");
+  sigIndex++;
+  setTimeout(showSig, 180);
+}
+
+function clearMainCanvas() {
+  const c = document.getElementById("sigCanvas");
+  c.getContext("2d").clearRect(0, 0, c.width, c.height);
+  document.getElementById("sigPlaceholder").style.display = "";
+}
+
+// ──────────────────────────────────────────────
+// CANVAS DRAWING
+// ──────────────────────────────────────────────
+function initSigCanvas(canvas, placeholderId) {
+  const ctx = canvas.getContext("2d");
+  ctx.strokeStyle = "#1d1d1f";
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  let drawing = false;
+
+  const pos = e => {
+    const r = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return {
+      x: (t.clientX - r.left) * (canvas.width / r.width),
+      y: (t.clientY - r.top) * (canvas.height / r.height)
+    };
+  };
+
+  const hide = () => {
+    const pl = document.getElementById(placeholderId);
+    if (pl) pl.style.display = "none";
+  };
+
+  canvas.addEventListener("mousedown", e => {
+    drawing = true;
+    const p = pos(e);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    hide();
+  });
+
+  canvas.addEventListener("mousemove", e => {
+    if (!drawing) return;
+    const p = pos(e);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  });
+
+  canvas.addEventListener("mouseup", () => drawing = false);
+  canvas.addEventListener("mouseleave", () => drawing = false);
+
+  canvas.addEventListener("touchstart", e => {
+    e.preventDefault();
+    drawing = true;
+    const p = pos(e);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    hide();
+  }, { passive: false });
+
+  canvas.addEventListener("touchmove", e => {
+    e.preventDefault();
+    if (!drawing) return;
+    const p = pos(e);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }, { passive: false });
+
+  canvas.addEventListener("touchend", () => drawing = false);
+}
+
+// ──────────────────────────────────────────────
+// SUBMIT DOCUMENT
+// ──────────────────────────────────────────────
+async function submitDocument() {
+  document.getElementById("sigModal").classList.remove("open");
+
+  const validAtts = attendees.filter(a => a.personName);
+  const mgrSigIdx = sigQueue.findIndex(s => s.type === "manager");
+  const mgrSig = mgrSigIdx >= 0 ? (capturedSigs[mgrSigIdx] || null) : null;
+
+  const attData = validAtts.map((a, i) => ({
+    personId: a.personId || null,
+    personName: a.personName,
+    company: a.company,
+    trade: a.trade || null,
+    contact: a.contact || null,
+    cscs: a.cscs || null,
+    signature: capturedSigs[i] || null
+  }));
+
+  let formData = {};
+
+  if (currentDocType === "induction") {
+    formData = {
+      project: val("i_proj"),
+      address: val("i_addr"),
+      site_manager: val("i_mgr"),
+      date: val("i_date"),
+      giver_name: val("i_giver")
+    };
+    saveMem("i_proj", formData.project);
+    saveMem("i_addr", formData.address);
+    saveMem("i_mgr", formData.site_manager);
+    saveMem("i_giver", formData.giver_name);
+    validAtts.forEach(a => {
+      saveMem("att_co", a.company);
+      saveMem("att_tr", a.trade || "");
+    });
+  }
+
+  if (currentDocType === "hwp") {
+    const natures = ["Welding","Cutting","Grinding","Solder_Braze","Bitumen","Blow_Torch","Other"]
+      .filter(n => document.getElementById(`hn_${n}`)?.checked)
+      .map(n => n.replace("_", "/"));
+
+    formData = {
+      project: val("h_proj"),
+      client: val("h_client"),
+      date: val("h_date"),
+      issued_by: val("h_issby"),
+      valid_from: val("h_from"),
+      permit_no: val("h_pno"),
+      location: val("h_loc"),
+      nature: natures,
+      equipment: val("h_equip"),
+      precautions: [1,2,3,4,5,6,7,8,9].map(n => !!document.getElementById(`hc${n}`)?.checked),
+      fire_watch: [1,2,3].map(n => !!document.getElementById(`fw${n}`)?.checked),
+      fire_watch_name: val("h_fwname")
+    };
+    saveMem("h_proj", formData.project);
+    saveMem("h_client", formData.client);
+    saveMem("h_issby", formData.issued_by);
+    saveMem("h_loc", formData.location);
+    saveMem("h_equip", formData.equipment);
+    saveMem("h_fwname", formData.fire_watch_name);
+  }
+
+  if (currentDocType === "tbt") {
+    formData = {
+      project: val("t_proj"),
+      address: val("t_addr"),
+      site_manager: val("t_mgr"),
+      date: val("t_date"),
+      title: val("t_title"),
+      delivered_by: val("t_dlvby"),
+      duration: val("t_dur"),
+      summary: val("t_summary"),
+      key_points: val("t_keypts"),
+      hazards: val("t_hazards")
+    };
+    saveMem("t_proj", formData.project);
+    saveMem("t_addr", formData.address);
+    saveMem("t_mgr", formData.site_manager);
+    saveMem("t_title", formData.title);
+    saveMem("t_dlvby", formData.delivered_by);
+    saveMem("t_hz", formData.hazards);
+  }
+
+  try {
+    const res = await fetch(`${API}/documents/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: currentDocType,
+        site_name: currentSiteName,
+        site_address: currentSiteAddr,
+        form_data: formData,
+        attendees: attData,
+        permit_no: formData.permit_no || null,
+        manager_signature: mgrSig,
+        issued_at: new Date().toISOString().replace("T", " ").slice(0, 19)
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      alert(data.error || "Save failed.");
+      return;
+    }
+
+    alert("✅ Document saved successfully.");
+    attendees = [];
+    capturedSigs = {};
+    document.getElementById("issueType").value = "";
+    document.getElementById("formContainer").innerHTML = "";
+  } catch (e) {
+    alert("Network error — please try again.");
+  }
+}
+
+// ──────────────────────────────────────────────
+// RECORDS
+// ──────────────────────────────────────────────
+async function loadRecords() {
+  const qs = new URLSearchParams();
+  const type = document.getElementById("recType").value;
+  const status = document.getElementById("recStatus").value;
+  const site = document.getElementById("recSite").value;
+  const person = document.getElementById("recPerson").value.trim();
+  const from = document.getElementById("recFrom").value;
+  const to = document.getElementById("recTo").value;
+
+  if (type) qs.set("type", type);
+  if (status) qs.set("status", status);
+  if (site) qs.set("site", site);
+  if (person) qs.set("person", person);
+  if (from) qs.set("from", from);
+  if (to) qs.set("to", to);
+
+  const container = document.getElementById("recordsList");
+  container.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><p>Loading…</p></div>';
+
+  try {
+    const res = await fetch(`${API}/documents?${qs.toString()}`);
+    const data = await res.json();
+    const docs = data.documents || [];
+
+    if (!docs.length) {
+      container.innerHTML = '<div class="empty"><div class="empty-ico">🗂</div><p>No documents found.</p></div>';
+      return;
+    }
+
+    container.innerHTML = '<div class="doc-list">' + docs.map(docItem).join("") + "</div>";
+  } catch (e) {
+    container.innerHTML = '<div class="empty"><div class="empty-ico">⚠️</div><p>Failed to load.</p></div>';
+  }
+}
+
+function docItem(doc) {
+  const tl = { induction: "📋 Site Induction", hwp: "🔥 Hot Works Permit", tbt: "💬 Toolbox Talk" };
+  const tp = { induction: "pill-ind", hwp: "pill-hwp", tbt: "pill-tbt" };
+  const date = (doc.issued_at || "").slice(0, 10);
+  const fname = docFileName(doc);
+
+  let statusPill = "";
+  if (doc.type === "hwp") {
+    statusPill = doc.status === "closed"
+      ? `<span class="pill pill-closed">Closed Out</span>`
+      : `<span class="pill pill-open">Open</span>`;
+  }
+
+  const closeoutBtn = (doc.type === "hwp" && doc.status !== "closed")
+    ? `<button class="btn-ghost btn-sm" onclick="openCloseout('${escAttr(doc.id)}')">Close Out</button>`
+    : "";
+
+  return `<div class="doc-item">
+    <div class="doc-item-info">
+      <div class="doc-item-title">${escHtml(fname)}</div>
+      <div class="doc-item-meta">
+        <span class="pill ${tp[doc.type] || ""}">${tl[doc.type] || doc.type}</span>
+        ${statusPill}
+        <span>${escHtml(doc.site_name || "—")}</span>
+        <span>${escHtml(date)}</span>
+        ${doc.attendee_names ? `<span style="color:var(--label2);">${escHtml(doc.attendee_names)}</span>` : ""}
+      </div>
+    </div>
+    <div class="doc-item-actions">
+      ${closeoutBtn}
+      <button class="btn-primary btn-sm" onclick="viewDoc('${escAttr(doc.id)}')">View</button>
+    </div>
+  </div>`;
+}
+
+function docFileName(doc) {
+  const tc = { induction: "Induction", hwp: "HWP", tbt: "TBT" }[doc.type] || String(doc.type || "").toUpperCase();
+  const si = (doc.site_name || "Site").replace(/[^A-Za-z0-9]/g, "");
+  const dt = (doc.issued_at || "").slice(0, 10);
+  const nm = (doc.attendee_names || "").split(",")[0].trim().split(" ").pop() || "Unknown";
+  return `${tc}_${nm}_${si}_${dt}`;
+}
+
+function clearFilters() {
+  ["recType", "recStatus", "recSite"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("recPerson").value = "";
+  document.getElementById("recFrom").value = "";
+  document.getElementById("recTo").value = "";
+  loadRecords();
+}
+
+// ──────────────────────────────────────────────
+// VIEW DOCUMENT
+// ──────────────────────────────────────────────
+async function viewDoc(id) {
+  try {
+    const res = await fetch(`${API}/documents/single?id=${id}`);
+    const data = await res.json();
+    const doc = data.document;
+
+    if (!doc) {
+      alert("Document not found.");
+      return;
+    }
+
+    viewDocData = doc;
+    document.getElementById("viewTitle").textContent = docFileName(doc);
+    document.getElementById("viewSub").textContent = (doc.site_name || "") + " · " + (doc.issued_at || "").slice(0, 10);
+    document.getElementById("viewBody").innerHTML = buildPreview(doc);
+    document.getElementById("viewModal").classList.add("open");
+  } catch (e) {
+    alert("Failed to load document.");
+  }
+}
+
+function closeView() {
+  document.getElementById("viewModal").classList.remove("open");
+  viewDocData = null;
+}
+
+function buildPreview(doc) {
+  const fd = doc.form_data || {};
+  const at = doc.attendees || [];
+  if (doc.type === "induction") return previewInduction(doc, fd, at);
+  if (doc.type === "hwp") return previewHWP(doc, fd, at);
+  if (doc.type === "tbt") return previewTBT(doc, fd, at);
+  return "<p>Unknown document type.</p>";
+}
+
+const ptbl = rows => `<table style="width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px;">
+  ${rows.map(([k, v]) => `<tr>
+    <td style="padding:6px 8px;border:1px solid #d0d0d0;background:#f5f5f7;font-weight:600;width:36%;white-space:nowrap;">${escHtml(k)}</td>
+    <td style="padding:6px 8px;border:1px solid #d0d0d0;">${v || "—"}</td>
+  </tr>`).join("")}
+</table>`;
+
+const sigImg = b64 => b64
+  ? `<img src="${b64}" style="max-height:52px;max-width:220px;border:1px solid #e0e0e0;border-radius:6px;">`
+  : `<em style="color:#aeaeb2;font-size:12px;">Not signed</em>`;
+
+const ph = (t, c = "#004a99") => `<div style="background:${c};color:#fff;padding:12px 16px;border-radius:8px;margin-bottom:14px;font-size:15px;font-weight:700;">${escHtml(t)}</div>`;
+const sh = t => `<div style="font-size:11px;font-weight:700;color:#004a99;text-transform:uppercase;letter-spacing:0.6px;padding:12px 0 8px;border-bottom:1px solid #e0e0e0;margin-bottom:10px;">${escHtml(t)}</div>`;
+
+function previewInduction(doc, fd, atts) {
+  const attRows = atts.map((a, i) => `
+    <div style="background:#f9f9fb;border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:10px;">
+      <strong style="font-size:13px;">Contractor ${i + 1}: ${escHtml(a.person_name)}</strong>
+      <div style="margin-top:8px;">${ptbl([
+        ["Company", escHtml(a.company)],
+        ["Trade / Role", escHtml(a.trade)],
+        ["Contact", escHtml(a.contact_number)],
+        ["CSCS No.", escHtml(a.cscs_number)]
+      ])}</div>
+      <div style="font-size:11px;color:#6e6e73;font-weight:600;text-transform:uppercase;margin-bottom:4px;">Signature</div>
+      ${sigImg(a.signature)}
+    </div>`).join("");
+
+  return `<div style="font-family:Arial,sans-serif;font-size:12px;line-height:1.5;color:#1d1d1f;">
+    ${ph("Contractor Site Induction Form")}
+    ${sh("Site Details")}
+    ${ptbl([
+      ["Project", escHtml(fd.project)],
+      ["Site Address", escHtml(fd.address || doc.site_address)],
+      ["Site Manager", escHtml(fd.site_manager)],
+      ["Start Date", escHtml(fd.date)]
+    ])}
+    ${sh("Induction Briefing")}
+    <p style="background:#f5f5f7;padding:10px;border-radius:6px;line-height:1.9;margin-bottom:12px;">
+      Site rules &amp; conduct · PPE requirements · Welfare arrangements · Emergency procedures &amp; muster point ·
+      Fire extinguishers &amp; first aid · Site hazards · RAMS &amp; safe systems · Permit-to-work systems ·
+      Working at height · Housekeeping · Accident reporting
+    </p>
+    ${sh("Contractors")}${attRows}
+    ${sh("Induction Given By")}
+    ${ptbl([["Name", escHtml(fd.giver_name)]])}
+    <div style="font-size:11px;color:#6e6e73;font-weight:600;text-transform:uppercase;margin-bottom:4px;">Manager Signature</div>
+    ${sigImg(doc.manager_signature)}
+  </div>`;
+}
+
+function previewHWP(doc, fd, atts) {
+  const precLabels = [
+    "Area inspected and deemed safe",
+    "Combustibles removed (10m where possible)",
+    "Combustibles protected with fire blankets",
+    "Openings / voids sealed or protected",
+    "Minimum 2 fire extinguishers present",
+    "Fire alarm isolation agreed (if required)",
+    "Fire watch appointed during works",
+    "Gas cylinders secured & flashback arrestors fitted",
+    "Adequate ventilation confirmed"
+  ];
+
+  const fwLabels = [
+    "Continuous fire watch during works",
+    "Fire watch to remain minimum 60 minutes after completion",
+    "Area re-inspected after 1 hour"
+  ];
+
+  const attRows = atts.map((a, i) => `
+    <div style="background:#f9f9fb;border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:8px;">
+      <strong>${escHtml(a.person_name)} — ${escHtml(a.company || "—")}</strong>
+      <div style="margin-top:8px;">${sigImg(a.signature)}</div>
+    </div>`).join("");
+
+  const closeout = doc.status === "closed"
+    ? `<div style="margin-top:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;">
+        <strong style="color:#1a7f3c;">✅ Permit Closed Out</strong>
+        <div style="margin-top:8px;">${ptbl([
+          ["Completion Time", escHtml(doc.completion_time)],
+          ["Final Area", doc.final_area_safe === 1 ? "✅ SAFE" : "⚠️ NOT SAFE"],
+          ["Closed At", escHtml((doc.closed_at || "").slice(0, 16))]
+        ])}</div>
+      </div>`
+    : `<div style="margin-top:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;font-size:12px;color:#92400e;"><strong>⚠️ Open Permit</strong> — Close out required after works complete.</div>`;
+
+  return `<div style="font-family:Arial,sans-serif;font-size:12px;line-height:1.5;color:#1d1d1f;">
+    ${ph("HOT WORKS PERMIT — " + (fd.permit_no || doc.permit_no || ""))}
+    ${ptbl([
+      ["Project", escHtml(fd.project)],
+      ["Site", escHtml(fd.site || doc.site_name)],
+      ["Client / PC", escHtml(fd.client)],
+      ["Date", escHtml(fd.date)],
+      ["Issued By", escHtml(fd.issued_by)],
+      ["Valid From", escHtml(fd.valid_from)]
+    ])}
+    ${sh("1. Description of Hot Works")}
+    ${ptbl([
+      ["Location", escHtml(fd.location)],
+      ["Nature", escHtml((fd.nature || []).join(", "))],
+      ["Equipment", escHtml(fd.equipment)]
+    ])}
+    ${sh("2. Fire & Safety Precautions")}
+    <div style="background:#f5f5f7;padding:8px 10px;border-radius:6px;margin-bottom:12px;">
+      ${(fd.precautions || []).map((c, i) => `<div style="padding:3px 0;">${c ? "☑" : "☐"} ${escHtml(precLabels[i] || "")}</div>`).join("")}
+    </div>
+    ${sh("3. Fire Watch Requirements")}
+    <div style="background:#f5f5f7;padding:8px 10px;border-radius:6px;margin-bottom:4px;">
+      ${(fd.fire_watch || []).map((c, i) => `<div style="padding:3px 0;">${c ? "☑" : "☐"} ${escHtml(fwLabels[i] || "")}</div>`).join("")}
+      <div style="padding:3px 0;">Fire Watch Name: ${escHtml(fd.fire_watch_name || "—")}</div>
+    </div>
+    ${sh("Operatives")}${attRows}
+    ${sh("Manager Signature")}${sigImg(doc.manager_signature)}
+    ${closeout}
+    <div style="margin-top:16px;border-top:1px solid #e0e0e0;padding-top:10px;font-size:10.5px;color:#aeaeb2;">
+      Permit valid for one shift only. Must be displayed at work location. Void if works stop for more than 2 hours. All works must comply with CDM Regulations and approved RAMS.
+    </div>
+  </div>`;
+}
+
+function previewTBT(doc, fd, atts) {
+  const attRows = atts.map((a, i) => `
+    <div style="background:#f9f9fb;border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:8px;">
+      <strong>${escHtml(a.person_name)} — ${escHtml(a.company || "—")}</strong>
+      <div style="margin-top:8px;">${sigImg(a.signature)}</div>
+    </div>`).join("");
+
+  return `<div style="font-family:Arial,sans-serif;font-size:12px;line-height:1.5;color:#1d1d1f;">
+    ${ph("TOOLBOX TALK — " + (fd.title || ""))}
+    ${ptbl([
+      ["Project", escHtml(fd.project)],
+      ["Site Address", escHtml(fd.address || doc.site_address)],
+      ["Site Manager", escHtml(fd.site_manager)],
+      ["Date", escHtml(fd.date)],
+      ["Delivered By", escHtml(fd.delivered_by)],
+      ["Duration", fd.duration ? escHtml(fd.duration + " mins") : "—"]
+    ])}
+    ${sh("Talk Content")}
+    ${ptbl([
+      ["Summary", escHtml(fd.summary)],
+      ["Key Points", escHtml(fd.key_points)],
+      ["Site Hazards", escHtml(fd.hazards)]
+    ])}
+    ${sh("Attendees")}${attRows}
+    ${sh("Manager Signature (Delivered By)")}${sigImg(doc.manager_signature)}
+  </div>`;
+}
+
+// ──────────────────────────────────────────────
+// PDF EXPORT
+// ──────────────────────────────────────────────
+function exportPdf() {
+  if (!viewDocData) return;
+  const el = document.getElementById("viewBody");
+  const fn = docFileName(viewDocData) + ".pdf";
+  html2pdf().set({
+    margin: 0.4,
+    filename: fn,
+    jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
+    html2canvas: { scale: 2, useCORS: true }
+  }).from(el).save();
+}
+
+// ──────────────────────────────────────────────
+// HWP CLOSEOUT
+// ──────────────────────────────────────────────
+function openCloseout(docId) {
+  closeoutDocId = docId;
+  document.getElementById("coTime").value = nowTime();
+  document.querySelectorAll('input[name="areaSafe"]').forEach(r => r.checked = false);
+  clearCoCanvas();
+  document.getElementById("closeoutModal").classList.add("open");
+}
+
+function closeCloseout() {
+  document.getElementById("closeoutModal").classList.remove("open");
+  closeoutDocId = null;
+}
+
+function clearCoCanvas() {
+  const c = document.getElementById("coCanvas");
+  c.getContext("2d").clearRect(0, 0, c.width, c.height);
+  document.getElementById("coPlaceholder").style.display = "";
+}
+
+async function submitCloseout() {
+  const time = document.getElementById("coTime").value;
+  const safe = document.querySelector('input[name="areaSafe"]:checked');
+
+  if (!time) {
+    alert("Please enter completion time.");
+    return;
+  }
+  if (!safe) {
+    alert("Please select area status.");
+    return;
+  }
+
+  const canvas = document.getElementById("coCanvas");
+  const ctx = canvas.getContext("2d");
+  const pix = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const hasSig = pix.some((v, i) => i % 4 === 3 && v > 10);
+
+  if (!hasSig) {
+    alert("Please sign the close out.");
+    return;
+  }
+
+  const sig = canvas.toDataURL("image/png");
+
+  try {
+    const res = await fetch(`${API}/documents/closeout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        docId: closeoutDocId,
+        completionTime: time,
+        finalAreaSafe: parseInt(safe.value, 10),
+        managerSignature: sig,
+        closedAt: new Date().toISOString().replace("T", " ").slice(0, 19)
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      alert(data.error || "Close out failed.");
+      return;
+    }
+
+    alert("✅ HWP closed out successfully.");
+    closeCloseout();
+    loadRecords();
+  } catch (e) {
+    alert("Network error.");
+  }
+}
+
+// ──────────────────────────────────────────────
+// UTILITIES
+// ──────────────────────────────────────────────
+function escHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function escAttr(s) {
+  return escHtml(s);
+}
+
+function enc(s) {
+  return encodeURIComponent(s || "");
+}
+
+function val(id) {
+  return (document.getElementById(id)?.value || "").trim();
+}
+</script>
+
+</body>
+</html>

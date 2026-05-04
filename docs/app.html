@@ -287,7 +287,7 @@
 .dash-action-btn:active { opacity: 0.85; transform: scale(0.98); }
 .dash-btn-in  { background: var(--green); color: #fff; }
 .dash-btn-out { background: var(--red);   color: #fff; }
-.dash-cards-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 520px; margin-bottom: 14px; }
+.dash-cards-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; width: 100%; max-width: 520px; margin-bottom: 14px; }
 .dash-card { background: #fff; border-radius: 16px; padding: 16px 14px 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
 .dash-card:active { transform: scale(0.97); box-shadow: 0 1px 6px rgba(0,0,0,0.08); }
 .dash-card-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; margin-bottom: 10px; }
@@ -305,7 +305,83 @@
 .occupant-name { font-size: 15px; font-weight: 600; color: var(--text); }
 .occupant-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .history-soft { font-size: 11px; color: var(--amber); font-weight: 600; }
-  </style>
+
+/* SUMMARY VIEW */
+.summary-filters {
+display: flex;
+flex-wrap: wrap;
+gap: 6px;
+width: 100%;
+max-width: 520px;
+margin-bottom: 14px;
+}
+.summary-chip {
+flex: 1 1 auto;
+min-width: 0;
+padding: 9px 10px;
+background: #fff;
+border: 1px solid #e2e8f0;
+border-radius: 999px;
+font-size: 12.5px;
+font-weight: 600;
+color: var(--muted);
+cursor: pointer;
+text-align: center;
+white-space: nowrap;
+-webkit-user-select: none;
+user-select: none;
+}
+.summary-chip.active {
+background: var(--blue);
+border-color: var(--blue);
+color: #fff;
+}
+.summary-chip:active { opacity: 0.85; }
+.summary-totals-card {
+width: 100%;
+max-width: 520px;
+background: #fff;
+border-radius: 16px;
+padding: 16px 18px;
+box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+margin-bottom: 12px;
+display: flex;
+flex-direction: column;
+gap: 6px;
+}
+.summary-totals-row { display: flex; justify-content: space-between; align-items: baseline; }
+.summary-totals-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+.summary-totals-val   { font-size: 20px; font-weight: 800; color: var(--text); letter-spacing: -0.3px; }
+.summary-totals-sub   { font-size: 12px; color: var(--muted); }
+.summary-site-row {
+background: #fff;
+border: 1px solid #f1f5f9;
+border-radius: 14px;
+padding: 12px 14px;
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 10px;
+}
+.summary-site-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.summary-site-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.summary-site-hours { font-size: 17px; font-weight: 800; color: var(--blue); white-space: nowrap; }
+.summary-site-hours-sub { font-size: 11px; font-weight: 600; color: var(--muted); text-align: right; margin-top: 2px; }
+.summary-empty { text-align: center; padding: 32px 20px; color: var(--muted); font-size: 14px; }
+.summary-cap-warn {
+background: #fffbeb;
+border: 1px solid #fde68a;
+color: #92400e;
+font-size: 12px;
+padding: 8px 12px;
+border-radius: 10px;
+margin-bottom: 10px;
+width: 100%;
+max-width: 520px;
+text-align: center;
+}
+</style>
+
 </head>
 <body>
 
@@ -400,6 +476,11 @@
         <div class="dash-card-label">History</div>
         <div class="dash-card-sub" id="dashHistorySub">My visits</div>
       </div>
+      <div class="dash-card" onclick="dashShowSummary()">
+        <div class="dash-card-icon" style="background:rgba(217,119,6,0.12);">&#128202;</div>
+        <div class="dash-card-label">Summary</div>
+        <div class="dash-card-sub">By site &amp; period</div>
+      </div>
     </div>
     <div class="status-card" id="appCard" style="padding:0;overflow:hidden;">
       <div id="appMap" style="height:180px;border-radius:18px;"></div>
@@ -462,6 +543,28 @@
       <span class="detail-title">My History</span>
     </div>
     <div id="historyList" class="detail-list">
+      <div style="text-align:center;padding:40px;color:var(--muted);font-size:14px;">Loading...</div>
+    </div>
+  </div>
+
+  <!-- SUMMARY VIEW -->
+
+  <div class="scan-content" id="summaryView" style="display:none;">
+    <div class="detail-header">
+      <button class="detail-back" onclick="dashBack()">&#8592; Back</button>
+      <span class="detail-title">Time Summary</span>
+    </div>
+    <div class="summary-filters" id="summaryFilters">
+      <div class="summary-chip active" data-range="this_week" onclick="summarySetRange('this_week')">This week</div>
+      <div class="summary-chip" data-range="last_14"   onclick="summarySetRange('last_14')">Last 14 days</div>
+      <div class="summary-chip" data-range="this_month" onclick="summarySetRange('this_month')">This month</div>
+      <div class="summary-chip" data-range="last_month" onclick="summarySetRange('last_month')">Last month</div>
+      <div class="summary-chip" data-range="all"        onclick="summarySetRange('all')">All time</div>
+    </div>
+    <div id="summaryCapWarn" class="summary-cap-warn" style="display:none;">
+      Showing the most recent 200 visits. Older history may be incomplete.
+    </div>
+    <div id="summaryBody" class="detail-list">
       <div style="text-align:center;padding:40px;color:var(--muted);font-size:14px;">Loading...</div>
     </div>
   </div>
@@ -1427,6 +1530,7 @@ function dashShowOnSite() {
   document.getElementById("dashView").style.display     = "none";
   document.getElementById("onSiteView").style.display   = "flex";
   document.getElementById("historyView").style.display  = "none";
+  document.getElementById("summaryView").style.display  = "none";
   document.getElementById("registerView").style.display = "none";
   document.getElementById("onSiteTitle").textContent    = dashCurrentSite;
   loadOnSiteList();
@@ -1435,13 +1539,26 @@ function dashShowHistory() {
   document.getElementById("dashView").style.display     = "none";
   document.getElementById("historyView").style.display  = "flex";
   document.getElementById("onSiteView").style.display   = "none";
+  document.getElementById("summaryView").style.display  = "none";
   document.getElementById("registerView").style.display = "none";
   loadHistoryList();
+}
+function dashShowSummary() {
+  document.getElementById("dashView").style.display     = "none";
+  document.getElementById("summaryView").style.display  = "flex";
+  document.getElementById("historyView").style.display  = "none";
+  document.getElementById("onSiteView").style.display   = "none";
+  document.getElementById("registerView").style.display = "none";
+  // Default to current selected chip; defaults to "this_week" on first open
+  var active = document.querySelector(".summary-chip.active");
+  var range  = active ? active.getAttribute("data-range") : "this_week";
+  loadSummary(range);
 }
 function dashBack() {
   document.getElementById("dashView").style.display     = "flex";
   document.getElementById("historyView").style.display  = "none";
   document.getElementById("onSiteView").style.display   = "none";
+  document.getElementById("summaryView").style.display  = "none";
   document.getElementById("registerView").style.display = "none";
 }
 function showRegisterView(show) {
@@ -1450,6 +1567,130 @@ function showRegisterView(show) {
   document.getElementById("registerView").style.display = visible ? "flex"  : "none";
   document.getElementById("historyView").style.display  = "none";
   document.getElementById("onSiteView").style.display   = "none";
+  document.getElementById("summaryView").style.display  = "none";
+}
+
+// SUMMARY VIEW
+// Computes total time on site grouped by site, filtered by date range.
+// Reuses /my-visits which returns up to 200 most-recent visits per device.
+function summarySetRange(range) {
+  document.querySelectorAll(".summary-chip").forEach(function(c) {
+    c.classList.toggle("active", c.getAttribute("data-range") === range);
+  });
+  loadSummary(range);
+}
+
+function summaryRangeBounds(range) {
+  // Returns { fromMs, toMs, label } in local time. toMs is exclusive (end of day).
+  var now = new Date();
+  var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  var msDay = 86400000;
+  if (range === "this_week") {
+    // Monday-based week (UK). getDay(): Sun=0, Mon=1, ... Sat=6. Convert to "days since Monday".
+    var dow = now.getDay();
+    var sinceMon = (dow === 0) ? 6 : (dow - 1);
+    var monday = new Date(todayStart.getTime() - sinceMon * msDay);
+    return { fromMs: monday.getTime(), toMs: todayStart.getTime() + msDay, label: "This week" };
+  }
+  if (range === "last_14") {
+    return { fromMs: todayStart.getTime() - 13 * msDay, toMs: todayStart.getTime() + msDay, label: "Last 14 days" };
+  }
+  if (range === "this_month") {
+    var monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { fromMs: monthStart.getTime(), toMs: todayStart.getTime() + msDay, label: "This month" };
+  }
+  if (range === "last_month") {
+    var lmStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    var lmEnd   = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { fromMs: lmStart.getTime(), toMs: lmEnd.getTime(), label: "Last month" };
+  }
+  // all
+  return { fromMs: 0, toMs: Number.MAX_SAFE_INTEGER, label: "All time" };
+}
+
+async function loadSummary(range) {
+  var body = document.getElementById("summaryBody");
+  var capWarn = document.getElementById("summaryCapWarn");
+  if (!body) return;
+  body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:14px;">Loading...</div>';
+  if (capWarn) capWarn.style.display = "none";
+
+  var bounds = summaryRangeBounds(range);
+
+  var visits = [];
+  try {
+    var res  = await fetchWithTimeout(API + "/my-visits?deviceToken=" + encodeURIComponent(deviceToken) + "&limit=200");
+    var data = await res.json();
+    visits = data.visits || [];
+  } catch(e) {
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);">Could not load summary.</div>';
+    return;
+  }
+
+  // Show the cap warning only when "all time" is selected and we hit the 200 limit
+  if (range === "all" && visits.length >= 200 && capWarn) capWarn.style.display = "block";
+
+  // Aggregate by site
+  var bySite = {};
+  var grandMins = 0;
+  var totalSessions = 0;
+  var openSessions  = 0;
+
+  visits.forEach(function(v) {
+    if (!v.check_in_at) return;
+    // Parse as UTC then keep ms timestamp; range bounds are local-ms.
+    var inMs = 0, outMs = 0;
+    try { inMs = new Date(v.check_in_at.replace(" ","T")+"Z").getTime(); } catch(e) {}
+    if (!inMs) return;
+
+    // Filter on check-in date being within the range
+    if (inMs < bounds.fromMs || inMs >= bounds.toMs) return;
+
+    var hasOut = false;
+    if (v.check_out_at) {
+      try { outMs = new Date(v.check_out_at.replace(" ","T")+"Z").getTime(); hasOut = !isNaN(outMs); } catch(e) {}
+    }
+    var mins = 0;
+    if (hasOut && outMs > inMs) mins = Math.max(0, Math.round((outMs - inMs) / 60000));
+
+    var site = v.site_code || "Unknown";
+    if (!bySite[site]) bySite[site] = { mins: 0, sessions: 0, openSessions: 0 };
+    bySite[site].mins += mins;
+    bySite[site].sessions += 1;
+    if (!hasOut) bySite[site].openSessions += 1;
+
+    grandMins += mins;
+    totalSessions += 1;
+    if (!hasOut) openSessions += 1;
+  });
+
+  var sites = Object.keys(bySite).sort(function(a,b){ return bySite[b].mins - bySite[a].mins; });
+
+  if (totalSessions === 0) {
+    body.innerHTML = '<div class="summary-empty">No visits in this period.</div>';
+    return;
+  }
+
+  // Header card with grand total
+  var grandHrs   = (grandMins / 60).toFixed(2);
+  var grandHuman = histDur(grandMins);
+  var html = '';
+  html += '<div class="summary-totals-card">';
+  html += '<div class="summary-totals-row"><div><div class="summary-totals-label">' + bounds.label + '</div><div class="summary-totals-sub">' + totalSessions + ' visit' + (totalSessions !== 1 ? 's' : '') + ' across ' + sites.length + ' site' + (sites.length !== 1 ? 's' : '') + (openSessions > 0 ? ' \u00b7 ' + openSessions + ' still open' : '') + '</div></div><div style="text-align:right;"><div class="summary-totals-val">' + grandHrs + 'h</div><div class="summary-totals-sub">' + grandHuman + '</div></div></div>';
+  html += '</div>';
+
+  // Per-site rows
+  sites.forEach(function(site) {
+    var entry = bySite[site];
+    var siteHrs = (entry.mins / 60).toFixed(2);
+    var siteHuman = entry.mins > 0 ? histDur(entry.mins) : (entry.openSessions > 0 ? 'Open' : '0m');
+    html += '<div class="summary-site-row">';
+    html += '<div><div class="summary-site-name">' + site + '</div><div class="summary-site-meta">' + entry.sessions + ' visit' + (entry.sessions !== 1 ? 's' : '') + (entry.openSessions > 0 ? ' \u00b7 ' + entry.openSessions + ' open' : '') + '</div></div>';
+    html += '<div><div class="summary-site-hours">' + siteHrs + 'h</div><div class="summary-site-hours-sub">' + siteHuman + '</div></div>';
+    html += '</div>';
+  });
+
+  body.innerHTML = html;
 }
 
 async function loadOnSiteList() {
@@ -1517,15 +1758,25 @@ async function loadHistoryList() {
       var isToday  = day === todayISO;
       var firstIn  = sessions[0].check_in_at;
       var lastOut  = sessions.map(function(s){ return s.check_out_at; }).filter(Boolean).sort().pop() || null;
+      // Sum per-session durations (don't span first-checkin to last-checkout - that
+      // counts off-site gaps as on-site time). Open visits contribute 0.
       var dayMins  = 0;
-      if (firstIn && lastOut) {
-        try { var d1 = new Date(firstIn.replace(" ","T")+"Z"); var d2 = new Date(lastOut.replace(" ","T")+"Z"); if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) dayMins = Math.max(0, Math.round((d2-d1)/60000)); } catch(e) {}
-      }
+      sessions.forEach(function(s) {
+        if (s.check_in_at && s.check_out_at) {
+          try {
+            var sd1 = new Date(s.check_in_at.replace(" ","T")+"Z");
+            var sd2 = new Date(s.check_out_at.replace(" ","T")+"Z");
+            if (!isNaN(sd1.getTime()) && !isNaN(sd2.getTime())) {
+              dayMins += Math.max(0, Math.round((sd2-sd1)/60000));
+            }
+          } catch(e) {}
+        }
+      });
       var isOngoing = !lastOut;
       var startStr  = histFmtTime(firstIn);
       var endStr    = lastOut ? histFmtTime(lastOut) : "Ongoing";
-      var durStr    = dayMins > 0 ? histDur(dayMins) : (isOngoing ? "Ongoing" : "\u2014");
-      var dayHrs    = dayMins > 0 ? (dayMins/60).toFixed(2) + "h" : "";
+      var durStr    = dayMins > 0 ? histDur(dayMins) : (isOngoing ? "Ongoing" : "0m");
+      var dayHrs    = dayMins > 0 ? (dayMins/60).toFixed(2) + "h" : (isOngoing ? "" : "0.00h");
       var sessionRows = sessions.map(function(s, i) {
         var sIn  = histFmtTime(s.check_in_at);
         var sOut = s.check_out_at ? histFmtTime(s.check_out_at) : "Ongoing";
@@ -1533,8 +1784,10 @@ async function loadHistoryList() {
         if (s.check_in_at && s.check_out_at) {
           try { var sd1 = new Date(s.check_in_at.replace(" ","T")+"Z"); var sd2 = new Date(s.check_out_at.replace(" ","T")+"Z"); if (!isNaN(sd1.getTime()) && !isNaN(sd2.getTime())) sMins = Math.max(0, Math.round((sd2-sd1)/60000)); } catch(e) {}
         }
-        var sDur = sMins > 0 ? histDur(sMins) : (s.check_out_at ? "\u2014" : "Ongoing");
-        var sHrs = sMins > 0 ? (sMins/60).toFixed(2)+"h" : "\u2014";
+        // Closed sub-minute sessions show as "&lt;1m" rather than dash so they aren't
+        // mistaken for missing data
+        var sDur = sMins > 0 ? histDur(sMins) : (s.check_out_at ? "&lt;1m" : "Ongoing");
+        var sHrs = sMins > 0 ? (sMins/60).toFixed(2)+"h" : (s.check_out_at ? "0.00h" : "\u2014");
         var soft = !s.sign_in_confirmed;
         var autoC = s.auto_checkout;
         return '<tr style="border-bottom:1px solid #f1f5f9;">' +

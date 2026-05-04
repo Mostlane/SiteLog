@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
@@ -178,6 +179,21 @@
   </style>
 </head>
 <body>
+
+<!-- ADMIN LOGIN OVERLAY -->
+
+<div id="adminLoginOverlay" style="position:fixed;inset:0;background:rgba(15,23,42,0.92);display:none;align-items:center;justify-content:center;z-index:99999;padding:20px;">
+  <div style="background:#fff;width:min(380px,100%);border-radius:18px;padding:28px 24px 24px;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <img src="Mostlane Logo.jpg" alt="Mostlane" style="height:28px;border-radius:5px;" onerror="this.style.display='none'"/>
+      <div style="font-size:17px;font-weight:700;color:#0f172a;">Admin Sign In</div>
+    </div>
+    <p style="font-size:13.5px;color:#64748b;margin-bottom:16px;line-height:1.5;">Enter the admin password to access the dashboard.</p>
+    <input id="adminLoginInput" type="password" placeholder="Password" autocomplete="current-password" style="width:100%;height:44px;padding:0 14px;border:1px solid rgba(0,0,0,0.2);border-radius:10px;font-size:16px;margin-bottom:10px;outline:none;" />
+    <div id="adminLoginError" style="font-size:13px;color:#dc2626;min-height:18px;margin-bottom:6px;"></div>
+    <button id="adminLoginBtn" style="width:100%;height:44px;background:#0071e3;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;">Sign In</button>
+  </div>
+</div>
 
 <div class="topbar">
   <div class="topbar-inner">
@@ -406,6 +422,110 @@
 
 <script>
 const API_BASE = "https://sitelog-api.jamie-def.workers.dev";
+
+/* ===== ADMIN AUTH (added) =====
+   Stores admin secret in sessionStorage and attaches it as x-admin-secret to
+   every request to API_BASE. Falls back to a login overlay on 401 or on first
+   load. */
+let __adminSecret = null;
+try { __adminSecret = sessionStorage.getItem("ml_admin_secret") || null; } catch (e) { __adminSecret = null; }
+
+const __originalFetch = window.fetch.bind(window);
+window.fetch = function (input, init) {
+  let urlStr = "";
+  try { urlStr = typeof input === "string" ? input : (input && input.url) || ""; } catch (e) {}
+
+  if (urlStr.indexOf(API_BASE) === 0 && __adminSecret) {
+    init = init || {};
+    const headers = new Headers(init.headers || (typeof input !== "string" && input.headers) || {});
+    headers.set("x-admin-secret", __adminSecret);
+    init.headers = headers;
+  }
+
+  return __originalFetch(input, init).then(function (res) {
+    if (res && res.status === 401 && urlStr.indexOf(API_BASE) === 0) {
+      try { sessionStorage.removeItem("ml_admin_secret"); } catch (e) {}
+      __adminSecret = null;
+      showAdminLogin("Your session has expired. Please sign in again.");
+    }
+    return res;
+  });
+};
+
+function showAdminLogin(msg) {
+  const overlay = document.getElementById("adminLoginOverlay");
+  const errorEl = document.getElementById("adminLoginError");
+  const input = document.getElementById("adminLoginInput");
+  if (!overlay) return;
+  if (errorEl) errorEl.textContent = msg || "";
+  overlay.style.display = "flex";
+  setTimeout(function () { try { input.focus(); } catch (e) {} }, 50);
+}
+
+function hideAdminLogin() {
+  const overlay = document.getElementById("adminLoginOverlay");
+  if (overlay) overlay.style.display = "none";
+}
+
+async function attemptAdminLogin() {
+  const input = document.getElementById("adminLoginInput");
+  const errorEl = document.getElementById("adminLoginError");
+  const btn = document.getElementById("adminLoginBtn");
+  const candidate = (input && input.value) || "";
+  if (!candidate) { errorEl.textContent = "Password required"; return; }
+
+  if (btn) { btn.disabled = true; btn.textContent = "Signing in…"; }
+
+  try {
+    const res = await __originalFetch(API_BASE + "/admin-auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-secret": candidate },
+      body: JSON.stringify({})
+    });
+    if (!res.ok) {
+      errorEl.textContent = "Incorrect password";
+      input.value = "";
+      input.focus();
+      return;
+    }
+    __adminSecret = candidate;
+    try { sessionStorage.setItem("ml_admin_secret", candidate); } catch (e) {}
+    input.value = "";
+    errorEl.textContent = "";
+    hideAdminLogin();
+    if (typeof loadData === "function") loadData();
+  } catch (e) {
+    errorEl.textContent = "Network error. Try again.";
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Sign In"; }
+  }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+  const btn = document.getElementById("adminLoginBtn");
+  const input = document.getElementById("adminLoginInput");
+  if (btn) btn.addEventListener("click", attemptAdminLogin);
+  if (input) input.addEventListener("keydown", function (e) { if (e.key === "Enter") attemptAdminLogin(); });
+
+  if (!__adminSecret) {
+    showAdminLogin();
+  }
+});
+
+/* When admin.html is loaded inside the PWA wrapper (app.html iframe), the
+   wrapper sends the already-validated secret via postMessage so the user
+   doesn't have to enter the PIN twice. We accept it, store it, and bypass
+   the login overlay. */
+window.addEventListener("message", function (ev) {
+  if (!ev || !ev.data || ev.data.type !== "ml_admin_secret") return;
+  const secret = ev.data.secret;
+  if (typeof secret !== "string" || !secret) return;
+  __adminSecret = secret;
+  try { sessionStorage.setItem("ml_admin_secret", secret); } catch (e) {}
+  hideAdminLogin();
+  if (typeof loadData === "function") loadData();
+});
+/* ===== END ADMIN AUTH ===== */
 
 let allVisits = [];
 let filteredVisits = [];
@@ -1725,7 +1845,7 @@ function setPreset(type) {
 });
 
 /* ── INIT ── */
-loadData();
+if (__adminSecret) loadData();
 </script>
 
 </body>

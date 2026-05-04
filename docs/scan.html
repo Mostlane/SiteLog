@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -94,20 +95,22 @@
     </label>
     <button onclick="register()">Confirm &amp; Check In</button>
 
-    <div class="prev-reg-divider" id="prevRegSection">
-      <p class="prev-reg-hint">Registered before on a different phone?</p>
-      <button class="btn-secondary" onclick="showTransferForm()">Previously Registered</button>
-    </div>
+```
+<div class="prev-reg-divider" id="prevRegSection">
+  <p class="prev-reg-hint">Registered before on a different phone?</p>
+  <button class="btn-secondary" onclick="showTransferForm()">Previously Registered</button>
+</div>
 
-    <div id="transferForm">
-      <h3>Link to Previous Registration</h3>
-      <p>Enter the details from your original registration. Mostlane will verify and link your history. You can scan normally while this is pending.</p>
-      <input id="transferFirst" placeholder="First Name">
-      <input id="transferLast" placeholder="Last Name">
-      <input id="transferCompany" placeholder="Company">
-      <button onclick="submitTransfer()">Submit Request</button>
-      <button class="btn-cancel" onclick="hideTransferForm()" style="margin-top:8px;">Cancel</button>
-    </div>
+<div id="transferForm">
+  <h3>Link to Previous Registration</h3>
+  <p>Enter the details from your original registration. Mostlane will verify and link your history. You can scan normally while this is pending.</p>
+  <input id="transferFirst" placeholder="First Name">
+  <input id="transferLast" placeholder="Last Name">
+  <input id="transferCompany" placeholder="Company">
+  <button onclick="submitTransfer()">Submit Request</button>
+  <button class="btn-cancel" onclick="hideTransferForm()" style="margin-top:8px;">Cancel</button>
+</div>
+```
 
   </div>
 </div>
@@ -526,14 +529,31 @@ async function register() {
 
 /* ── GPS ── */
 function startLocation() {
+  // Two-attempt strategy: high-accuracy GPS (30s) → silent fallback to
+  // network/cell positioning. Avoids dead-ends in basements/metal-clad sites.
+  const onSuccess = (pos) => {
+    lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+    showMap(lastLocation.lat, lastLocation.lng);
+    scan();
+  };
+  const onFinalFailure = (err) => {
+    document.getElementById("status").innerText = "Location required: " + err.message;
+  };
+  const tryNetworkFallback = (prevErr) => {
+    navigator.geolocation.getCurrentPosition(
+      onSuccess,
+      (err2) => onFinalFailure(prevErr || err2),
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+    );
+  };
   navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-      showMap(lastLocation.lat, lastLocation.lng);
-      scan();
+    onSuccess,
+    (err) => {
+      // Permission denied → show error immediately. Timeout / unavailable → fallback.
+      if (err.code === 1) onFinalFailure(err);
+      else tryNetworkFallback(err);
     },
-    (err) => { document.getElementById("status").innerText = "Location required: " + err.message; },
-    { enableHighAccuracy: true, timeout: 20000 }
+    { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
   );
 }
 

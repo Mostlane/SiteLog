@@ -517,6 +517,7 @@
     <div class="success-icon" id="appSuccessIcon">&#x2705;</div>
     <div class="success-title" id="appSuccessTitle">Checked In</div>
     <div class="success-sub"   id="appSuccessSub">Recorded successfully</div>
+    <div class="success-travel" id="appSuccessTravel" style="display:none;"></div>
   </div>
 </div>
 
@@ -846,11 +847,12 @@ function showMap(lat, lng) {
 }
 
 // SUCCESS OVERLAY
-function showSuccess(type, siteName, firstName, duration) {
+function showSuccess(type, siteName, firstName, duration, travel) {
   var overlay = document.getElementById("appSuccessOverlay");
   var icon    = document.getElementById("appSuccessIcon");
   var title   = document.getElementById("appSuccessTitle");
   var sub     = document.getElementById("appSuccessSub");
+  var travelEl = document.getElementById("appSuccessTravel");
   if (type === "in") {
     icon.innerHTML  = "&#x2705;";
     title.textContent = firstName ? "Welcome " + firstName : "Checked In";
@@ -863,6 +865,17 @@ function showSuccess(type, siteName, firstName, duration) {
     icon.innerHTML  = "&#x2705;";
     title.textContent = "Registered";
     sub.textContent   = "Check-in confirmed";
+  }
+  // Travel display: only when worker returned travel data for this event
+  if (travelEl) {
+    if (travel && (travel.miles != null || travel.mins != null)) {
+      var label = type === "in" ? "Travel to site" : "Travel home";
+      travelEl.textContent = "\uD83D\uDE97 " + label + ": " + travel.miles + " miles \u00b7 " + travel.mins + " mins";
+      travelEl.style.display = "inline-flex";
+    } else {
+      travelEl.textContent = "";
+      travelEl.style.display = "none";
+    }
   }
   window.__scanJustCompleted = true;
   lastVisibleAt = Date.now();
@@ -978,7 +991,7 @@ async function appConfirmSignOutYes() {
   closeSignOutModal();
   dashSetState("unknown", null, null, null);
   recordLastEvent("Signed out from " + (siteName || "site") + (durText ? " (" + durText + ")" : ""));
-  showSuccess("out", siteName, firstName, durText);
+  showSuccess("out", siteName, firstName, durText, data.travel || null);
 }
 function appConfirmSignOutNo() {
   closeSignOutModal();
@@ -1034,7 +1047,7 @@ async function appConfirmSignInYes() {
   dashSetState("in", siteName, null, checkinTime);
   if (firstName) updateDashInfoStrip(firstName, "", company);
   recordLastEvent("Checked in at " + (siteName || "site"));
-  showSuccess("in", siteName, firstName);
+  showSuccess("in", siteName, firstName, null, data.travel || null);
 }
 function appConfirmSignInNo() { closeSignInModal(); }
 
@@ -1092,7 +1105,8 @@ async function appScan() {
     document.getElementById("appNotYouRow").style.display = "block";
     await dbSet("last_checkin", t);
     dashSetState("in", currentSite, null, t);
-    showSuccess("in", currentSite, firstName);
+    // /scan path doesn't compute travel - that happens on /confirm-checkin
+    showSuccess("in", currentSite, firstName, null, null);
     return;
   }
 
@@ -1107,7 +1121,8 @@ async function appScan() {
       await dbDel("last_checkin");
     }
     dashSetState("unknown", null, null, null);
-    showSuccess("out", currentSite, firstName, durText);
+    // /scan path doesn't compute travel - that happens on /confirm-checkout
+    showSuccess("out", currentSite, firstName, durText, null);
     return;
   }
 }
@@ -1171,7 +1186,7 @@ function startLocation() {
     onSuccess,
     function(err) {
       if (err.code === 1) { onPermissionDenied(err); return; }
-      // Timeout (3) or position unavailable (2) → silent fallback
+      // Timeout (3) or position unavailable (2) -> silent fallback
       tryNetworkFallback(err);
     },
     { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
@@ -1202,7 +1217,7 @@ function checkPin() {
   // Server-side validation. The 4-digit PIN IS the admin secret stored in
   // the Worker as ADMIN_SECRET. Never compared client-side.
   var candidate = pinValue;
-  document.getElementById("pinError").textContent = "Checking…";
+  document.getElementById("pinError").textContent = "Checking...";
 
   fetch(API + "/admin-auth", {
     method: "POST",

@@ -153,29 +153,364 @@
     .card,.filter-card{animation:fadeUp 0.3s ease both;}
     .checkout-field{margin:12px 0 20px;}
     .checkout-field label{display:block;font-size:11.5px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;}
+    /* ============================================================
+       MOBILE - comprehensive rework. Breakpoint at 768px.
+       Goal: feel like a native mobile interface, not a squashed
+       desktop page. Modals become full-screen sheets, tables
+       become card lists, touch targets are 44px+.
+       ============================================================ */
     @media(max-width:768px){
-      .page{padding:12px 10px 0;}
-      .topbar-actions{display:none;}
-      .topbar-subtitle{display:none;}
-      .nav-menu-btn{display:flex;}
-      .filter-body{padding:0 14px 14px;}
-      .filter-group{width:100%;padding-top:12px;}
-      .chip{flex:1 1 auto;text-align:center;}
-      .modal{padding:0;align-items:flex-end;}
-      .modal-content,.ts-modal-content{width:100% !important;max-width:100% !important;max-height:92vh;border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
-      .modal-header{flex-wrap:wrap;gap:8px;}
-      .modal-actions{flex-wrap:wrap;}
-      .modal-actions button{flex:1 1 auto;}
-      .ts-filter-bar{flex-direction:column;padding:12px 14px;gap:10px;}
-      .ts-body{padding:12px 10px;}
-      .row-btns button{flex:1 1 auto;}
-      .add-form-grid{grid-template-columns:1fr 1fr !important;}
-      .eng-stat{min-width:80px;}
-    }
-    @media(max-width:480px){
-      .add-form-grid{grid-template-columns:1fr !important;}
-      .eng-stat{flex:1 1 calc(50% - 4px);}
-    }
+      /* Page edges - give content breathing room */
+      body{padding:0 0 80px 0;}
+      .page{padding:14px 12px 0;}
+
+```
+  /* Topbar - tighter, hamburger only */
+  .topbar{min-height:56px;padding:env(safe-area-inset-top,0) 14px 0 14px;}
+  .topbar-inner{height:56px;}
+  .topbar-actions{display:none;}
+  .topbar-subtitle{display:none;}
+  .topbar-title{font-size:15px;font-weight:700;}
+  .topbar-logo img{height:30px;}
+  .nav-menu-btn{display:flex;width:42px;height:42px;font-size:20px;}
+
+  /* Section header */
+  .section-header{margin-bottom:10px;}
+  .section-label{font-size:12px;}
+
+  /* Filter card - when collapsed, smaller; when open, full-width form */
+  .filter-card{margin-bottom:18px;border-radius:14px;}
+  .filter-toggle{padding:14px 16px;min-height:50px;}
+  .filter-toggle-label{font-size:13px;}
+  .filter-toggle-summary{display:none;} /* save space on small screens */
+  .filter-body{padding:0 14px 16px;flex-direction:column;gap:0;}
+  .filter-body.open{display:flex;}
+  .filter-group{width:100%;padding-top:14px;flex-direction:column;align-items:stretch;gap:12px;}
+  .field-stack{width:100%;}
+  .field-stack input,
+  .field-stack select{width:100% !important;height:44px !important;font-size:16px !important;}
+  .field-label{font-size:11.5px;}
+  select[multiple]{min-height:96px;}
+  .chip-group{gap:8px;width:100%;}
+  .chip{flex:1 1 calc(33.333% - 8px);min-width:0;height:38px;font-size:13px;text-align:center;padding:0 8px;}
+
+  /* Live attendance - switch from table to card list */
+  .card{border-radius:14px;}
+  #liveTable thead{display:none;}
+  #liveTable, #liveTable tbody, #liveTable tr, #liveTable td{display:block;width:100%;}
+  #liveTable tbody tr{
+    padding:14px 16px;
+    border-bottom:1px solid var(--border);
+    position:relative;
+    cursor:pointer;
+    -webkit-tap-highlight-color:rgba(0,113,227,0.08);
+    min-height:64px;
+  }
+  #liveTable tbody tr:active{background:var(--surface2);}
+  #liveTable tbody tr:last-child{border-bottom:none;}
+  #liveTable td{
+    padding:0;
+    border:none;
+    text-align:left !important;
+  }
+  /* Hide most cells; only show the mobile-visible ones */
+  #liveTable tbody td{display:none;}
+  #liveTable tbody td.live-mobile-name{
+    display:block;
+    font-size:16px;
+    font-weight:600;
+    color:var(--label);
+    margin-bottom:3px;
+    padding-right:80px; /* space for the right-aligned pill+duration */
+  }
+  #liveTable tbody td.live-mobile-meta{
+    display:block;
+    font-size:13px;
+    color:var(--label3);
+    padding-right:80px;
+  }
+  #liveTable tbody td.live-mobile-pill{
+    display:block !important;
+    position:absolute;
+    top:14px;
+    right:16px;
+    padding:0;
+  }
+  #liveTable tbody td.live-mobile-duration{
+    display:block;
+    position:absolute;
+    top:42px;
+    right:16px;
+    font-size:13px;
+    font-weight:600;
+    color:var(--label2);
+  }
+  #liveTable tbody .empty-state-row td{display:block !important;}
+
+  /* Modals - full-screen bottom sheets */
+  .modal{padding:0;align-items:flex-end;}
+  .modal-content,.ts-modal-content{
+    width:100% !important;
+    max-width:100% !important;
+    max-height:100vh;
+    height:100vh;
+    border-radius:18px 18px 0 0;
+    display:flex;
+    flex-direction:column;
+  }
+  .modal-header{
+    flex-wrap:nowrap;
+    gap:10px;
+    padding:14px 16px 12px;
+    border-radius:18px 18px 0 0;
+    flex-shrink:0;
+  }
+  .modal-title{font-size:17px;font-weight:700;}
+  .modal-subtitle{font-size:12.5px;}
+  .modal-body{padding:16px 14px 100px 14px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+
+  /* Modal-actions becomes a sticky bottom bar - always reachable */
+  .modal-actions{
+    position:sticky;
+    bottom:0;
+    background:var(--surface);
+    border-top:1px solid var(--border);
+    padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));
+    margin:0;
+    gap:8px;
+    flex-wrap:nowrap;
+    flex-shrink:0;
+  }
+  .modal-actions button{
+    flex:1 1 auto;
+    height:46px;
+    font-size:15px;
+    font-weight:600;
+  }
+
+  /* Modal close affordance - make the "Close" / "Cancel" button bigger */
+  .modal-header .btn-ghost.btn-sm{
+    height:38px;
+    padding:0 14px;
+    font-size:14px;
+  }
+
+  /* Buttons - bigger touch targets */
+  button{min-height:38px;}
+  button.btn-sm{min-height:36px;}
+  .btn-icon{width:42px;}
+  .btn-icon.btn-sm{width:38px;}
+
+  /* Inputs everywhere - 16px to prevent iOS zoom */
+  input[type="text"],
+  input[type="date"],
+  input[type="time"],
+  input[type="number"],
+  input[type="search"],
+  input[type="password"],
+  select,
+  textarea{
+    font-size:16px !important;
+    height:44px;
+  }
+
+  /* Admin tables (inside modals) - switch from horizontal-scroll to stacked cards */
+  .admin-table-scroll{overflow-x:visible;}
+  .admin-table thead{display:none;}
+  .admin-table, .admin-table tbody, .admin-table tr{display:block;width:100%;}
+  .admin-table tbody tr{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:14px;
+    margin-bottom:10px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .admin-table tbody tr:hover td{background:transparent;}
+  .admin-table td{
+    padding:0;
+    border:none;
+    display:block;
+  }
+  /* Each cell gets a label via data-label attribute so users know what's what */
+  .admin-table td[data-label]::before{
+    content:attr(data-label);
+    display:block;
+    font-size:10.5px;
+    font-weight:700;
+    color:var(--label3);
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    margin-bottom:4px;
+  }
+  .admin-table td input{height:42px;font-size:16px;width:100% !important;}
+  .row-btns{justify-content:stretch;flex-wrap:nowrap;gap:8px;}
+  .row-btns button{flex:1 1 auto;height:40px;}
+
+  /* Sites modal - company chip area */
+  .site-row-detail{padding:14px !important;}
+  .site-companies-section{padding-top:6px;}
+  .company-chip-toggle{padding:8px 14px;font-size:13px;min-height:36px;}
+
+  /* Add Site / Add Engineer add forms */
+  .add-form{padding:14px;border-radius:12px;margin-bottom:14px;}
+  .add-form-grid{grid-template-columns:1fr !important;gap:10px;}
+  .add-form-title{font-size:11.5px;}
+
+  /* Timesheets modal - special handling */
+  .ts-modal-content{height:100vh;max-height:100vh;}
+  .ts-filter-bar{
+    flex-direction:column;
+    padding:14px;
+    gap:12px;
+    position:sticky;
+    top:0;
+    z-index:5;
+    background:var(--surface2);
+  }
+  .ts-filter-bar .field-stack{width:100%;}
+  .ts-filter-bar select,.ts-filter-bar input{width:100% !important;height:44px;font-size:16px;}
+  .ts-body{padding:14px 12px 100px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .ts-meta{font-size:12px;}
+  .ts-company-title{font-size:12px;padding:8px 0 6px;}
+  .ts-engineer-block{border-radius:14px;margin-bottom:14px;}
+  .ts-engineer-header{padding:14px;}
+  .ts-engineer-title{font-size:17px;}
+  .ts-engineer-admin{grid-template-columns:1fr 1fr;gap:8px;}
+  .ts-engineer-admin .full,
+  .ts-engineer-admin > input:nth-child(3){grid-column:1 / -1;}
+  .ts-engineer-admin input{height:42px;font-size:16px;}
+  .ts-engineer-admin-btns{flex-wrap:wrap;}
+  .ts-engineer-admin-btns button{flex:1 1 calc(50% - 4px);min-height:38px;}
+
+  /* Engineer stats strip - 3 across on mobile */
+  .eng-stats{padding:10px;gap:6px;}
+  .eng-stat{flex:1 1 calc(33.333% - 4px);min-width:0;padding:8px 6px;}
+  .eng-stat-val{font-size:14px;}
+  .eng-stat-label{font-size:9.5px;letter-spacing:0.3px;}
+
+  /* Weekly timesheet tables - convert to cards too */
+  .ts-week-block{padding:14px;}
+  .ts-week-header{flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+  .ts-week-text{font-size:12.5px;}
+  .ts-pill{font-size:11.5px;padding:3px 8px;}
+  .ts-table-wrap{overflow-x:visible;border:none;border-radius:0;}
+  .ts-table{min-width:0;display:block;}
+  .ts-table thead{display:none;}
+  .ts-table tbody{display:block;}
+  .ts-table tbody tr{
+    display:block;
+    background:var(--surface2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px;
+    margin-bottom:8px;
+  }
+  .ts-table tbody tr td{
+    display:block;
+    padding:0;
+    border:none;
+  }
+  .ts-table tbody tr td[data-label]::before{
+    content:attr(data-label);
+    display:inline-block;
+    min-width:88px;
+    font-size:10.5px;
+    font-weight:700;
+    color:var(--label3);
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    margin-right:8px;
+  }
+  .ts-table tbody tr td{padding:3px 0;font-size:13px;}
+  .ts-table tfoot{display:block;}
+  .ts-table tfoot tr{
+    display:block;
+    background:var(--surface3);
+    border-radius:10px;
+    padding:12px;
+    margin-top:6px;
+  }
+  .ts-table tfoot td{
+    display:block;
+    padding:2px 0;
+    font-size:13px;
+  }
+  .ts-table tfoot td[data-label]::before{
+    content:attr(data-label);
+    display:inline-block;
+    min-width:120px;
+    font-size:10.5px;
+    font-weight:700;
+    color:var(--label3);
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    margin-right:8px;
+  }
+  .ts-visit-edit{flex-direction:column;align-items:stretch;gap:8px;min-width:0;}
+  .ts-visit-edit input{width:100% !important;height:40px;font-size:16px;}
+  .ts-visit-edit button{height:38px;}
+  .ts-summary{padding:12px;flex-direction:column;align-items:stretch;}
+  .ts-summary .ts-pill{width:100%;text-align:center;}
+
+  /* Export modal stat grid - single col on small screens */
+  #exportModal .modal-body > div[style*="grid-template-columns:repeat(2"]{
+    grid-template-columns:1fr 1fr !important;
+    gap:8px !important;
+  }
+
+  /* Manual checkout / delete / approve modals - these are shorter, allow auto height */
+  #deleteModal .modal-content,
+  #manualCheckoutModal .modal-content,
+  #approveTransferModal .modal-content,
+  #liveDetailModal .modal-content{
+    height:auto;
+    max-height:90vh;
+  }
+}
+
+@media(max-width:480px){
+  .topbar-title{font-size:14px;}
+  .add-form-grid{grid-template-columns:1fr !important;}
+  .eng-stat{flex:1 1 calc(33.333% - 4px);}
+  .ts-engineer-admin{grid-template-columns:1fr;}
+  .chip{flex:1 1 calc(50% - 8px);}
+}
+
+/* Live row detail modal - dedicated styles for the new tap-to-view sheet */
+.live-detail-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  padding:11px 0;
+  border-bottom:1px solid var(--border);
+  gap:14px;
+}
+.live-detail-row:last-of-type{border-bottom:none;}
+.live-detail-label{
+  font-size:12px;
+  font-weight:600;
+  color:var(--label3);
+  text-transform:uppercase;
+  letter-spacing:0.4px;
+  flex-shrink:0;
+  padding-top:1px;
+}
+.live-detail-val{
+  font-size:14px;
+  color:var(--label);
+  text-align:right;
+  font-weight:500;
+  word-break:break-word;
+}
+.live-detail-val.muted{color:var(--label3);}
+.live-detail-val .check-icon{font-size:16px;}
+.live-detail-val .cross-icon{font-size:16px;}
+.live-detail-pill{display:inline-flex;}
+```
+
   </style>
 </head>
 <body>
@@ -285,6 +620,32 @@
     <div class="modal-header"><div><div class="modal-title">Delete Visit</div><div class="modal-subtitle">This cannot be undone</div></div></div>
     <div class="modal-body"><p id="deleteText" style="color:var(--label2);font-size:14px;line-height:1.5;"></p></div>
     <div class="modal-actions"><button class="btn-ghost" onclick="closeDeleteModal()">Cancel</button><button class="btn-danger" onclick="confirmDelete()">Delete Visit</button></div>
+  </div>
+</div>
+
+<div id="liveDetailModal" class="modal">
+  <div class="modal-content" style="width:min(440px,100%);">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="liveDetailName">Visit Detail</div>
+        <div class="modal-subtitle" id="liveDetailSubtitle">Currently on site</div>
+      </div>
+      <button class="btn-ghost btn-sm" onclick="closeLiveDetailModal()">Close</button>
+    </div>
+    <div class="modal-body">
+      <div class="live-detail-row"><div class="live-detail-label">Status</div><div class="live-detail-val" id="liveDetailStatus"></div></div>
+      <div class="live-detail-row"><div class="live-detail-label">Company</div><div class="live-detail-val" id="liveDetailCompany"></div></div>
+      <div class="live-detail-row"><div class="live-detail-label">Purpose</div><div class="live-detail-val" id="liveDetailPurpose"></div></div>
+      <div class="live-detail-row"><div class="live-detail-label">Site</div><div class="live-detail-val" id="liveDetailSite"></div></div>
+      <div class="live-detail-row"><div class="live-detail-label">Checked in</div><div class="live-detail-val" id="liveDetailCheckin"></div></div>
+      <div class="live-detail-row"><div class="live-detail-label">Duration</div><div class="live-detail-val" id="liveDetailDuration"></div></div>
+      <div class="live-detail-row"><div class="live-detail-label">Device</div><div class="live-detail-val" id="liveDetailDevice"></div></div>
+      <div class="live-detail-row"><div class="live-detail-label">GPS</div><div class="live-detail-val" id="liveDetailGps"></div></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeLiveDetailModal()">Close</button>
+      <button class="btn-danger" id="liveDetailSignOutBtn" onclick="liveDetailTriggerSignOut()">Sign Out</button>
+    </div>
   </div>
 </div>
 
@@ -811,26 +1172,83 @@ function renderLive() {
   const live = filteredVisits.filter(v => !v.check_out_at).filter(passFilters);
 
   if (!live.length) {
-    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">&#128205;</div><p>No one currently on site.</p></div></td></tr>';
+    tbody.innerHTML = '<tr class="empty-state-row"><td colspan="10"><div class="empty-state"><div class="empty-icon">&#128205;</div><p>No one currently on site.</p></div></td></tr>';
     return;
   }
 
   tbody.innerHTML = live.map(v => {
     const hasDevice = !!v.device_token;
     const hasGps = (v.lat != null && v.lng != null);
-    return '<tr>' +
-      '<td><span class="pill pill-live">Live</span></td>' +
-      '<td style="font-weight:500;"><span class="name-link" onclick="openTimesheetForPerson(\'' + escapeHtml(nameOf(v)) + '\',\'' + escapeHtml(v.company || "") + '\')">' + escapeHtml(nameOf(v)) + '</span></td>' +
-      '<td>' + escapeHtml(v.company || "-") + '</td>' +
-      '<td>' + escapeHtml(v.purpose || "-") + '</td>' +
-      '<td><span style="font-size:12px;background:var(--surface3);padding:2px 8px;border-radius:4px;">' + escapeHtml(v.site_code || "-") + '</span></td>' +
-      '<td style="color:var(--label3);font-size:12.5px;">' + escapeHtml(toLocal(v.check_in_at)) + '</td>' +
-      '<td style="font-weight:500;">' + escapeHtml(fmtDuration(minutesBetween(v.check_in_at, null))) + '</td>' +
-      '<td style="text-align:center;">' + (hasDevice ? '<span class="check-icon">&#10003;</span>' : '<span class="cross-icon">&#8212;</span>') + '</td>' +
-      '<td style="text-align:center;">' + (hasGps ? '<span class="check-icon">&#10003;</span>' : '<span class="cross-icon">&#8212;</span>') + '</td>' +
-      '<td style="text-align:right;"><button class="btn-danger btn-sm" onclick="openManualCheckoutModal(\'' + escapeHtml(v.visit_id) + '\',\'' + escapeHtml(nameOf(v)) + '\',\'' + escapeHtml(v.check_in_at) + '\')">Sign out</button></td>' +
+    const safeId = escapeHtml(v.visit_id);
+    const safeName = escapeHtml(nameOf(v));
+    const safeCompany = escapeHtml(v.company || "");
+    const safeCheckin = escapeHtml(v.check_in_at || "");
+    return '<tr data-visit-id="' + safeId + '" onclick="openLiveDetailModal(this)">' +
+      '<td data-label="Status"><span class="pill pill-live">Live</span></td>' +
+      '<td class="live-mobile-name" data-label="Name" style="font-weight:500;">' +
+        '<span class="name-link" onclick="event.stopPropagation();openTimesheetForPerson(\'' + safeName + '\',\'' + safeCompany + '\')">' + safeName + '</span>' +
+      '</td>' +
+      '<td class="live-mobile-meta" data-label="Company">' + escapeHtml(v.company || "-") + (v.purpose ? ' &middot; ' + escapeHtml(v.purpose) : '') + ' &middot; ' + escapeHtml(v.site_code || "-") + '</td>' +
+      '<td data-label="Purpose">' + escapeHtml(v.purpose || "-") + '</td>' +
+      '<td data-label="Site"><span style="font-size:12px;background:var(--surface3);padding:2px 8px;border-radius:4px;">' + escapeHtml(v.site_code || "-") + '</span></td>' +
+      '<td data-label="Checked in" style="color:var(--label3);font-size:12.5px;">' + escapeHtml(toLocal(v.check_in_at)) + '</td>' +
+      '<td class="live-mobile-pill" data-label="Status (mobile)" style="display:none;"><span class="pill pill-live">Live</span></td>' +
+      '<td class="live-mobile-duration" data-label="Duration" style="font-weight:500;">' + escapeHtml(fmtDuration(minutesBetween(v.check_in_at, null))) + '</td>' +
+      '<td data-label="Device" style="text-align:center;">' + (hasDevice ? '<span class="check-icon">&#10003;</span>' : '<span class="cross-icon">&#8212;</span>') + '</td>' +
+      '<td data-label="GPS" style="text-align:center;">' + (hasGps ? '<span class="check-icon">&#10003;</span>' : '<span class="cross-icon">&#8212;</span>') + '</td>' +
+      '<td data-label="Action" style="text-align:right;">' +
+        '<button class="btn-danger btn-sm" onclick="event.stopPropagation();openManualCheckoutModal(\'' + safeId + '\',\'' + safeName + '\',\'' + safeCheckin + '\')">Sign out</button>' +
+      '</td>' +
       '</tr>';
   }).join("");
+}
+
+let liveDetailVisitId = null;
+
+function openLiveDetailModal(rowEl) {
+  if (!rowEl) return;
+  const visitId = rowEl.getAttribute("data-visit-id");
+  if (!visitId) return;
+  const v = filteredVisits.find(x => String(x.visit_id) === String(visitId));
+  if (!v) return;
+
+  liveDetailVisitId = visitId;
+
+  const hasDevice = !!v.device_token;
+  const hasGps = (v.lat != null && v.lng != null);
+
+  document.getElementById("liveDetailName").textContent = nameOf(v) || "Visit";
+  document.getElementById("liveDetailSubtitle").textContent = "Currently on site";
+  document.getElementById("liveDetailStatus").innerHTML = '<span class="pill pill-live">Live</span>';
+  document.getElementById("liveDetailCompany").textContent = v.company || "—";
+  document.getElementById("liveDetailPurpose").textContent = v.purpose || "—";
+  document.getElementById("liveDetailSite").textContent = v.site_code || "—";
+  document.getElementById("liveDetailCheckin").textContent = toLocal(v.check_in_at);
+  document.getElementById("liveDetailDuration").textContent = fmtDuration(minutesBetween(v.check_in_at, null));
+  document.getElementById("liveDetailDevice").innerHTML = hasDevice
+    ? '<span class="check-icon">&#10003;</span> Registered'
+    : '<span class="cross-icon">&#8212;</span> Not registered';
+  document.getElementById("liveDetailGps").innerHTML = hasGps
+    ? '<span class="check-icon">&#10003;</span> ' + Number(v.lat).toFixed(4) + ', ' + Number(v.lng).toFixed(4)
+    : '<span class="cross-icon">&#8212;</span> No coords';
+
+  document.getElementById("liveDetailModal").style.display = "flex";
+}
+
+function closeLiveDetailModal() {
+  document.getElementById("liveDetailModal").style.display = "none";
+  liveDetailVisitId = null;
+}
+
+function liveDetailTriggerSignOut() {
+  if (!liveDetailVisitId) return;
+  const v = filteredVisits.find(x => String(x.visit_id) === String(liveDetailVisitId));
+  if (!v) { closeLiveDetailModal(); return; }
+  const visitId = liveDetailVisitId;
+  const name = nameOf(v);
+  const checkIn = v.check_in_at || "";
+  closeLiveDetailModal();
+  openManualCheckoutModal(visitId, name, checkIn);
 }
 function openTimesheetForPerson(name, company) {
   openTimesheetsModal();
@@ -1021,11 +1439,11 @@ async function openTransfersModal() {
       '<div class="admin-table-scroll"><table class="admin-table">' +
       '<thead><tr><th>Requested</th><th>Name</th><th>Company</th><th>Visits since request</th><th style="text-align:right;">Actions</th></tr></thead>' +
       '<tbody>' + transfers.map(t => '<tr>' +
-        '<td style="font-size:12px;color:var(--label3);">' + escapeHtml(toLocal(t.requested_at)) + '</td>' +
-        '<td style="font-weight:600;">' + escapeHtml((t.first_name || "") + " " + (t.last_name || "")) + '</td>' +
-        '<td>' + escapeHtml(t.company || "") + '</td>' +
-        '<td style="text-align:center;">' + escapeHtml(String(t.visit_count || 0)) + '</td>' +
-        '<td><div class="row-btns">' +
+        '<td data-label="Requested" style="font-size:12px;color:var(--label3);">' + escapeHtml(toLocal(t.requested_at)) + '</td>' +
+        '<td data-label="Name" style="font-weight:600;">' + escapeHtml((t.first_name || "") + " " + (t.last_name || "")) + '</td>' +
+        '<td data-label="Company">' + escapeHtml(t.company || "") + '</td>' +
+        '<td data-label="Visits since request" style="text-align:center;">' + escapeHtml(String(t.visit_count || 0)) + '</td>' +
+        '<td data-label="Actions"><div class="row-btns">' +
         '<button class="btn-primary btn-sm" onclick="openApproveTransfer(\'' + escapeHtml(t.id) + '\',\'' + escapeHtml((t.first_name || "") + " " + (t.last_name || "")) + '\',\'' + escapeHtml(t.company || "") + '\')">Approve</button>' +
         '<button class="btn-danger btn-sm" onclick="rejectTransfer(\'' + escapeHtml(t.id) + '\',\'' + escapeHtml((t.first_name || "") + " " + (t.last_name || "")) + '\')">Reject</button>' +
         '</div></td>' +
@@ -1219,18 +1637,18 @@ function buildWeekTable(visits, name, company, weekKey, eng) {
     }
 
     return '<tr>' +
-      '<td>' + escapeHtml(formatTSDate(day)) + '</td>' +
-      '<td>' + escapeHtml(v.site_code || "-") + '</td>' +
-      '<td>' + escapeHtml(formatTimeOnly(v.check_in_at)) + '</td>' +
-      '<td>' + escapeHtml(v.check_out_at ? formatTimeOnly(v.check_out_at) : "-") + '</td>' +
-      '<td>' + escapeHtml(totalH.toFixed(2)) + '</td>' +
-      '<td>' + escapeHtml(stdH.toFixed(2)) + '</td>' +
-      '<td>' + escapeHtml(otH.toFixed(2)) + '</td>' +
-      (hasTravelPay ? '<td>' + tiHtml + '</td><td>' + toHtml + '</td>' : '') +
-      '<td class="ts-cell-center">' + (hasDevice ? '<span class="check-icon">&#10003;</span>' : '<span class="cross-icon">&#8212;</span>') + '</td>' +
-      '<td class="ts-cell-center">' + (hasGps ? '<span class="check-icon">&#10003;</span> ' + mapPinHtml(v) : '<span class="cross-icon">&#8212;</span>') + '</td>' +
-      '<td>' + noteHtml + '</td>' +
-      '<td><div class="ts-visit-edit">' +
+      '<td data-label="Date">' + escapeHtml(formatTSDate(day)) + '</td>' +
+      '<td data-label="Site">' + escapeHtml(v.site_code || "-") + '</td>' +
+      '<td data-label="Start">' + escapeHtml(formatTimeOnly(v.check_in_at)) + '</td>' +
+      '<td data-label="Finish">' + escapeHtml(v.check_out_at ? formatTimeOnly(v.check_out_at) : "-") + '</td>' +
+      '<td data-label="Total hours">' + escapeHtml(totalH.toFixed(2)) + '</td>' +
+      '<td data-label="Std hours">' + escapeHtml(stdH.toFixed(2)) + '</td>' +
+      '<td data-label="OT hours">' + escapeHtml(otH.toFixed(2)) + '</td>' +
+      (hasTravelPay ? '<td data-label="Travel in">' + tiHtml + '</td><td data-label="Travel out">' + toHtml + '</td>' : '') +
+      '<td data-label="Device" class="ts-cell-center">' + (hasDevice ? '<span class="check-icon">&#10003;</span>' : '<span class="cross-icon">&#8212;</span>') + '</td>' +
+      '<td data-label="Location" class="ts-cell-center">' + (hasGps ? '<span class="check-icon">&#10003;</span> ' + mapPinHtml(v) : '<span class="cross-icon">&#8212;</span>') + '</td>' +
+      '<td data-label="Notes">' + noteHtml + '</td>' +
+      '<td data-label="Edit"><div class="ts-visit-edit">' +
         '<input data-visit-in="' + escapeHtml(v.visit_id) + '" value="' + escapeHtml(sqlShort(v.check_in_at)) + '" placeholder="YYYY-MM-DD HH:MM">' +
         '<input data-visit-out="' + escapeHtml(v.visit_id) + '" value="' + escapeHtml(sqlShort(v.check_out_at)) + '" placeholder="YYYY-MM-DD HH:MM">' +
         '<button class="btn-ghost btn-sm" onclick="saveVisitTimes(\'' + escapeHtml(v.visit_id) + '\')">Save</button>' +
@@ -1248,7 +1666,7 @@ function buildWeekTable(visits, name, company, weekKey, eng) {
     '<div class="ts-table-wrap"><table class="ts-table">' +
     '<thead><tr><th style="width:140px;">Date</th><th>Site</th><th style="width:75px;">Start</th><th style="width:75px;">Finish</th><th style="width:90px;">Total hrs</th><th style="width:90px;">Std hrs</th><th style="width:90px;">OT hrs</th>' + th + '<th style="width:80px;">Device</th><th style="width:90px;">Location</th><th style="width:140px;">Notes</th><th>Admin</th></tr></thead>' +
     '<tbody>' + rows + '</tbody>' +
-    '<tfoot><tr><td colspan="4">Weekly totals</td><td>' + escapeHtml(totTotal.toFixed(2)) + '</td><td>' + escapeHtml(totStd.toFixed(2)) + '</td><td>' + escapeHtml(totOT.toFixed(2)) + '</td>' + tf + '<td colspan="4" style="color:var(--label3);font-size:12px;">Engineer week total</td></tr></tfoot>' +
+    '<tfoot><tr><td data-label="Section" colspan="4">Weekly totals</td><td data-label="Total hrs">' + escapeHtml(totTotal.toFixed(2)) + '</td><td data-label="Std hrs">' + escapeHtml(totStd.toFixed(2)) + '</td><td data-label="OT hrs">' + escapeHtml(totOT.toFixed(2)) + '</td>' + tf + '<td data-label="Note" colspan="4" style="color:var(--label3);font-size:12px;">Engineer week total</td></tr></tfoot>' +
     '</table></div>' +
     '<div class="ts-summary"><span class="ts-pill">Std: ' + escapeHtml(totStd.toFixed(2)) + 'h</span><span class="ts-pill">OT: ' + escapeHtml(totOT.toFixed(2)) + 'h</span><span class="ts-pill">Total: ' + escapeHtml(totTotal.toFixed(2)) + 'h</span>' + ts + '</div>' +
     '</div>';
@@ -1493,7 +1911,7 @@ function renderSitesAdminTable() {
       return '<span class="company-chip-toggle ' + active + '" data-site-id="' + escapeHtml(s.id) + '" data-company-id="' + escapeHtml(c.id) + '" onclick="toggleSiteCompanyChip(this)">' + escapeHtml(c.name) + '</span>';
     }).join("");
 
-    return '<tr><td>' + pill + '</td><td><input data-site-name="' + escapeHtml(s.id) + '" value="' + escapeHtml(s.site_name || "") + '"/></td><td style="color:var(--label3);font-size:12px;">' + escapeHtml((s.lat ?? "-") + ", " + (s.lng ?? "-")) + '</td><td><input data-site-radius="' + escapeHtml(s.id) + '" type="number" min="50" step="10" value="' + escapeHtml(s.radius_m ?? 500) + '" style="width:80px;"/></td><td><div class="row-btns"><button class="btn-primary btn-sm" onclick="saveSite(\'' + escapeHtml(s.id) + '\')">Save</button><button class="btn-ghost btn-sm" onclick="toggleSite(\'' + escapeHtml(s.id) + '\')">' + (isArch ? "Unarchive" : "Archive") + '</button></div></td></tr>' +
+    return '<tr><td data-label="Status">' + pill + '</td><td data-label="Site name"><input data-site-name="' + escapeHtml(s.id) + '" value="' + escapeHtml(s.site_name || "") + '"/></td><td data-label="Lat/Lng" style="color:var(--label3);font-size:12px;">' + escapeHtml((s.lat ?? "-") + ", " + (s.lng ?? "-")) + '</td><td data-label="Radius (m)"><input data-site-radius="' + escapeHtml(s.id) + '" type="number" min="50" step="10" value="' + escapeHtml(s.radius_m ?? 500) + '" style="width:80px;"/></td><td data-label="Actions"><div class="row-btns"><button class="btn-primary btn-sm" onclick="saveSite(\'' + escapeHtml(s.id) + '\')">Save</button><button class="btn-ghost btn-sm" onclick="toggleSite(\'' + escapeHtml(s.id) + '\')">' + (isArch ? "Unarchive" : "Archive") + '</button></div></td></tr>' +
       '<tr class="site-row-detail"><td colspan="5"><div class="site-companies-section"><div class="site-companies-label">' + escapeHtml(s.site_name || "Site") + '</div><div class="company-chip-row" id="chips-' + escapeHtml(s.id) + '">' + (chips || '<span style="color:var(--label4);font-size:12px;">No companies</span>') + '</div><div style="margin-top:8px;"><button class="btn-primary btn-sm" onclick="saveSiteCompanies(\'' + escapeHtml(s.id) + '\')">Save company assignments</button></div></div></td></tr>';
   }).join("");
 
@@ -1629,13 +2047,13 @@ function renderEngineersTable() {
     const ct = p.travel_cap_type || "";
     const cv = p.travel_cap_value != null ? p.travel_cap_value : "";
 
-    return '<tr><td>' + pill + '</td>' +
-      '<td><input data-eng-first="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.first_name || "") + '"/></td>' +
-      '<td><input data-eng-last="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.last_name || "") + '"/></td>' +
-      '<td><input data-eng-company="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.company || "") + '"/></td>' +
-      '<td><input data-eng-purpose="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.purpose || "") + '"/></td>' +
-      '<td><input data-eng-rate="' + escapeHtml(p.id) + '" type="number" step="0.01" min="0" value="' + escapeHtml(p.hourly_rate != null ? String(p.hourly_rate) : "") + '" placeholder="-" style="width:80px;"/></td>' +
-      '<td>' +
+    return '<tr><td data-label="Status">' + pill + '</td>' +
+      '<td data-label="First name"><input data-eng-first="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.first_name || "") + '"/></td>' +
+      '<td data-label="Last name"><input data-eng-last="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.last_name || "") + '"/></td>' +
+      '<td data-label="Company"><input data-eng-company="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.company || "") + '"/></td>' +
+      '<td data-label="Purpose"><input data-eng-purpose="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.purpose || "") + '"/></td>' +
+      '<td data-label="Rate (per hr)"><input data-eng-rate="' + escapeHtml(p.id) + '" type="number" step="0.01" min="0" value="' + escapeHtml(p.hourly_rate != null ? String(p.hourly_rate) : "") + '" placeholder="-" style="width:80px;"/></td>' +
+      '<td data-label="Travel">' +
         '<div class="travel-section" style="min-width:260px;">' +
           '<div class="travel-section-label">Travel</div>' +
           '<div class="travel-fields">' +
@@ -1653,7 +2071,7 @@ function renderEngineersTable() {
               '<input type="number" data-eng-cap-val="' + escapeHtml(p.id) + '" value="' + escapeHtml(String(cv)) + '" placeholder="e.g. 30" style="width:70px;" min="0" step="1">' +
             '</div></div></div>' +
       '</td>' +
-      '<td><div class="row-btns"><button class="btn-primary btn-sm" onclick="saveEngineer(\'' + escapeHtml(p.id) + '\')">Save</button><button class="btn-ghost btn-sm" onclick="toggleEngineer(\'' + escapeHtml(p.id) + '\')">' + (isArch ? "Unarchive" : "Archive") + '</button></div></td>' +
+      '<td data-label="Actions"><div class="row-btns"><button class="btn-primary btn-sm" onclick="saveEngineer(\'' + escapeHtml(p.id) + '\')">Save</button><button class="btn-ghost btn-sm" onclick="toggleEngineer(\'' + escapeHtml(p.id) + '\')">' + (isArch ? "Unarchive" : "Archive") + '</button></div></td>' +
       '</tr>';
   }).join("");
 
@@ -1727,7 +2145,7 @@ function closeCompaniesModal() {
 }
 function renderCompaniesAdmin() {
   const wrap = document.getElementById("companiesAdminBody");
-  const rows = companiesAll.map(c => '<tr><td style="font-weight:500;">' + escapeHtml(c.name) + '</td><td><div class="row-btns"><button class="btn-danger btn-sm" onclick="deleteCompany(\'' + escapeHtml(c.id) + '\',\'' + escapeHtml(c.name) + '\')">Delete</button></div></td></tr>').join("");
+  const rows = companiesAll.map(c => '<tr><td data-label="Company name" style="font-weight:500;">' + escapeHtml(c.name) + '</td><td data-label="Actions"><div class="row-btns"><button class="btn-danger btn-sm" onclick="deleteCompany(\'' + escapeHtml(c.id) + '\',\'' + escapeHtml(c.name) + '\')">Delete</button></div></td></tr>').join("");
   wrap.innerHTML =
     '<div class="add-form" style="margin-bottom:16px;"><div class="add-form-title">Add New Company</div><div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;"><div class="field-stack" style="flex:1;min-width:180px;"><span class="field-label">Company Name</span><input id="newCompanyName" type="text" placeholder="e.g. Acme Ltd" style="width:100%;"/></div><button class="btn-primary" onclick="addCompany()">Add Company</button></div></div>' +
     (companiesAll.length

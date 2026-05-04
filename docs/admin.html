@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
@@ -163,8 +162,6 @@
       /* Page edges - give content breathing room */
       body{padding:0 0 80px 0;}
       .page{padding:14px 12px 0;}
-
-```
   /* Topbar - tighter, hamburger only */
   .topbar{min-height:56px;padding:env(safe-area-inset-top,0) 14px 0 14px;}
   .topbar-inner{height:56px;}
@@ -509,14 +506,12 @@
 .live-detail-val .check-icon{font-size:16px;}
 .live-detail-val .cross-icon{font-size:16px;}
 .live-detail-pill{display:inline-flex;}
-```
-
-  </style>
+      </style>
 </head>
 <body>
 
-<!-- ADMIN LOGIN OVERLAY -->
 
+  <!-- ADMIN LOGIN OVERLAY -->
 <div id="adminLoginOverlay" style="position:fixed;inset:0;background:rgba(15,23,42,0.92);display:none;align-items:center;justify-content:center;z-index:99999;padding:20px;">
   <div style="background:#fff;width:min(380px,100%);border-radius:18px;padding:28px 24px 24px;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
@@ -529,12 +524,11 @@
     <button id="adminLoginBtn" style="width:100%;height:44px;background:#0071e3;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;">Sign In</button>
   </div>
 </div>
-
 <div class="topbar">
   <div class="topbar-inner">
     <div class="topbar-brand">
       <div class="topbar-logo">
-        <img src="Mostlane Logo.jpg" alt="Mostlane" onerror="this.parentElement.innerHTML='<div class=topbar-logo-fallback>S</div>'"/>
+        <img src="Mostlane Logo.jpg" alt="Mostlane" onerror="this.style.display='none';var f=document.createElement('div');f.className='topbar-logo-fallback';f.textContent='S';this.parentElement.appendChild(f);"/>
       </div>
       <div>
         <div class="topbar-title">SiteLog</div>
@@ -554,7 +548,6 @@
     <button class="nav-menu-btn" onclick="toggleNavDrawer()" id="navMenuBtn">&#9776;</button>
   </div>
 </div>
-
 <div class="nav-drawer" id="navDrawer">
   <button class="btn-ghost" onclick="openTimesheetsModal();closeNavDrawer()">&#129534; Timesheets</button>
   <button class="btn-ghost" onclick="openSitesModal();closeNavDrawer()">&#128194; Sites</button>
@@ -565,7 +558,6 @@
 <button class="btn-primary" onclick="openExportModal();closeNavDrawer()">&#8593; Export PDF</button>
   <button class="btn-ghost" onclick="loadData();closeNavDrawer()">&#8635; Refresh</button>
 </div>
-
 <div class="page">
   <div class="filter-card">
     <div class="filter-toggle" onclick="toggleFilters()">
@@ -598,11 +590,10 @@
       </div>
     </div>
   </div>
-
   <div class="section-header"><span class="section-label">&#128994; Live on site</span></div>
   <div class="card" style="margin-bottom:32px;">
     <div class="table-wrap">
-      <table>
+      <table id="liveTable">
         <thead><tr>
           <th>Status</th><th>Name</th><th>Company</th><th>Purpose</th><th>Site</th>
           <th>Checked in</th><th>Duration</th>
@@ -614,7 +605,6 @@
     </div>
   </div>
 </div>
-
 <div id="deleteModal" class="modal">
   <div class="modal-content" style="width:min(400px,100%);">
     <div class="modal-header"><div><div class="modal-title">Delete Visit</div><div class="modal-subtitle">This cannot be undone</div></div></div>
@@ -622,7 +612,6 @@
     <div class="modal-actions"><button class="btn-ghost" onclick="closeDeleteModal()">Cancel</button><button class="btn-danger" onclick="confirmDelete()">Delete Visit</button></div>
   </div>
 </div>
-
 <div id="liveDetailModal" class="modal">
   <div class="modal-content" style="width:min(440px,100%);">
     <div class="modal-header">
@@ -648,7 +637,6 @@
     </div>
   </div>
 </div>
-
 <div id="manualCheckoutModal" class="modal">
   <div class="modal-content" style="width:min(420px,100%);">
     <div class="modal-header"><div><div class="modal-title">Manual Sign Out</div><div class="modal-subtitle" id="manualCheckoutText"></div></div></div>
@@ -656,7 +644,6 @@
     <div class="modal-actions"><button class="btn-ghost" onclick="closeManualCheckoutModal()">Cancel</button><button class="btn-danger" onclick="confirmManualCheckout()">Confirm Sign Out</button></div>
   </div>
 </div>
-
 <div id="exportModal" class="modal">
   <div class="modal-content" style="width:min(560px,100%);">
     <div class="modal-header">
@@ -677,7 +664,6 @@
     <div class="modal-actions"><button class="btn-ghost" onclick="closeExportModal()">Cancel</button><button class="btn-primary" onclick="generatePDF()">Generate PDF</button></div>
   </div>
 </div>
-
 <div id="transfersModal" class="modal">
   <div class="modal-content" style="width:min(720px,100%);">
     <div class="modal-header">
@@ -690,7 +676,6 @@
     </div>
   </div>
 </div>
-
 <div id="approveTransferModal" class="modal">
   <div class="modal-content" style="width:min(500px,100%);">
     <div class="modal-header"><div><div class="modal-title">Approve Transfer</div><div class="modal-subtitle" id="approveTransferSubtitle"></div></div></div>
@@ -707,7 +692,6 @@
     </div>
   </div>
 </div>
-
 <div id="sitesModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
@@ -730,7 +714,6 @@
     </div>
   </div>
 </div>
-
 <div id="engineersModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
@@ -743,7 +726,6 @@
     </div>
   </div>
 </div>
-
 <div id="companiesModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
@@ -753,7 +735,6 @@
     <div class="modal-body"><div id="companiesAdminBody"></div></div>
   </div>
 </div>
-
 <div id="timesheetsModal" class="modal">
   <div class="ts-modal-content" id="timesheetsPdfRoot">
     <div class="modal-header" style="border-radius:20px 20px 0 0;">
@@ -780,7 +761,6 @@
     </div>
   </div>
 </div>
-
 <script>
 const API_BASE = "https://sitelog-api.jamie-def.workers.dev";
 
@@ -2209,6 +2189,7 @@ document.addEventListener("keydown", function(e) {
     closeNavDrawer();
     [
       "deleteModal",
+      "liveDetailModal",
       "manualCheckoutModal",
       "exportModal",
       "transfersModal",
@@ -2265,6 +2246,5 @@ function setPreset(type) {
 /* ── INIT ── */
 if (__adminSecret) loadData();
 </script>
-
 </body>
 </html>

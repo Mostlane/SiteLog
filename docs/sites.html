@@ -284,6 +284,12 @@
 <script>
 const API = "https://sitelog-api.jamie-def.workers.dev";
 
+// Admin password (set when signing in to the dashboard). /add-site requires it.
+function getAdminSecret() {
+  try { return sessionStorage.getItem("ml_admin_secret") || localStorage.getItem("ml_admin_secret") || ""; }
+  catch (e) { return ""; }
+}
+
 let chosenLat = null;
 let chosenLng = null;
 let chosenAddress = null;
@@ -405,12 +411,20 @@ async function saveSite() {
     return;
   }
 
+  const secret = getAdminSecret();
+  if (!secret) {
+    setSaving(false);
+    showToast("err", "Please sign in first", "Open this page from the Admin dashboard (Sites → Add a Site on the Map) so you're signed in.");
+    return;
+  }
+
   setSaving(true);
 
   try{
+    const headers = { "Content-Type": "application/json", "x-admin-secret": secret };
     const res = await fetch(API + "/add-site", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         siteName: name,
         lat: chosenLat,
@@ -422,6 +436,10 @@ async function saveSite() {
 
     // If worker ever returns non-200, show helpful message
     if(!res.ok){
+      if (res.status === 401) {
+        showToast("err", "Not signed in", "Your admin session has expired. Go back to the Admin dashboard, sign in, then use Sites → Add a Site on the Map.");
+        return;
+      }
       let txt = "";
       try { txt = await res.text(); } catch(e){}
       showToast("err", "Save failed", `Server returned ${res.status}. ${txt ? "Details: " + txt : ""}`);

@@ -196,58 +196,45 @@
   .chip-group{gap:8px;width:100%;}
   .chip{flex:1 1 calc(33.333% - 8px);min-width:0;height:38px;font-size:13px;text-align:center;padding:0 8px;}
 
-  /* Live attendance - switch from table to card list */
+  /* Live attendance - clean 2-column card list (name+meta left, pill+duration right) */
   .card{border-radius:14px;}
   #liveTable thead{display:none;}
-  #liveTable, #liveTable tbody, #liveTable tr, #liveTable td{display:block;width:100%;}
+  #liveTable, #liveTable tbody{display:block;width:100%;}
   #liveTable tbody tr{
+    display:grid;
+    grid-template-columns:1fr auto;
+    grid-template-areas:"name pill" "meta dur";
+    column-gap:12px;
+    row-gap:3px;
+    align-items:center;
     padding:14px 16px;
     border-bottom:1px solid var(--border);
-    position:relative;
     cursor:pointer;
     -webkit-tap-highlight-color:rgba(0,74,153,0.08);
-    min-height:64px;
   }
   #liveTable tbody tr:active{background:var(--surface2);}
   #liveTable tbody tr:last-child{border-bottom:none;}
-  #liveTable td{
-    padding:0;
-    border:none;
-    text-align:left !important;
-  }
-  /* Hide most cells; only show the mobile-visible ones */
-  #liveTable tbody td{display:none;}
+  /* Hide every cell, then place only the four mobile ones into the grid */
+  #liveTable tbody td{display:none;padding:0;border:none;text-align:left;}
   #liveTable tbody td.live-mobile-name{
-    display:block;
-    font-size:16px;
-    font-weight:600;
-    color:var(--label);
-    margin-bottom:3px;
-    padding-right:80px; /* space for the right-aligned pill+duration */
+    grid-area:name;display:block;min-width:0;
+    font-size:16px;font-weight:600;color:var(--label);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   }
   #liveTable tbody td.live-mobile-meta{
-    display:block;
-    font-size:13px;
-    color:var(--label3);
-    padding-right:80px;
+    grid-area:meta;display:block;min-width:0;
+    font-size:13px;color:var(--label3);line-height:1.35;
   }
   #liveTable tbody td.live-mobile-pill{
-    display:block !important;
-    position:absolute;
-    top:14px;
-    right:16px;
-    padding:0;
+    grid-area:pill;display:flex !important;justify-content:flex-end;align-items:center;
+    position:static !important;top:auto;right:auto;
   }
   #liveTable tbody td.live-mobile-duration{
-    display:block;
-    position:absolute;
-    top:42px;
-    right:16px;
-    font-size:13px;
-    font-weight:600;
-    color:var(--label2);
+    grid-area:dur;display:flex;justify-content:flex-end;align-items:center;
+    font-size:13px;font-weight:600;color:var(--label2);white-space:nowrap;
   }
-  #liveTable tbody .empty-state-row td{display:block !important;}
+  #liveTable tbody tr.empty-state-row{display:block;}
+  #liveTable tbody tr.empty-state-row td{display:block !important;}
 
   /* Modals - full-screen bottom sheets */
   .modal{padding:0;align-items:flex-end;}

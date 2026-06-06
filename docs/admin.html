@@ -1039,6 +1039,21 @@ function escapeHtml(str) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+// Safe to drop a user value into a single-quoted JS string inside a
+// double-quoted HTML attribute, e.g. onclick="fn('VALUE')". escapeHtml alone
+// is NOT safe there: the browser HTML-decodes &#039; back to ' before the JS
+// parser runs, allowing breakout. Backslash-escape the JS-significant chars.
+function jsAttr(str) {
+  return String(str)
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\r/g, "\\r")
+    .replace(/\n/g, "\\n");
+}
 function companySortKey(n) {
   const s = (n || "").trim().toLowerCase();
   return s === "mostlane" ? "0" : ("1-" + s);
@@ -1250,7 +1265,7 @@ function renderLive() {
     return '<tr data-visit-id="' + safeId + '" onclick="openLiveDetailModal(this)">' +
       '<td data-label="Status"><span class="pill pill-live">Live</span>' + (Number(v.offline_synced || 0) === 1 ? ' <span class="pill" style="background:#1e293b;color:#fff;" title="Captured offline - time is from the device clock, synced later">Offline</span>' : '') + '</td>' +
       '<td class="live-mobile-name" data-label="Name" style="font-weight:500;">' +
-        '<span class="name-link" onclick="event.stopPropagation();openTimesheetForPerson(\'' + safeName + '\',\'' + safeCompany + '\')">' + safeName + '</span>' +
+        '<span class="name-link" onclick="event.stopPropagation();openTimesheetForPerson(\'' + jsAttr(nameOf(v)) + '\',\'' + jsAttr(v.company || "") + '\')">' + safeName + '</span>' +
       '</td>' +
       '<td class="live-mobile-meta" data-label="Company">' + escapeHtml(v.company || "-") + (v.purpose ? ' &middot; ' + escapeHtml(v.purpose) : '') + ' &middot; ' + escapeHtml(v.site_code || "-") + '</td>' +
       '<td data-label="Purpose">' + escapeHtml(v.purpose || "-") + '</td>' +
@@ -1261,7 +1276,7 @@ function renderLive() {
       '<td data-label="Device" style="text-align:center;">' + (hasDevice ? '<span class="check-icon">&#10003;</span>' : '<span class="cross-icon">&#8212;</span>') + '</td>' +
       '<td data-label="GPS" style="text-align:center;">' + (hasGps ? '<span class="check-icon">&#10003;</span>' : '<span class="cross-icon">&#8212;</span>') + '</td>' +
       '<td data-label="Action" style="text-align:right;">' +
-        '<button class="btn-danger btn-sm" onclick="event.stopPropagation();openManualCheckoutModal(\'' + safeId + '\',\'' + safeName + '\',\'' + safeCheckin + '\')">Sign out</button>' +
+        '<button class="btn-danger btn-sm" onclick="event.stopPropagation();openManualCheckoutModal(\'' + jsAttr(v.visit_id) + '\',\'' + jsAttr(nameOf(v)) + '\',\'' + jsAttr(v.check_in_at || "") + '\')">Sign out</button>' +
       '</td>' +
       '</tr>';
   }).join("");
@@ -1596,8 +1611,8 @@ async function openTransfersModal() {
         '<td data-label="Company">' + escapeHtml(t.company || "") + '</td>' +
         '<td data-label="Visits since request" style="text-align:center;">' + escapeHtml(String(t.visit_count || 0)) + '</td>' +
         '<td data-label="Actions"><div class="row-btns">' +
-        '<button class="btn-primary btn-sm" onclick="openApproveTransfer(\'' + escapeHtml(t.id) + '\',\'' + escapeHtml((t.first_name || "") + " " + (t.last_name || "")) + '\',\'' + escapeHtml(t.company || "") + '\')">Approve</button>' +
-        '<button class="btn-danger btn-sm" onclick="rejectTransfer(\'' + escapeHtml(t.id) + '\',\'' + escapeHtml((t.first_name || "") + " " + (t.last_name || "")) + '\')">Reject</button>' +
+        '<button class="btn-primary btn-sm" onclick="openApproveTransfer(\'' + jsAttr(t.id) + '\',\'' + jsAttr((t.first_name || "") + " " + (t.last_name || "")) + '\',\'' + jsAttr(t.company || "") + '\')">Approve</button>' +
+        '<button class="btn-danger btn-sm" onclick="rejectTransfer(\'' + jsAttr(t.id) + '\',\'' + jsAttr((t.first_name || "") + " " + (t.last_name || "")) + '\')">Reject</button>' +
         '</div></td>' +
         '</tr>').join("") +
       '</tbody></table></div>';
@@ -1739,8 +1754,8 @@ function buildEngineerAdminPanel(eng, name, company, id) {
     '<div class="ts-engineer-admin-btns full">' +
       '<button class="btn-ghost btn-sm" onclick="saveTimesheetEngineer(\'' + escapeHtml(eid) + '\')">Save</button>' +
       '<button class="btn-ghost btn-sm" onclick="toggleTimesheetEngineer(\'' + escapeHtml(eid) + '\')">Archive</button>' +
-      '<button class="btn-ghost btn-sm" onclick="resetEngineerDevice(\'' + escapeHtml(eid) + '\',\'' + escapeHtml(name) + '\')">Reset Device</button>' +
-      '<button class="btn-danger btn-sm" onclick="deleteEngineerFromTimesheets(\'' + escapeHtml(eid) + '\',\'' + escapeHtml(name) + '\')">Delete</button>' +
+      '<button class="btn-ghost btn-sm" onclick="resetEngineerDevice(\'' + jsAttr(eid) + '\',\'' + jsAttr(name) + '\')">Reset Device</button>' +
+      '<button class="btn-danger btn-sm" onclick="deleteEngineerFromTimesheets(\'' + jsAttr(eid) + '\',\'' + jsAttr(name) + '\')">Delete</button>' +
     '</div></div>';
 }
 
@@ -1804,7 +1819,7 @@ function buildWeekTable(visits, name, company, weekKey, eng) {
         '<input data-visit-in="' + escapeHtml(v.visit_id) + '" value="' + escapeHtml(sqlShort(v.check_in_at)) + '" placeholder="YYYY-MM-DD HH:MM">' +
         '<input data-visit-out="' + escapeHtml(v.visit_id) + '" value="' + escapeHtml(sqlShort(v.check_out_at)) + '" placeholder="YYYY-MM-DD HH:MM">' +
         '<button class="btn-ghost btn-sm" onclick="saveVisitTimes(\'' + escapeHtml(v.visit_id) + '\')">Save</button>' +
-        '<button class="btn-danger btn-sm" onclick="openDeleteModal(\'' + escapeHtml(v.visit_id) + '\',\'' + escapeHtml(name) + '\',\'' + escapeHtml(v.site_code || "-") + '\')">Del</button>' +
+        '<button class="btn-danger btn-sm" onclick="openDeleteModal(\'' + jsAttr(v.visit_id) + '\',\'' + jsAttr(name) + '\',\'' + jsAttr(v.site_code || "-") + '\')">Del</button>' +
       '</div></td>' +
       '</tr>';
   }).join("");
@@ -2412,7 +2427,7 @@ function closeCompaniesModal() {
 function renderCompaniesAdmin() {
   const wrap = document.getElementById("companiesAdminBody");
   const rows = companiesAll.slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))).map(c =>
-    '<div class="comp-row"><span class="comp-name">' + escapeHtml(c.name) + '</span><button class="btn-danger btn-sm" onclick="deleteCompany(\'' + escapeHtml(c.id) + '\',\'' + escapeHtml(c.name) + '\')">Delete</button></div>'
+    '<div class="comp-row"><span class="comp-name">' + escapeHtml(c.name) + '</span><button class="btn-danger btn-sm" onclick="deleteCompany(\'' + jsAttr(c.id) + '\',\'' + jsAttr(c.name) + '\')">Delete</button></div>'
   ).join("");
   wrap.innerHTML =
     '<div class="add-form" style="margin-bottom:16px;"><div class="add-form-title">Add New Company</div><div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;"><div class="field-stack" style="flex:1;min-width:180px;"><span class="field-label">Company Name</span><input id="newCompanyName" type="text" placeholder="e.g. Acme Ltd" style="width:100%;"/></div><button class="btn-primary" onclick="addCompany()">Add Company</button></div></div>' +

@@ -828,6 +828,16 @@ async function clearDeviceToken() {
   document.cookie = "ml_did=; max-age=0; path=/";
 }
 
+// Escape user/server-supplied text before inserting via innerHTML.
+function escapeHtml(str) {
+  return String(str == null ? "" : str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function showScreen(id) {
   document.querySelectorAll(".screen").forEach(function(s) { s.classList.remove("active"); });
   var el = document.getElementById(id);
@@ -1291,7 +1301,7 @@ function openSignInModal(siteName, firstName, company) {
   var arrow = document.getElementById("rulesArrow");
   var rules = pendingCheckinRules || [];
   if (rules.length > 0) {
-    items.innerHTML = rules.map(function(r) { return "<li>" + r + "</li>"; }).join("");
+    items.innerHTML = rules.map(function(r) { return "<li>" + escapeHtml(r) + "</li>"; }).join("");
     wrap.style.display = "block";
   } else {
     wrap.style.display = "none";
@@ -1933,7 +1943,7 @@ async function loadSummary(range) {
     var siteHrs = (entry.mins / 60).toFixed(2);
     var siteHuman = entry.mins > 0 ? histDur(entry.mins) : (entry.openSessions > 0 ? 'Open' : '0m');
     html += '<div class="summary-site-row">';
-    html += '<div><div class="summary-site-name">' + site + '</div><div class="summary-site-meta">' + entry.sessions + ' visit' + (entry.sessions !== 1 ? 's' : '') + (entry.openSessions > 0 ? ' \u00b7 ' + entry.openSessions + ' open' : '') + '</div></div>';
+    html += '<div><div class="summary-site-name">' + escapeHtml(site) + '</div><div class="summary-site-meta">' + entry.sessions + ' visit' + (entry.sessions !== 1 ? 's' : '') + (entry.openSessions > 0 ? ' \u00b7 ' + entry.openSessions + ' open' : '') + '</div></div>';
     html += '<div><div class="summary-site-hours">' + siteHrs + 'h</div><div class="summary-site-hours-sub">' + siteHuman + '</div></div>';
     html += '</div>';
   });
@@ -1956,7 +1966,7 @@ async function loadOnSiteList() {
       var mins = 0;
       try { var od = new Date(String(o.check_in_at).replace(" ","T")+"Z"); if (!isNaN(od.getTime())) mins = Math.max(0, Math.round((Date.now() - od.getTime()) / 60000)); } catch(e) {}
       var hrs = Math.floor(mins / 60); var rem = mins % 60;
-      return '<div class="occupant-row"><div class="occupant-avatar">' + initials + '</div><div><div class="occupant-name">' + name + '</div><div class="occupant-sub">' + (o.company || o.purpose || "") + ' &nbsp;&middot;&nbsp; ' + (hrs > 0 ? hrs + "h " + rem + "m" : mins + "m") + ' on site</div></div></div>';
+      return '<div class="occupant-row"><div class="occupant-avatar">' + escapeHtml(initials) + '</div><div><div class="occupant-name">' + escapeHtml(name) + '</div><div class="occupant-sub">' + escapeHtml(o.company || o.purpose || "") + ' &nbsp;&middot;&nbsp; ' + (hrs > 0 ? hrs + "h " + rem + "m" : mins + "m") + ' on site</div></div></div>';
     }).join("");
   } catch(e) { el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);">Could not load site data.</div>'; }
 }
@@ -2040,7 +2050,7 @@ async function loadHistoryList() {
         var autoC = s.auto_checkout;
         return '<tr style="border-bottom:1px solid #f1f5f9;">' +
           '<td style="padding:7px 10px;font-size:12px;color:var(--muted);">' + (i+1) + '</td>' +
-          '<td style="padding:7px 10px;font-size:12.5px;font-weight:600;color:var(--text);">' + (s.site_code||"\u2014") + '</td>' +
+          '<td style="padding:7px 10px;font-size:12.5px;font-weight:600;color:var(--text);">' + escapeHtml(s.site_code||"\u2014") + '</td>' +
           '<td style="padding:7px 10px;font-size:12px;font-family:monospace;">' + sIn + '</td>' +
           '<td style="padding:7px 10px;font-size:12px;font-family:monospace;">' + sOut + '</td>' +
           '<td style="padding:7px 10px;font-size:12.5px;">' + sDur + '</td>' +

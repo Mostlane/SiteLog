@@ -1,0 +1,1762 @@
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Max-Age": "86400"
+};
+
+const OFFICE_LAT = 50.8573;
+const OFFICE_LNG = -1.2343;
+
+// Module-level ephemeral caches. Persist across requests in the same isolate
+// Cloudflare Workers reuse isolates, but reset on cold start.
+const geocodeCache = new Map();
+
+async function getTravelData(env, fromLat, fromLng, toLat, toLng) {
+  try {
+    const apiKey = env.GOOGLE_MAPS_KEY || "";
+    if (!apiKey) return null;
+
+    const url =
+      "https://maps.googleapis.com/maps/api/distancematrix/json" +
+      "?origins=" + encodeURIComponent(fromLat + "," + fromLng) +
+      "&destinations=" + encodeURIComponent(toLat + "," + toLng) +
+      "&mode=driving" +
+      "&key=" + encodeURIComponent(apiKey);
+
+    const res = await fetch(url);
+    const data = await res.json();
+    const el = data?.rows?.[0]?.elements?.[0];
+
+    if (!el || el.status !== "OK") return null;
+
+    return {
+      miles: Math.round((el.distance.value / 1609.344) * 10) / 10,
+      mins: Math.round(el.duration.value / 60),
+      duration_text: el.duration?.text || "",
+      distance_text: el.distance?.text || ""
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+async function getGeocode(env, address) {
+  try {
+    const apiKey = env.GOOGLE_MAPS_KEY || "";
+    if (!apiKey) return null;
+
+    const cacheKey = String(address).trim().toLowerCase();
+
+    if (geocodeCache.has(cacheKey)) {
+      const entry = geocodeCache.get(cacheKey);
+      if (Date.now() - entry.t < 86400000) return entry.v;
+    }
+
+    const url =
+      "https://maps.googleapis.com/maps/api/geocode/json" +
+      "?address=" + encodeURIComponent(address) +
+      "&region=uk" +
+      "&key=" + encodeURIComponent(apiKey);
+
+    const res = await fetch(url);
+    const data = await res.json();
+    const result = data?.results?.[0];
+
+    if (!result || !result.geometry?.location) return null;
+
+    const out = {
+      lat: result.geometry.location.lat,
+      lng: result.geometry.location.lng,
+      formatted: result.formatted_address || ""
+    };
+
+    geocodeCache.set(cacheKey, { v: out, t: Date.now() });
+
+    if (geocodeCache.size > 200) {
+      const firstKey = geocodeCache.keys().next().value;
+      geocodeCache.delete(firstKey);
+    }
+
+    return out;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function handleTravelIn(env, visitId, personId, siteLat, siteLng) {
+  try {
+    const person = await env.DB.prepare(
+      "SELECT travel_status FROM people WHERE id = ?"
+    ).bind(personId).first();
+
+    if (!person || person.travel_status !== "paid") return null;
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    const earlier = await env.DB.prepare(
+      "SELECT COUNT(*) as cnt FROM visits WHERE person_id = ? AND date(check_in_at) = ? AND id != ?"
+    ).bind(personId, today, visitId).first();
+
+    if (earlier && earlier.cnt > 0) return null;
+
+    const travel = await getTravelData(env, OFFICE_LAT, OFFICE_LNG, siteLat, siteLng);
+    if (!travel) return null;
+
+    await env.DB.prepare(
+      "UPDATE visits SET travel_in_miles = ?, travel_in_mins = ?, is_first_of_day = 1 WHERE id = ?"
+    ).bind(travel.miles, travel.mins, visitId).run();
+
+    return travel;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function handleTravelOut(env, visitId, personId, siteLat, siteLng) {
+  try {
+    const person = await env.DB.prepare(
+      "SELECT travel_status FROM people WHERE id = ?"
+    ).bind(personId).first();
+
+    if (!person || person.travel_status !== "paid") return null;
+
+    const travel = await getTravelData(env, siteLat, siteLng, OFFICE_LAT, OFFICE_LNG);
+    if (!travel) return null;
+
+    await env.DB.prepare(
+      "UPDATE visits SET travel_out_miles = ?, travel_out_mins = ? WHERE id = ?"
+    ).bind(travel.miles, travel.mins, visitId).run();
+
+    return travel;
+  } catch (e) {
+    return null;
+  }
+}
+
+function londonNowParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date);
+
+  const get = (type) => parts.find((p) => p.type === type)?.value || "";
+
+  return {
+    year: get("year"),
+    month: get("month"),
+    day: get("day"),
+    hour: get("hour"),
+    minute: get("minute"),
+    second: get("second"),
+    dateKey: `${get("year")}-${get("month")}-${get("day")}`,
+    hhmm: `${get("hour")}:${get("minute")}`
+  };
+}
+
+function londonDateKeyFromUtcString(utcString) {
+  const d = new Date(utcString);
+  const p = londonNowParts(d);
+  return p.dateKey;
+}
+
+function londonLocalToUtcIso(londonDateKey, hhmm = "16:00:00") {
+  const [year, month, day] = londonDateKey.split("-").map(Number);
+  const [hour, minute, second = 0] = hhmm.split(":").map(Number);
+
+  let utc = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+
+  for (let i = 0; i < 3; i++) {
+    const parts = londonNowParts(utc);
+    const actualMinutes = Number(parts.hour) * 60 + Number(parts.minute);
+    const wantedMinutes = hour * 60 + minute;
+    const diffMinutes = actualMinutes - wantedMinutes;
+
+    utc = new Date(utc.getTime() - diffMinutes * 60 * 1000);
+  }
+
+  return utc.toISOString();
+}
+
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) ** 2;
+
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function isValidDateTimeString(str) {
+  if (typeof str !== "string") return false;
+  const d = new Date(str);
+  return !isNaN(d.getTime());
+}
+
+function isValidDateKey(str) {
+  if (typeof str !== "string") return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return false;
+  const d = new Date(str + "T00:00:00Z");
+  return !isNaN(d.getTime());
+}
+
+function isFiniteNumber(v) {
+  const n = Number(v);
+  return Number.isFinite(n);
+}
+
+function parseLatLng(str) {
+  if (typeof str !== "string") return null;
+
+  const parts = str.split(",");
+  if (parts.length !== 2) return null;
+
+  const lat = Number(parts[0]);
+  const lng = Number(parts[1]);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+
+  return { lat, lng };
+}
+
+function constantTimeEqual(a, b) {
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+
+  let mismatch = 0;
+
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+
+  return mismatch === 0;
+}
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    function json(data, status = 200) {
+      return Response.json(data, { status, headers: corsHeaders });
+    }
+
+    async function readBody(req) {
+      const ct = (req.headers.get("content-type") || "").toLowerCase();
+
+      if (ct.includes("application/json")) {
+        try {
+          return await req.json();
+        } catch {
+          return {};
+        }
+      }
+
+      if (
+        ct.includes("application/x-www-form-urlencoded") ||
+        ct.includes("multipart/form-data")
+      ) {
+        const form = await req.formData();
+        const obj = {};
+        for (const [k, v] of form.entries()) obj[k] = v;
+        return obj;
+      }
+
+      try {
+        return await req.json();
+      } catch {
+        return {};
+      }
+    }
+
+    function isAdminAuthorised() {
+      const secret = env.ADMIN_SECRET || "";
+      if (!secret) return false;
+
+      const header = request.headers.get("x-admin-secret") ?? "";
+      if (!header) return false;
+
+      return constantTimeEqual(header, secret);
+    }
+
+    function requireAdmin() {
+      if (!isAdminAuthorised()) {
+        return json({ ok: false, error: "Unauthorised" }, 401);
+      }
+
+      return null;
+    }
+
+    // POST /admin-auth
+    if (url.pathname === "/admin-auth" && request.method === "POST") {
+      const secret = env.ADMIN_SECRET || "";
+      if (!secret) return json({ ok: false, error: "Admin secret not configured" }, 500);
+
+      const headerSecret = request.headers.get("x-admin-secret") ?? "";
+
+      let bodySecret = "";
+      try {
+        const body = await readBody(request);
+        bodySecret = (body.password ?? body.adminSecret ?? body.secret ?? "").toString();
+      } catch {
+        bodySecret = "";
+      }
+
+      const valid =
+        constantTimeEqual(headerSecret, secret) ||
+        constantTimeEqual(bodySecret, secret);
+
+      if (!valid) return json({ ok: false, error: "Invalid password" }, 401);
+
+      return json({ ok: true });
+    }
+
+    // POST /register, /signup, /add-person
+    if (
+      (url.pathname === "/register" ||
+        url.pathname === "/signup" ||
+        url.pathname === "/add-person") &&
+      request.method === "POST"
+    ) {
+      const body = await readBody(request);
+
+      const deviceToken = (
+        body.deviceToken ??
+        body.device_token ??
+        body.device ??
+        body.device_id ??
+        ""
+      ).toString().trim();
+
+      const firstName = (
+        body.firstName ??
+        body.first_name ??
+        body.first ??
+        ""
+      ).toString().trim();
+
+      const lastName = (
+        body.lastName ??
+        body.last_name ??
+        body.last ??
+        ""
+      ).toString().trim();
+
+      const company = (body.company ?? "").toString().trim() || null;
+      const purpose = (body.purpose ?? "").toString().trim() || null;
+
+      if (!deviceToken) return json({ ok: false, error: "Missing deviceToken" }, 400);
+      if (!firstName && !lastName) return json({ ok: false, error: "Missing name" }, 400);
+
+      try {
+        const existing = await env.DB.prepare(`
+          SELECT p.id as person_id, p.first_name, p.last_name, p.company, p.purpose, COALESCE(p.archived,0) as archived
+          FROM devices d
+          JOIN people p ON p.id = d.person_id
+          WHERE d.device_token = ?
+          LIMIT 1
+        `).bind(deviceToken).first();
+
+        if (existing) {
+          await env.DB.prepare(`
+            UPDATE people
+            SET first_name = ?, last_name = ?, company = COALESCE(?, company), purpose = COALESCE(?, purpose)
+            WHERE id = ?
+          `).bind(firstName, lastName, company, purpose, existing.person_id).run();
+
+          return json({
+            ok: true,
+            status: "already_registered",
+            personId: existing.person_id
+          });
+        }
+
+        const personId = crypto.randomUUID();
+
+        await env.DB.prepare(`
+          INSERT INTO people (id, first_name, last_name, company, purpose, archived, hourly_rate)
+          VALUES (?, ?, ?, ?, ?, 0, 0)
+        `).bind(personId, firstName, lastName, company, purpose).run();
+
+        await env.DB.prepare(`
+          INSERT INTO devices (device_token, person_id)
+          VALUES (?, ?)
+        `).bind(deviceToken, personId).run();
+
+        return json({ ok: true, status: "registered", personId });
+      } catch (err) {
+        return json({
+          ok: false,
+          error: "Registration failed",
+          details: String(err)
+        }, 500);
+      }
+    }
+
+    // POST /transfer-request
+    if (url.pathname === "/transfer-request" && request.method === "POST") {
+      const body = await readBody(request);
+      const { deviceToken, firstName, lastName, company } = body;
+
+      if (!deviceToken || !firstName || !lastName || !company) {
+        return json({ ok: false, error: "Missing required fields" }, 400);
+      }
+
+      const existing = await env.DB.prepare(
+        "SELECT id FROM device_transfers WHERE new_device_token = ? AND status = 'pending'"
+      ).bind(deviceToken).first();
+
+      if (existing) return json({ ok: true, already_pending: true });
+
+      const tempPersonId = crypto.randomUUID();
+      const transferId = crypto.randomUUID();
+      const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+      await env.DB.prepare(
+        "INSERT INTO people (id, first_name, last_name, company, is_transfer_pending) VALUES (?, ?, ?, ?, 1)"
+      ).bind(
+        tempPersonId,
+        firstName.trim(),
+        lastName.trim(),
+        company.trim()
+      ).run();
+
+      await env.DB.prepare(
+        "INSERT OR REPLACE INTO devices (device_token, person_id) VALUES (?, ?)"
+      ).bind(deviceToken, tempPersonId).run();
+
+      await env.DB.prepare(
+        "INSERT INTO device_transfers (id, new_device_token, first_name, last_name, company, status, temp_person_id, requested_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)"
+      ).bind(
+        transferId,
+        deviceToken,
+        firstName.trim(),
+        lastName.trim(),
+        company.trim(),
+        tempPersonId,
+        now
+      ).run();
+
+      return json({ ok: true });
+    }
+
+    // GET /pending-transfers
+    if (url.pathname === "/pending-transfers" && request.method === "GET") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const transfers = await env.DB.prepare(
+        "SELECT dt.*, (SELECT COUNT(*) FROM visits v WHERE v.person_id = dt.temp_person_id) as visit_count " +
+        "FROM device_transfers dt WHERE dt.status = 'pending' ORDER BY dt.requested_at DESC"
+      ).all();
+
+      return json({ ok: true, transfers: transfers.results || [] });
+    }
+
+    // GET /all-engineers-for-transfer
+    if (url.pathname === "/all-engineers-for-transfer" && request.method === "GET") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const engineers = await env.DB.prepare(
+        "SELECT id, first_name, last_name, company FROM people " +
+        "WHERE (is_transfer_pending = 0 OR is_transfer_pending IS NULL) AND (archived = 0 OR archived IS NULL) " +
+        "ORDER BY last_name, first_name"
+      ).all();
+
+      return json({ ok: true, engineers: engineers.results || [] });
+    }
+
+    // POST /approve-transfer
+    if (url.pathname === "/approve-transfer" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const { transferId, targetPersonId } = await readBody(request);
+
+      if (!transferId || !targetPersonId) {
+        return json({ ok: false, error: "Missing transferId or targetPersonId" }, 400);
+      }
+
+      const transfer = await env.DB.prepare(
+        "SELECT * FROM device_transfers WHERE id = ? AND status = 'pending'"
+      ).bind(transferId).first();
+
+      if (!transfer) {
+        return json({ ok: false, error: "Transfer not found or already resolved" }, 404);
+      }
+
+      const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+      await env.DB.prepare("UPDATE visits SET person_id = ? WHERE person_id = ?")
+        .bind(targetPersonId, transfer.temp_person_id).run();
+
+      await env.DB.prepare("DELETE FROM devices WHERE person_id = ?")
+        .bind(targetPersonId).run();
+
+      await env.DB.prepare("INSERT OR REPLACE INTO devices (device_token, person_id) VALUES (?, ?)")
+        .bind(transfer.new_device_token, targetPersonId).run();
+
+      await env.DB.prepare("DELETE FROM people WHERE id = ?")
+        .bind(transfer.temp_person_id).run();
+
+      await env.DB.prepare(
+        "UPDATE device_transfers SET status = 'approved', target_person_id = ?, resolved_at = ? WHERE id = ?"
+      ).bind(targetPersonId, now, transferId).run();
+
+      return json({ ok: true });
+    }
+
+    // POST /reject-transfer
+    if (url.pathname === "/reject-transfer" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const { transferId } = await readBody(request);
+
+      if (!transferId) return json({ ok: false, error: "Missing transferId" }, 400);
+
+      const transfer = await env.DB.prepare(
+        "SELECT * FROM device_transfers WHERE id = ? AND status = 'pending'"
+      ).bind(transferId).first();
+
+      if (!transfer) return json({ ok: false, error: "Transfer not found" }, 404);
+
+      const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+      await env.DB.prepare("DELETE FROM devices WHERE device_token = ?")
+        .bind(transfer.new_device_token).run();
+
+      await env.DB.prepare("DELETE FROM people WHERE id = ?")
+        .bind(transfer.temp_person_id).run();
+
+      await env.DB.prepare(
+        "UPDATE device_transfers SET status = 'rejected', resolved_at = ? WHERE id = ?"
+      ).bind(now, transferId).run();
+
+      return json({ ok: true });
+    }
+
+    // GET /sites
+    if (url.pathname === "/sites" && request.method === "GET") {
+      const rows = await env.DB.prepare(
+        "SELECT * FROM sites ORDER BY site_name ASC"
+      ).all();
+
+      return json({ sites: rows.results || [] });
+    }
+
+    // POST /update-site
+    if (url.pathname === "/update-site" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const { id, siteName, radius, siteRules } = await readBody(request);
+
+      if (!id) return json({ error: "Missing id" }, 400);
+      if (!siteName) return json({ error: "Missing siteName" }, 400);
+
+      await env.DB.prepare(
+        "UPDATE sites SET site_name = ?, radius_m = ?, site_rules = ? WHERE id = ?"
+      ).bind(siteName, Number(radius ?? 500), siteRules ?? null, id).run();
+
+      return json({ ok: true });
+    }
+
+    // POST /toggle-site
+    if (url.pathname === "/toggle-site" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const { id } = await readBody(request);
+
+      if (!id) return json({ error: "Missing id" }, 400);
+
+      const site = await env.DB.prepare(
+        "SELECT archived FROM sites WHERE id = ?"
+      ).bind(id).first();
+
+      if (!site) return json({ error: "Site not found" }, 404);
+
+      const newState = site.archived ? 0 : 1;
+
+      await env.DB.prepare(
+        "UPDATE sites SET archived = ? WHERE id = ?"
+      ).bind(newState, id).run();
+
+      return json({ ok: true, archived: newState });
+    }
+
+    // GET /engineers
+    if (url.pathname === "/engineers" && request.method === "GET") {
+      const rows = await env.DB.prepare(`
+        SELECT id, first_name, last_name, company, purpose,
+               COALESCE(archived,0) as archived,
+               COALESCE(hourly_rate,0) as hourly_rate,
+               COALESCE(travel_status,'not_configured') as travel_status,
+               travel_cap_type, travel_cap_value
+        FROM people
+        ORDER BY first_name ASC, last_name ASC
+      `).all();
+
+      return json({ engineers: rows.results || [] });
+    }
+
+    // POST /update-engineer
+    if (url.pathname === "/update-engineer" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const body = await readBody(request);
+      const id = body?.id;
+
+      if (!id) return json({ error: "Missing id" }, 400);
+
+      const firstName = body.firstName ?? body.first_name ?? null;
+      const lastName = body.lastName ?? body.last_name ?? null;
+      const company = body.company ?? null;
+      const purpose = body.purpose ?? null;
+
+      const rateIn = body.hourlyRate ?? body.hourly_rate;
+      const hourlyRate =
+        rateIn === "" || rateIn == null || Number.isNaN(Number(rateIn))
+          ? null
+          : Number(rateIn);
+
+      const travelStatus = body.travelStatus ?? null;
+      const travelCapType = body.travelCapType ?? null;
+      const travelCapValue =
+        body.travelCapValue != null && body.travelCapValue !== ""
+          ? Number(body.travelCapValue)
+          : null;
+
+      const sets = [];
+      const binds = [];
+
+      if (firstName !== null) {
+        sets.push("first_name = ?");
+        binds.push(firstName);
+      }
+
+      if (lastName !== null) {
+        sets.push("last_name = ?");
+        binds.push(lastName);
+      }
+
+      if (company !== null) {
+        sets.push("company = ?");
+        binds.push(company);
+      }
+
+      if (purpose !== null) {
+        sets.push("purpose = ?");
+        binds.push(purpose);
+      }
+
+      if (rateIn !== undefined) {
+        sets.push("hourly_rate = ?");
+        binds.push(hourlyRate ?? 0);
+      }
+
+      if (travelStatus !== null) {
+        sets.push("travel_status = ?");
+        binds.push(travelStatus);
+
+        sets.push("travel_cap_type = ?");
+        binds.push(travelCapType);
+
+        sets.push("travel_cap_value = ?");
+        binds.push(Number.isFinite(travelCapValue) ? travelCapValue : null);
+      }
+
+      if (!sets.length) return json({ ok: true, note: "No fields to update" });
+
+      binds.push(id);
+
+      await env.DB.prepare(
+        `UPDATE people SET ${sets.join(", ")} WHERE id = ?`
+      ).bind(...binds).run();
+
+      return json({ ok: true });
+    }
+
+    // POST /toggle-engineer
+    if (url.pathname === "/toggle-engineer" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const { id } = await readBody(request);
+
+      if (!id) return json({ error: "Missing id" }, 400);
+
+      const person = await env.DB.prepare(
+        "SELECT COALESCE(archived,0) as archived FROM people WHERE id = ?"
+      ).bind(id).first();
+
+      if (!person) return json({ error: "Engineer not found" }, 404);
+
+      const newState = person.archived ? 0 : 1;
+
+      await env.DB.prepare(
+        "UPDATE people SET archived = ? WHERE id = ?"
+      ).bind(newState, id).run();
+
+      return json({ ok: true, archived: newState });
+    }
+
+    // POST /delete-engineer
+    if (url.pathname === "/delete-engineer" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const { id } = await readBody(request);
+
+      if (!id) return json({ ok: false, error: "Missing id" }, 400);
+
+      const visitCount = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM visits WHERE person_id = ?"
+      ).bind(id).first();
+
+      if (visitCount && visitCount.cnt > 0) {
+        await env.DB.prepare(
+          "UPDATE people SET archived = 1 WHERE id = ?"
+        ).bind(id).run();
+
+        await env.DB.prepare(
+          "DELETE FROM devices WHERE person_id = ?"
+        ).bind(id).run();
+
+        return json({ ok: true, message: "Archived and device links removed." });
+      }
+
+      await env.DB.prepare("DELETE FROM devices WHERE person_id = ?")
+        .bind(id).run();
+
+      await env.DB.prepare("DELETE FROM people WHERE id = ?")
+        .bind(id).run();
+
+      return json({ ok: true, message: "Engineer deleted." });
+    }
+
+    // POST /reset-device
+    if (url.pathname === "/reset-device" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const { personId } = await readBody(request);
+
+      if (!personId) return json({ ok: false, error: "Missing personId" }, 400);
+
+      const result = await env.DB.prepare(
+        "DELETE FROM devices WHERE person_id = ?"
+      ).bind(personId).run();
+
+      return json({ ok: true, removedDevices: result.meta.changes });
+    }
+
+    // POST /add-site
+    if (url.pathname === "/add-site" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const { siteName, lat, lng, radius } = await readBody(request);
+
+      if (!siteName || lat == null || lng == null) {
+        return json({ error: "Missing siteName/lat/lng" }, 400);
+      }
+
+      if (!isFiniteNumber(lat) || !isFiniteNumber(lng)) {
+        return json({ error: "lat/lng must be numbers" }, 400);
+      }
+
+      await env.DB.prepare(
+        "INSERT INTO sites (id, site_name, lat, lng, radius_m, archived) VALUES (?, ?, ?, ?, ?, 0)"
+      ).bind(
+        crypto.randomUUID(),
+        siteName,
+        Number(lat),
+        Number(lng),
+        Number(radius ?? 500)
+      ).run();
+
+      return json({ ok: true, siteName });
+    }
+
+    // POST /manual-checkout
+    if (url.pathname === "/manual-checkout" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const { visitId, manualTime } = await readBody(request);
+
+      if (!visitId) return json({ ok: false, error: "Missing visitId" }, 400);
+
+      if (manualTime !== undefined && manualTime !== "" && !isValidDateTimeString(manualTime)) {
+        return json({ ok: false, error: "Invalid manualTime format" }, 400);
+      }
+
+      let checkoutTimeSQL = "CURRENT_TIMESTAMP";
+      let bindValues = [visitId];
+
+      if (manualTime) {
+        checkoutTimeSQL = "?";
+        bindValues = [manualTime, visitId];
+      }
+
+      const sql =
+        `UPDATE visits SET check_out_at = ${checkoutTimeSQL}, auto_checkout = 0 WHERE id = ? AND check_out_at IS NULL`;
+
+      const result = await env.DB.prepare(sql).bind(...bindValues).run();
+
+      if (result.meta.changes === 0) {
+        return json({ ok: false, error: "Visit not found or already checked out" }, 400);
+      }
+
+      return json({ ok: true });
+    }
+
+    // POST /update-visit-times
+    if (url.pathname === "/update-visit-times" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const { visitId, checkInAt, checkOutAt } = await readBody(request);
+
+      if (!visitId) return json({ ok: false, error: "Missing visitId" }, 400);
+      if (!checkInAt || !isValidDateTimeString(checkInAt)) {
+        return json({ ok: false, error: "Invalid checkInAt" }, 400);
+      }
+
+      if (checkOutAt && !isValidDateTimeString(checkOutAt)) {
+        return json({ ok: false, error: "Invalid checkOutAt" }, 400);
+      }
+
+      if (checkOutAt && new Date(checkOutAt) <= new Date(checkInAt)) {
+        return json({ ok: false, error: "check_out_at must be after check_in_at" }, 400);
+      }
+
+      await env.DB.prepare(
+        "UPDATE visits SET check_in_at = ?, check_out_at = ? WHERE id = ?"
+      ).bind(checkInAt, checkOutAt ?? null, visitId).run();
+
+      return json({ ok: true });
+    }
+
+    // POST /confirm-checkout
+    if (url.pathname === "/confirm-checkout" && request.method === "POST") {
+      const { visitId } = await readBody(request);
+
+      if (!visitId) return json({ ok: false, error: "Missing visitId" }, 400);
+
+      const result = await env.DB.prepare(`
+        UPDATE visits
+        SET check_out_at = COALESCE(check_out_at, CURRENT_TIMESTAMP),
+            auto_checkout = 0,
+            sign_out_confirmed = 1
+        WHERE id = ?
+      `).bind(visitId).run();
+
+      if (result.meta.changes === 0) {
+        return json({ ok: false, error: "Visit not found" }, 400);
+      }
+
+      let travelOut = null;
+
+      try {
+        const visit = await env.DB.prepare(
+          "SELECT person_id, site_code FROM visits WHERE id = ?"
+        ).bind(visitId).first();
+
+        if (visit) {
+          const siteRow = await env.DB.prepare(
+            "SELECT lat, lng FROM sites WHERE site_name = ?"
+          ).bind(visit.site_code).first();
+
+          if (siteRow) {
+            travelOut = await handleTravelOut(
+              env,
+              visitId,
+              visit.person_id,
+              siteRow.lat,
+              siteRow.lng
+            );
+          }
+        }
+      } catch (e) {}
+
+      return json({ ok: true, status: "checked_out", travel: travelOut });
+    }
+
+    // POST /confirm-checkin
+    if (url.pathname === "/confirm-checkin" && request.method === "POST") {
+      const { deviceToken, lat, lng, accuracy, site, visitId } = await readBody(request);
+
+      if (!deviceToken) return json({ ok: false, error: "Missing deviceToken" }, 400);
+      if (!site) return json({ ok: false, error: "Missing site" }, 400);
+
+      const siteCheck = await env.DB.prepare(`
+        SELECT id, lat, lng
+        FROM sites
+        WHERE site_name = ? AND COALESCE(archived,0) = 0
+        LIMIT 1
+      `).bind(site).first();
+
+      if (!siteCheck) {
+        return json({ ok: false, error: "Site not found or archived" }, 404);
+      }
+
+      if (lat != null && lat !== "" && !isFiniteNumber(lat)) {
+        return json({ ok: false, error: "Invalid lat" }, 400);
+      }
+
+      if (lng != null && lng !== "" && !isFiniteNumber(lng)) {
+        return json({ ok: false, error: "Invalid lng" }, 400);
+      }
+
+      const device = await env.DB.prepare(
+        "SELECT person_id FROM devices WHERE device_token = ?"
+      ).bind(deviceToken).first();
+
+      if (!device) return json({ ok: false, error: "Device not registered" }, 404);
+
+      const person = await env.DB.prepare(
+        "SELECT first_name, company FROM people WHERE id = ?"
+      ).bind(device.person_id).first();
+
+      let targetId = visitId || null;
+      const siteRow = await env.DB.prepare(
+        "SELECT lat, lng FROM sites WHERE site_name = ?"
+      ).bind(site).first();
+
+      if (!targetId) {
+        const openVisit = await env.DB.prepare(`
+          SELECT id
+          FROM visits
+          WHERE person_id = ? AND site_code = ? AND check_out_at IS NULL
+          ORDER BY check_in_at DESC
+          LIMIT 1
+        `).bind(device.person_id, site).first();
+
+        if (openVisit) targetId = openVisit.id;
+      }
+
+      let travelIn = null;
+
+      if (targetId) {
+        await env.DB.prepare(
+          "UPDATE visits SET sign_in_confirmed = 1, hs_ack = 1 WHERE id = ?"
+        ).bind(targetId).run();
+
+        try {
+          if (siteRow) {
+            travelIn = await handleTravelIn(
+              env,
+              targetId,
+              device.person_id,
+              siteRow.lat,
+              siteRow.lng
+            );
+          }
+        } catch (e) {}
+
+        return json({
+          ok: true,
+          status: "checked_in",
+          site,
+          firstName: person?.first_name || null,
+          company: person?.company || null,
+          travel: travelIn
+        });
+      }
+
+      const newVisitId = crypto.randomUUID();
+
+      await env.DB.prepare(`
+        INSERT INTO visits
+          (id, person_id, site_code, lat, lng, accuracy, hs_ack, auto_checkout, sign_in_confirmed, sign_out_confirmed)
+        VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, 0)
+      `).bind(
+        newVisitId,
+        device.person_id,
+        site,
+        lat ?? null,
+        lng ?? null,
+        accuracy ?? null
+      ).run();
+
+      try {
+        if (siteRow) {
+          travelIn = await handleTravelIn(
+            env,
+            newVisitId,
+            device.person_id,
+            siteRow.lat,
+            siteRow.lng
+          );
+        }
+      } catch (e) {}
+
+      return json({
+        ok: true,
+        status: "checked_in",
+        site,
+        firstName: person?.first_name || null,
+        company: person?.company || null,
+        travel: travelIn
+      });
+    }
+
+    // POST /delete-visit
+    if (url.pathname === "/delete-visit" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const { visitId } = await readBody(request);
+
+      if (!visitId) return json({ error: "Missing visitId" }, 400);
+
+      await env.DB.prepare(
+        "DELETE FROM visits WHERE id = ?"
+      ).bind(visitId).run();
+
+      return json({ ok: true });
+    }
+
+    // POST /scan
+    if (url.pathname === "/scan" && request.method === "POST") {
+      const { deviceToken, lat, lng, accuracy } = await readBody(request);
+
+      if (!deviceToken) return json({ ok: false, error: "Missing deviceToken" }, 400);
+
+      if (!isFiniteNumber(lat) || !isFiniteNumber(lng)) {
+        return json({ ok: false, error: "Missing or invalid lat/lng" }, 400);
+      }
+
+      const latNum = Number(lat);
+      const lngNum = Number(lng);
+
+      if (latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
+        return json({ ok: false, error: "lat/lng out of range" }, 400);
+      }
+
+      const siteRows = await env.DB.prepare(
+        "SELECT * FROM sites WHERE COALESCE(archived,0) = 0"
+      ).all();
+
+      let matchedSite = null;
+      let bestDist = null;
+
+      for (const s of siteRows.results || []) {
+        const d = haversineMeters(latNum, lngNum, Number(s.lat), Number(s.lng));
+
+        if (d <= Number(s.radius_m) && (bestDist === null || d < bestDist)) {
+          bestDist = d;
+          matchedSite = s;
+        }
+      }
+
+      if (!matchedSite) {
+        let nearestSite = null;
+        let nearestDist = null;
+
+        for (const s of siteRows.results || []) {
+          const d = haversineMeters(latNum, lngNum, Number(s.lat), Number(s.lng));
+
+          if (nearestDist === null || d < nearestDist) {
+            nearestDist = d;
+            nearestSite = s;
+          }
+        }
+
+        if (!nearestSite) {
+          return json({ status: "unknown_site", reason: "No active sites configured" });
+        }
+
+        return json({
+          status: "unknown_site",
+          nearestSite: nearestSite.site_name,
+          distance_m: Math.round(nearestDist)
+        });
+      }
+
+      const siteCode = matchedSite.site_name;
+      const rulesRaw = matchedSite.site_rules || "";
+      const siteRules = rulesRaw
+        .split("\n")
+        .map((r) => r.trim())
+        .filter((r) => r.length > 0);
+
+      const device = await env.DB.prepare(
+        "SELECT * FROM devices WHERE device_token = ?"
+      ).bind(deviceToken).first();
+
+      if (!device) {
+        return json({ status: "first_visit", site: siteCode, siteRules });
+      }
+
+      const isArchived = await env.DB.prepare(
+        "SELECT COALESCE(archived,0) as archived FROM people WHERE id = ?"
+      ).bind(device.person_id).first();
+
+      if (isArchived && isArchived.archived) {
+        return json({ status: "blocked", reason: "engineer_archived" });
+      }
+
+      const person = await env.DB.prepare(
+        "SELECT first_name, company FROM people WHERE id = ?"
+      ).bind(device.person_id).first();
+
+      const allOpenVisits = await env.DB.prepare(
+        "SELECT id, site_code, check_in_at FROM visits WHERE person_id = ? AND check_out_at IS NULL"
+      ).bind(device.person_id).all();
+
+      const nowLondon = londonNowParts();
+      const nowDateKey = nowLondon.dateKey;
+
+      for (const v of allOpenVisits.results || []) {
+        const visitDateKey = londonDateKeyFromUtcString(v.check_in_at);
+
+        if (visitDateKey !== nowDateKey) {
+          const forcedCheckoutUtc = londonLocalToUtcIso(visitDateKey, "16:00:00");
+
+          await env.DB.prepare(`
+            UPDATE visits
+            SET check_out_at = ?, auto_checkout = 1
+            WHERE id = ? AND check_out_at IS NULL
+          `).bind(forcedCheckoutUtc, v.id).run();
+        }
+      }
+
+      const openVisit = await env.DB.prepare(`
+        SELECT *
+        FROM visits
+        WHERE person_id = ? AND site_code = ? AND check_out_at IS NULL
+      `).bind(device.person_id, siteCode).first();
+
+      if (openVisit) {
+        return json({
+          status: "confirm_sign_out",
+          visitId: openVisit.id,
+          site: siteCode,
+          firstName: person?.first_name || null,
+          company: person?.company || null
+        });
+      }
+
+      return json({
+        status: "confirm_check_in",
+        site: siteCode,
+        firstName: person?.first_name || null,
+        company: person?.company || null,
+        siteRules
+      });
+    }
+
+    // GET /companies
+    if (url.pathname === "/companies" && request.method === "GET") {
+      const rows = await env.DB.prepare(
+        "SELECT id, name FROM companies ORDER BY name ASC"
+      ).all();
+
+      return json({ companies: rows.results || [] });
+    }
+
+    // POST /add-company
+    if (url.pathname === "/add-company" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const { name } = await readBody(request);
+
+      if (!name || !name.trim()) {
+        return json({ ok: false, error: "Missing company name" }, 400);
+      }
+
+      await env.DB.prepare(
+        "INSERT INTO companies (id, name) VALUES (?, ?)"
+      ).bind(crypto.randomUUID(), name.trim()).run();
+
+      return json({ ok: true });
+    }
+
+    // POST /delete-company
+    if (url.pathname === "/delete-company" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const { id } = await readBody(request);
+
+      if (!id) return json({ ok: false, error: "Missing id" }, 400);
+
+      await env.DB.prepare(
+        "DELETE FROM site_company_map WHERE company_id = ?"
+      ).bind(id).run();
+
+      await env.DB.prepare(
+        "DELETE FROM companies WHERE id = ?"
+      ).bind(id).run();
+
+      return json({ ok: true });
+    }
+
+    // GET /companies-for-site
+    if (url.pathname === "/companies-for-site" && request.method === "GET") {
+      const siteName = url.searchParams.get("site");
+
+      if (!siteName) return json({ error: "Missing site parameter" }, 400);
+
+      const rows = await env.DB.prepare(`
+        SELECT c.id, c.name
+        FROM sites s
+        JOIN site_company_map m ON m.site_id = s.id
+        JOIN companies c ON c.id = m.company_id
+        WHERE s.site_name = ?
+        ORDER BY c.name ASC
+      `).bind(siteName).all();
+
+      return json({ companies: rows.results || [] });
+    }
+
+    // POST /update-site-companies
+    if (url.pathname === "/update-site-companies" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const mappings = await readBody(request);
+
+      if (!mappings || typeof mappings !== "object") {
+        return json({ ok: false, error: "Invalid payload" }, 400);
+      }
+
+      try {
+        const statements = [];
+
+        for (const siteId of Object.keys(mappings)) {
+          statements.push(
+            env.DB.prepare("DELETE FROM site_company_map WHERE site_id = ?").bind(siteId)
+          );
+
+          const companies = mappings[siteId];
+          if (!Array.isArray(companies)) continue;
+
+          for (const companyId of companies) {
+            statements.push(
+              env.DB.prepare("INSERT INTO site_company_map (site_id, company_id) VALUES (?, ?)")
+                .bind(siteId, companyId)
+            );
+          }
+        }
+
+        if (statements.length) await env.DB.batch(statements);
+
+        return json({ ok: true });
+      } catch (err) {
+        return json({
+          ok: false,
+          error: "Database update failed",
+          details: String(err)
+        }, 500);
+      }
+    }
+
+    // GET /site-occupants
+    if (url.pathname === "/site-occupants" && request.method === "GET") {
+      const siteName = url.searchParams.get("site");
+
+      if (!siteName) return json({ error: "Missing site parameter" }, 400);
+
+      const rows = await env.DB.prepare(`
+        SELECT p.first_name, p.last_name, p.company, p.purpose, v.check_in_at
+        FROM visits v
+        JOIN people p ON v.person_id = p.id
+        WHERE v.site_code = ? AND v.check_out_at IS NULL AND COALESCE(p.archived,0) = 0
+        ORDER BY v.check_in_at ASC
+      `).bind(siteName).all();
+
+      return json({ occupants: rows.results || [] });
+    }
+
+    // GET /my-visits
+    if (url.pathname === "/my-visits" && request.method === "GET") {
+      const deviceToken = url.searchParams.get("deviceToken");
+      const limit = Math.min(Number(url.searchParams.get("limit") || 60), 200);
+
+      if (!deviceToken) return json({ error: "Missing deviceToken" }, 400);
+
+      const device = await env.DB.prepare(
+        "SELECT person_id FROM devices WHERE device_token = ?"
+      ).bind(deviceToken).first();
+
+      if (!device) return json({ visits: [] });
+
+      const rows = await env.DB.prepare(`
+        SELECT id, site_code, check_in_at, check_out_at,
+               COALESCE(sign_in_confirmed,0) as sign_in_confirmed,
+               COALESCE(sign_out_confirmed,0) as sign_out_confirmed,
+               COALESCE(auto_checkout,0) as auto_checkout
+        FROM visits
+        WHERE person_id = ?
+        ORDER BY check_in_at DESC
+        LIMIT ?
+      `).bind(device.person_id, limit).all();
+
+      return json({ visits: rows.results || [] });
+    }
+
+    // GET /me — current profile for this device.
+    // Lets the worker app keep its locally cached name/company in sync with
+    // admin edits on every page load. Returns registered:false (not an error)
+    // when the device has never registered, so the client can stay quiet.
+    if (url.pathname === "/me" && request.method === "GET") {
+      const deviceToken = url.searchParams.get("deviceToken");
+
+      if (!deviceToken) return json({ ok: false, error: "Missing deviceToken" }, 400);
+
+      const row = await env.DB.prepare(`
+        SELECT p.id AS person_id, p.first_name, p.last_name, p.company, p.purpose,
+               COALESCE(p.archived,0) AS archived,
+               COALESCE(p.is_transfer_pending,0) AS is_transfer_pending
+        FROM devices d
+        JOIN people p ON p.id = d.person_id
+        WHERE d.device_token = ?
+        LIMIT 1
+      `).bind(deviceToken).first();
+
+      if (!row) return json({ ok: true, registered: false });
+
+      return json({
+        ok: true,
+        registered: true,
+        personId: row.person_id,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        company: row.company,
+        purpose: row.purpose,
+        archived: !!row.archived,
+        isTransferPending: !!row.is_transfer_pending
+      });
+    }
+
+    // GET /travel-time
+    if (url.pathname === "/travel-time" && request.method === "GET") {
+      const orig = parseLatLng(url.searchParams.get("orig") || "");
+      const dest = parseLatLng(url.searchParams.get("dest") || "");
+
+      if (!orig || !dest) {
+        return json({
+          ok: false,
+          error: "Invalid orig/dest. Expected 'lat,lng' with valid ranges."
+        }, 400);
+      }
+
+      const result = await getTravelData(env, orig.lat, orig.lng, dest.lat, dest.lng);
+
+      if (!result) {
+        return json({ ok: false, error: "Travel data unavailable" }, 502);
+      }
+
+      return json({
+        ok: true,
+        duration_text: result.duration_text,
+        distance_text: result.distance_text,
+        duration_mins: result.mins,
+        distance_miles: result.miles
+      });
+    }
+
+    // GET /geocode
+    if (url.pathname === "/geocode" && request.method === "GET") {
+      const address = (url.searchParams.get("address") || "").trim();
+
+      if (!address) return json({ ok: false, error: "Missing address" }, 400);
+      if (address.length > 200) return json({ ok: false, error: "Address too long" }, 400);
+
+      const result = await getGeocode(env, address);
+
+      if (!result) return json({ ok: false, error: "Geocode failed" }, 502);
+
+      return json({
+        ok: true,
+        lat: result.lat,
+        lng: result.lng,
+        formatted: result.formatted
+      });
+    }
+
+    // POST /log-failed-scan
+    if (url.pathname === "/log-failed-scan" && request.method === "POST") {
+      return json({ ok: true });
+    }
+
+    // GET /admin
+    if (url.pathname === "/admin" && request.method === "GET") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const from = url.searchParams.get("from");
+      const to = url.searchParams.get("to");
+
+      if (from && !isValidDateKey(from)) {
+        return json({ error: "Invalid 'from' date (expected YYYY-MM-DD)" }, 400);
+      }
+
+      if (to && !isValidDateKey(to)) {
+        return json({ error: "Invalid 'to' date (expected YYYY-MM-DD)" }, 400);
+      }
+
+      let sql = `
+        SELECT v.id AS visit_id, v.person_id, v.site_code, v.check_in_at, v.check_out_at,
+               v.lat, v.lng, v.accuracy, v.hs_ack,
+               COALESCE(v.auto_checkout,0) AS auto_checkout,
+               COALESCE(v.sign_in_confirmed,0) AS sign_in_confirmed,
+               COALESCE(v.sign_out_confirmed,0) AS sign_out_confirmed,
+               v.travel_in_miles, v.travel_in_mins,
+               v.travel_out_miles, v.travel_out_mins,
+               COALESCE(v.is_first_of_day,0) AS is_first_of_day,
+               CASE
+                 WHEN COALESCE(v.auto_checkout,0) = 1 THEN 'No Sign Out'
+                 WHEN v.check_out_at IS NOT NULL AND COALESCE(v.sign_out_confirmed,0) = 0 THEN 'Soft Sign Out'
+                 WHEN v.check_out_at IS NOT NULL THEN 'Signed Out'
+                 WHEN COALESCE(v.sign_in_confirmed,0) = 0 THEN 'Soft Sign In'
+                 ELSE 'Still Open'
+               END AS sign_out_status,
+               p.first_name, p.last_name, p.company, p.purpose, d.device_token
+        FROM visits v
+        JOIN people p ON v.person_id = p.id
+        LEFT JOIN devices d ON d.person_id = p.id
+          AND d.rowid = (SELECT MIN(rowid) FROM devices WHERE person_id = p.id)
+        WHERE COALESCE(p.archived,0) = 0
+      `;
+
+      const params = [];
+
+      if (from && to) {
+        const fromUtc = londonLocalToUtcIso(from, "00:00:00");
+        const toUtc = londonLocalToUtcIso(to, "23:59:59");
+
+        sql += " AND v.check_in_at BETWEEN ? AND ?";
+        params.push(fromUtc, toUtc);
+      }
+
+      sql += " ORDER BY v.check_in_at DESC LIMIT 500";
+
+      const stmt = env.DB.prepare(sql);
+      const rows = params.length ? await stmt.bind(...params).all() : await stmt.all();
+
+      return json({ visits: rows.results || [] });
+    }
+
+    // GET /on-site
+    if (url.pathname === "/on-site" && request.method === "GET") {
+      const site = url.searchParams.get("site") || "";
+
+      const rows = await env.DB.prepare(`
+        SELECT v.id as visit_id, v.person_id, p.first_name, p.last_name, p.company
+        FROM visits v
+        JOIN people p ON v.person_id = p.id
+        WHERE v.site_code = ? AND v.check_out_at IS NULL AND COALESCE(p.archived,0) = 0
+        ORDER BY p.first_name, p.last_name
+      `).bind(site).all();
+
+      const people = (rows.results || []).map((r) => ({
+        person_id: r.person_id || "",
+        name: `${r.first_name || ""} ${r.last_name || ""}`.trim(),
+        company: r.company || ""
+      }));
+
+      return json({ people });
+    }
+
+    // POST /documents/create
+    if (url.pathname === "/documents/create" && request.method === "POST") {
+      const body = await readBody(request);
+      const docId = crypto.randomUUID();
+      const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+      await env.DB.prepare(`
+        INSERT INTO documents
+          (id, type, template_version, status, site_name, site_address,
+           issued_by, issued_at, permit_no, valid_from,
+           manager_signature, manager_signed_at, form_data, created_at)
+        VALUES (?,?,1,'issued',?,?,?,?,?,?,?,?,?,?)
+      `).bind(
+        docId,
+        body.type || "",
+        body.site_name || "",
+        body.site_address || "",
+        body.issued_by || "",
+        body.issued_at || now,
+        body.permit_no || null,
+        body.valid_from || null,
+        body.manager_signature || null,
+        body.manager_signature ? now : null,
+        JSON.stringify(body.form_data || {}),
+        now
+      ).run();
+
+      const attendees = Array.isArray(body.attendees) ? body.attendees : [];
+
+      for (let i = 0; i < attendees.length; i++) {
+        const a = attendees[i];
+
+        await env.DB.prepare(`
+          INSERT INTO document_attendees
+            (id, document_id, person_id, person_name, company, sign_order,
+             trade, contact_number, cscs_number, signature, signed_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        `).bind(
+          crypto.randomUUID(),
+          docId,
+          a.personId || null,
+          a.personName || "",
+          a.company || "",
+          i + 1,
+          a.trade || null,
+          a.contact || null,
+          a.cscs || null,
+          a.signature || null,
+          a.signature ? now : null
+        ).run();
+      }
+
+      return json({ ok: true, id: docId });
+    }
+
+    // POST /documents/closeout
+    if (url.pathname === "/documents/closeout" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+
+      const body = await readBody(request);
+      const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+      if (!body.docId) return json({ ok: false, error: "Missing docId" }, 400);
+
+      await env.DB.prepare(`
+        UPDATE documents
+        SET status = 'closed',
+            completion_time = ?,
+            final_area_safe = ?,
+            manager_signature = ?,
+            manager_signed_at = ?,
+            closed_at = ?
+        WHERE id = ?
+      `).bind(
+        body.completionTime || null,
+        body.finalAreaSafe ?? null,
+        body.managerSignature || null,
+        now,
+        now,
+        body.docId
+      ).run();
+
+      return json({ ok: true });
+    }
+
+    // GET /documents
+    if (url.pathname === "/documents" && request.method === "GET") {
+      const type = url.searchParams.get("type") || "";
+      const status = url.searchParams.get("status") || "";
+      const site = url.searchParams.get("site") || "";
+      const person = url.searchParams.get("person") || "";
+      const from = url.searchParams.get("from") || "";
+      const to = url.searchParams.get("to") || "";
+
+      let q = `
+        SELECT d.id, d.type, d.status, d.site_name, d.issued_at,
+               d.permit_no, d.closed_at, d.form_data,
+               GROUP_CONCAT(da.person_name, ', ') AS attendee_names
+        FROM documents d
+        LEFT JOIN document_attendees da ON da.document_id = d.id
+      `;
+
+      const wheres = [];
+      const binds = [];
+
+      if (type) {
+        wheres.push("d.type = ?");
+        binds.push(type);
+      }
+
+      if (status) {
+        wheres.push("d.status = ?");
+        binds.push(status);
+      }
+
+      if (site) {
+        wheres.push("d.site_name = ?");
+        binds.push(site);
+      }
+
+      if (from) {
+        wheres.push("d.issued_at >= ?");
+        binds.push(from);
+      }
+
+      if (to) {
+        wheres.push("d.issued_at <= ?");
+        binds.push(to + " 23:59:59");
+      }
+
+      if (person) {
+        wheres.push("da.person_name LIKE ?");
+        binds.push("%" + person + "%");
+      }
+
+      if (wheres.length) q += " WHERE " + wheres.join(" AND ");
+
+      q += " GROUP BY d.id ORDER BY d.issued_at DESC LIMIT 200";
+
+      const rows = await env.DB.prepare(q).bind(...binds).all();
+
+      return json({ documents: rows.results || [] });
+    }
+
+    // GET /documents/single
+    if (url.pathname === "/documents/single" && request.method === "GET") {
+      const id = url.searchParams.get("id") || "";
+
+      const doc = await env.DB.prepare(
+        "SELECT * FROM documents WHERE id = ?"
+      ).bind(id).first();
+
+      if (!doc) return json({ error: "Not found" }, 404);
+
+      try {
+        doc.form_data = JSON.parse(doc.form_data || "{}");
+      } catch {
+        doc.form_data = {};
+      }
+
+      const atts = await env.DB.prepare(
+        "SELECT * FROM document_attendees WHERE document_id = ? ORDER BY sign_order"
+      ).bind(id).all();
+
+      doc.attendees = atts.results || [];
+      doc.attendee_names = doc.attendees.map((a) => a.person_name).join(", ");
+
+      return json({ document: doc });
+    }
+
+    // POST /field-memory/save
+    if (url.pathname === "/field-memory/save" && request.method === "POST") {
+      const body = await readBody(request);
+
+      const key = (body.key || "").trim();
+      const value = (body.value || "").trim();
+      const site = (body.site || "").trim();
+
+      if (!key || !value) {
+        return json({ ok: false, error: "key and value required" }, 400);
+      }
+
+      const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+      const existing = await env.DB.prepare(`
+        SELECT id, use_count
+        FROM field_memory
+        WHERE field_key = ? AND COALESCE(site_name,'') = ? AND value = ?
+        LIMIT 1
+      `).bind(key, site, value).first();
+
+      if (existing) {
+        await env.DB.prepare(`
+          UPDATE field_memory
+          SET use_count = COALESCE(use_count,0) + 1,
+              last_used_at = ?
+          WHERE id = ?
+        `).bind(now, existing.id).run();
+      } else {
+        await env.DB.prepare(`
+          INSERT INTO field_memory
+            (id, field_key, site_name, value, use_count, last_used_at)
+          VALUES (?, ?, ?, ?, 1, ?)
+        `).bind(
+          crypto.randomUUID(),
+          key,
+          site || null,
+          value,
+          now
+        ).run();
+      }
+
+      return json({ ok: true });
+    }
+
+    // GET /field-memory/suggest
+    if (url.pathname === "/field-memory/suggest" && request.method === "GET") {
+      const key = url.searchParams.get("key") || "";
+      const site = url.searchParams.get("site") || "";
+
+      const rows = await env.DB.prepare(`
+        SELECT value
+        FROM field_memory
+        WHERE field_key = ? AND (site_name = ? OR site_name IS NULL OR site_name = '')
+        ORDER BY (site_name IS NOT NULL AND site_name != '') DESC,
+                 use_count DESC,
+                 last_used_at DESC
+        LIMIT 6
+      `).bind(key, site).all();
+
+      const seen = new Set();
+
+      const suggestions = (rows.results || [])
+        .filter((r) => {
+          if (seen.has(r.value)) return false;
+          seen.add(r.value);
+          return true;
+        })
+        .map((r) => ({ value: r.value }));
+
+      return json({ suggestions });
+    }
+
+    return new Response("Not found", { status: 404, headers: corsHeaders });
+  },
+
+  async scheduled(event, env, ctx) {
+    const run = async () => {
+      const now = londonNowParts();
+
+      const openVisits = await env.DB.prepare(
+        "SELECT id, check_in_at FROM visits WHERE check_out_at IS NULL"
+      ).all();
+
+      for (const v of openVisits.results || []) {
+        const visitDateKey = londonDateKeyFromUtcString(v.check_in_at);
+
+        if (visitDateKey < now.dateKey) {
+          const forcedCheckoutUtc = londonLocalToUtcIso(visitDateKey, "16:00:00");
+
+          await env.DB.prepare(`
+            UPDATE visits
+            SET check_out_at = ?, auto_checkout = 1
+            WHERE id = ? AND check_out_at IS NULL
+          `).bind(forcedCheckoutUtc, v.id).run();
+        }
+      }
+    };
+
+    if (ctx?.waitUntil) {
+      ctx.waitUntil(run());
+    } else {
+      await run();
+    }
+  }
+};

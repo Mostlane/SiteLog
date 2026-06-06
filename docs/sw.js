@@ -1,61 +1,28 @@
-var CACHE = "sitelog-v5";
-var PRECACHE = [
-"./app.html",
-"./admin.html",
-"./scan.html",
-"./Mostlane%20Icon.jpeg",
-"./Mostlane%20Logo.jpg"
-];
+// SiteLog service worker — NO CONTENT CACHING.
+// Purpose: keep the app installable as a PWA while guaranteeing that every
+// page, asset and API response is fetched fresh from the network on each load.
+// Nothing is ever served from a cache, so the app is always up to date.
+// (The permanent device ID lives in IndexedDB/localStorage/cookie, not here,
+//  and is untouched by this worker.)
 
-// Install: precache core files
+var CACHE = "sitelog-v7";
+
 self.addEventListener("install", function(e) {
 self.skipWaiting();
-e.waitUntil(
-caches.open(CACHE).then(function(cache) {
-return cache.addAll(PRECACHE);
-})
-);
 });
 
-// Activate: delete old caches
+// Activate: delete EVERY cache left behind by older service worker versions,
+// so no stale pages or API responses can survive.
 self.addEventListener("activate", function(e) {
 e.waitUntil(
 caches.keys().then(function(keys) {
-return Promise.all(
-keys.filter(function(k) { return k !== CACHE; })
-.map(function(k) { return caches.delete(k); })
-);
+return Promise.all(keys.map(function(k) { return caches.delete(k); }));
 }).then(function() { return self.clients.claim(); })
 );
 });
 
-// Fetch: network-first for HTML, cache-first for everything else
+// Fetch: always go to the network. Never read from or write to a cache.
 self.addEventListener("fetch", function(e) {
-var url = e.request.url;
-
-// Always go network-first for HTML pages so updates come through immediately
-if (e.request.mode === "navigate" || url.endsWith(".html")) {
-e.respondWith(
-fetch(e.request).then(function(res) {
-var clone = res.clone();
-caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
-return res;
-}).catch(function() {
-return caches.match(e.request);
-})
-);
-return;
-}
-
-// Cache-first for images and other static assets
-e.respondWith(
-caches.match(e.request).then(function(cached) {
-if (cached) return cached;
-return fetch(e.request).then(function(res) {
-var clone = res.clone();
-caches.open(CACHE).then(function(cache) { cache.put(e.request, clone); });
-return res;
-});
-})
-);
+if (e.request.method !== "GET") return; // POST etc. → straight to network
+e.respondWith(fetch(e.request));
 });

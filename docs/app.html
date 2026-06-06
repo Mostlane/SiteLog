@@ -1009,6 +1009,35 @@ function storeIdentity(firstName, lastName, company) {
   });
 }
 
+// Pull the latest name/company from the server for this device and overwrite
+// the local cache, so admin edits (rename, company change) show up on next
+// load. Runs in the background; stays silent on network errors or unknown
+// devices so it never blocks or disrupts the UI.
+function applyServerProfile(firstName, lastName, company) {
+  var f = firstName || "", l = lastName || "", c = company || "";
+  try {
+    var prof = JSON.parse(localStorage.getItem("mostlane_profile") || "{}");
+    prof.firstName = f; prof.lastName = l; prof.company = c;
+    localStorage.setItem("mostlane_profile", JSON.stringify(prof));
+  } catch(e) {}
+  dbGet("profile").then(function(p) {
+    var updated = p || {};
+    updated.firstName = f; updated.lastName = l; updated.company = c;
+    dbSet("profile", updated);
+  });
+}
+async function syncProfile() {
+  if (!deviceToken) return;
+  try {
+    var res = await fetchWithTimeout(API + "/me?deviceToken=" + encodeURIComponent(deviceToken), { method: "GET" }, 8000);
+    if (!res.ok) return;
+    var data = await res.json();
+    if (!data || !data.ok || !data.registered) return;
+    applyServerProfile(data.firstName, data.lastName, data.company);
+    updateDashInfoStrip(data.firstName || "", data.lastName || "", data.company || "");
+  } catch(e) {}
+}
+
 // NOT YOU MODAL
 function openNotYouModal() {
   var prof = {};
@@ -2008,6 +2037,9 @@ function loadLastEvent() {
 async function init() {
   deviceToken = await getDeviceToken();
   tokenFallbackWrite(deviceToken);
+  // Refresh cached name/company from the server in the background so admin
+  // edits show up. Not awaited — it updates the info strip when it returns.
+  syncProfile();
   // Populate info strip from stored profile
   var storedProf = null;
   try { storedProf = JSON.parse(localStorage.getItem("mostlane_profile") || "null"); } catch(e) {}

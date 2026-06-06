@@ -405,19 +405,19 @@ export default {
         body.first_name ??
         body.first ??
         ""
-      ).toString().trim();
+      ).toString().trim().slice(0, 80);
 
       const lastName = (
         body.lastName ??
         body.last_name ??
         body.last ??
         ""
-      ).toString().trim();
+      ).toString().trim().slice(0, 80);
 
-      const company = (body.company ?? "").toString().trim() || null;
-      const purpose = (body.purpose ?? "").toString().trim() || null;
+      const company = ((body.company ?? "").toString().trim().slice(0, 120)) || null;
+      const purpose = ((body.purpose ?? "").toString().trim().slice(0, 60)) || null;
 
-      if (!deviceToken) return json({ ok: false, error: "Missing deviceToken" }, 400);
+      if (!deviceToken || deviceToken.length > 128) return json({ ok: false, error: "Missing deviceToken" }, 400);
       if (!firstName && !lastName) return json({ ok: false, error: "Missing name" }, 400);
 
       try {
@@ -457,10 +457,10 @@ export default {
 
         return json({ ok: true, status: "registered", personId }, 200, didSetCookie(deviceToken));
       } catch (err) {
+        console.error("register failed:", err);
         return json({
           ok: false,
-          error: "Registration failed",
-          details: String(err)
+          error: "Registration failed"
         }, 500);
       }
     }
@@ -472,6 +472,9 @@ export default {
 
       if (!deviceToken || !firstName || !lastName || !company) {
         return json({ ok: false, error: "Missing required fields" }, 400);
+      }
+      if (String(deviceToken).length > 128) {
+        return json({ ok: false, error: "Invalid deviceToken" }, 400);
       }
 
       const existing = await env.DB.prepare(
@@ -488,9 +491,9 @@ export default {
         "INSERT INTO people (id, first_name, last_name, company, is_transfer_pending) VALUES (?, ?, ?, ?, 1)"
       ).bind(
         tempPersonId,
-        firstName.trim(),
-        lastName.trim(),
-        company.trim()
+        String(firstName).trim().slice(0, 80),
+        String(lastName).trim().slice(0, 80),
+        String(company).trim().slice(0, 120)
       ).run();
 
       await env.DB.prepare(
@@ -661,6 +664,8 @@ export default {
 
     // GET /engineers
     if (url.pathname === "/engineers" && request.method === "GET") {
+      const guard = requireAdmin();
+      if (guard) return guard;
       const rows = await env.DB.prepare(`
         SELECT id, first_name, last_name, company, purpose,
                COALESCE(archived,0) as archived,
@@ -1512,10 +1517,10 @@ export default {
 
         return json({ ok: true });
       } catch (err) {
+        console.error("update-site-companies failed:", err);
         return json({
           ok: false,
-          error: "Database update failed",
-          details: String(err)
+          error: "Database update failed"
         }, 500);
       }
     }

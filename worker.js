@@ -25,6 +25,32 @@ const OFFICE_LNG = -1.2343;
 // Cloudflare Workers reuse isolates, but reset on cold start.
 const geocodeCache = new Map();
 
+// Offline-sync schema bootstrap. Runs once per isolate (idempotent), so no
+// manual D1 migration is needed when this version is deployed:
+//   - visits.offline_synced  : 1 when a visit's time came from a device that
+//                              was offline at scan time (device clock, not
+//                              server-verified) and synced later.
+//   - pending_events         : offline events from devices the server can't
+//                              attribute to a known person, so nothing is lost.
+let offlineSchemaReady = false;
+async function ensureOfflineSchema(env) {
+  if (offlineSchemaReady) return;
+  try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN offline_synced INTEGER DEFAULT 0").run(); } catch (e) {}
+  try {
+    await env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS pending_events (id TEXT PRIMARY KEY, device_token TEXT, lat REAL, lng REAL, accuracy REAL, site_code TEXT, intent TEXT, occurred_at TEXT, synced_at TEXT, resolved INTEGER DEFAULT 0)"
+    ).run();
+  } catch (e) {}
+  offlineSchemaReady = true;
+}
+
+// Format a millisecond timestamp as SQLite's UTC string 'YYYY-MM-DD HH:MM:SS',
+// matching what CURRENT_TIMESTAMP writes so date-key helpers keep working.
+function toSqlUtc(ms) {
+  return new Date(ms).toISOString().slice(0, 19).replace("T", " ");
+}
+
+
 async function getTravelData(env, fromLat, fromLng, toLat, toLng) {
   try {
     const apiKey = env.GOOGLE_MAPS_KEY || "";
@@ -1066,6 +1092,92 @@ export default {
       return json({ ok: true });
     }
 
+    // POST /sync-event
+    // Replays an offline-captured sign in/out once the device is back online.
+    // The client just queues the raw event (device token, GPS, the device-clock
+    // timestamp, and whether they meant to sign in or out); all the reconciling
+    // happens here against current state, so events are never missed.
+    if (url.pathname === "/sync-event" && request.method === "POST") {
+      await ensureOfflineSchema(env);
+      const body = await readBody(request);
+      const deviceToken = (body.deviceToken || readDidCookie(request) || "").toString().trim();
+      const intent = body.intent === "out" ? "out" : "in";
+      const accuracy = isFiniteNumber(body.accuracy) ? Number(body.accuracy) : null;
+      if (!deviceToken) return json({ ok: false, error: "Missing deviceToken" }, 400);
+
+      // Trust the device clock, but guard against garbage or future timestamps.
+      const nowMs = Date.now();
+      const parsed = typeof body.occurredAt === "string" ? Date.parse(body.occurredAt) : NaN;
+      const occurredMs =
+        Number.isFinite(parsed) && parsed <= nowMs + 5 * 60 * 1000 && parsed >= nowMs - 30 * 24 * 60 * 60 * 1000
+          ? parsed
+          : nowMs;
+      const occurredSql = toSqlUtc(occurredMs);
+
+      // Resolve which site the captured GPS falls inside (mirrors /scan).
+      const lat = body.lat, lng = body.lng;
+      const latVal = isFiniteNumber(lat) ? Number(lat) : null;
+      const lngVal = isFiniteNumber(lng) ? Number(lng) : null;
+      let matchedSite = null;
+      if (latVal !== null && lngVal !== null && latVal >= -90 && latVal <= 90 && lngVal >= -180 && lngVal <= 180) {
+        const siteRows = await env.DB.prepare("SELECT * FROM sites WHERE COALESCE(archived,0) = 0").all();
+        let bestDist = null;
+        for (const s of siteRows.results || []) {
+          const d = haversineMeters(latVal, lngVal, Number(s.lat), Number(s.lng));
+          if (d <= Number(s.radius_m) && (bestDist === null || d < bestDist)) { bestDist = d; matchedSite = s; }
+        }
+      }
+
+      const device = await env.DB.prepare(
+        "SELECT * FROM devices WHERE device_token = ?"
+      ).bind(deviceToken).first();
+
+      const logPending = async (siteCode, reason) => {
+        await env.DB.prepare(
+          "INSERT INTO pending_events (id, device_token, lat, lng, accuracy, site_code, intent, occurred_at, synced_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+        ).bind(crypto.randomUUID(), deviceToken, latVal, lngVal, accuracy, siteCode, intent, occurredSql).run();
+        return json({ ok: true, status: "logged_pending", reason });
+      };
+
+      // Unknown device, or GPS not inside any site -> log so nothing is lost.
+      if (!device) return await logPending(matchedSite ? matchedSite.site_name : null, "unknown_device");
+      if (!matchedSite) return await logPending(null, "no_site_match");
+
+      const siteCode = matchedSite.site_name;
+      const openVisit = await env.DB.prepare(
+        "SELECT id, check_in_at FROM visits WHERE person_id = ? AND site_code = ? AND check_out_at IS NULL ORDER BY check_in_at DESC"
+      ).bind(device.person_id, siteCode).first();
+
+      if (intent === "out") {
+        if (!openVisit) return await logPending(siteCode, "no_open_visit");
+        // Use the offline time only if it's after check-in; else fall back to now.
+        // Both strings are 'YYYY-MM-DD HH:MM:SS' UTC, so they compare lexically.
+        const outSql = occurredSql > String(openVisit.check_in_at) ? occurredSql : toSqlUtc(nowMs);
+        await env.DB.prepare(
+          "UPDATE visits SET check_out_at = ?, auto_checkout = 0, sign_out_confirmed = 1, offline_synced = 1 WHERE id = ? AND check_out_at IS NULL"
+        ).bind(outSql, openVisit.id).run();
+        return json({ ok: true, status: "checked_out", site: siteCode, offline: true });
+      }
+
+      // intent === "in" — idempotent if already on site at this site.
+      if (openVisit) return json({ ok: true, status: "already_in", site: siteCode, offline: true });
+      await env.DB.prepare(
+        "INSERT INTO visits (id, person_id, site_code, lat, lng, accuracy, hs_ack, auto_checkout, sign_in_confirmed, sign_out_confirmed, offline_synced, check_in_at) VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, 0, 1, ?)"
+      ).bind(crypto.randomUUID(), device.person_id, siteCode, latVal, lngVal, accuracy, occurredSql).run();
+      return json({ ok: true, status: "checked_in", site: siteCode, offline: true });
+    }
+
+    // GET /pending-events  (offline events the server could not attribute)
+    if (url.pathname === "/pending-events" && request.method === "GET") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+      const rows = await env.DB.prepare(
+        "SELECT id, device_token, lat, lng, accuracy, site_code, intent, occurred_at, synced_at FROM pending_events WHERE COALESCE(resolved,0) = 0 ORDER BY occurred_at DESC LIMIT 200"
+      ).all();
+      return json({ ok: true, events: rows.results || [] });
+    }
+
     // POST /scan
     if (url.pathname === "/scan" && request.method === "POST") {
       const body = await readBody(request);
@@ -1438,6 +1550,7 @@ export default {
     if (url.pathname === "/admin" && request.method === "GET") {
       const guard = requireAdmin();
       if (guard) return guard;
+      await ensureOfflineSchema(env);
 
       const from = url.searchParams.get("from");
       const to = url.searchParams.get("to");
@@ -1459,6 +1572,7 @@ export default {
                v.travel_in_miles, v.travel_in_mins,
                v.travel_out_miles, v.travel_out_mins,
                COALESCE(v.is_first_of_day,0) AS is_first_of_day,
+               COALESCE(v.offline_synced,0) AS offline_synced,
                CASE
                  WHEN COALESCE(v.auto_checkout,0) = 1 THEN 'No Sign Out'
                  WHEN v.check_out_at IS NOT NULL AND COALESCE(v.sign_out_confirmed,0) = 0 THEN 'Soft Sign Out'

@@ -643,6 +643,7 @@
       </div>
     </div>
   </div>
+  <div id="pendingEventsBanner" style="display:none;margin-bottom:18px;padding:14px 16px;border-radius:10px;background:#fff7ed;border:1px solid #fdba74;color:#7c2d12;font-size:13.5px;line-height:1.5;"></div>
   <div class="section-header"><span class="section-label">&#128994; Live on site</span></div>
   <div class="card" style="margin-bottom:32px;">
     <div class="table-wrap">
@@ -1225,7 +1226,7 @@ function renderLive() {
     const safeCompany = escapeHtml(v.company || "");
     const safeCheckin = escapeHtml(v.check_in_at || "");
     return '<tr data-visit-id="' + safeId + '" onclick="openLiveDetailModal(this)">' +
-      '<td data-label="Status"><span class="pill pill-live">Live</span></td>' +
+      '<td data-label="Status"><span class="pill pill-live">Live</span>' + (Number(v.offline_synced || 0) === 1 ? ' <span class="pill" style="background:#1e293b;color:#fff;" title="Captured offline - time is from the device clock, synced later">Offline</span>' : '') + '</td>' +
       '<td class="live-mobile-name" data-label="Name" style="font-weight:500;">' +
         '<span class="name-link" onclick="event.stopPropagation();openTimesheetForPerson(\'' + safeName + '\',\'' + safeCompany + '\')">' + safeName + '</span>' +
       '</td>' +
@@ -1322,10 +1323,37 @@ async function loadData() {
 
     renderAll();
     checkPendingTransfersBadge();
+    checkPendingEvents();
   } catch (err) {
     console.error(err);
     alert("Failed to load SiteLog data.");
   }
+}
+
+/* ── PENDING OFFLINE EVENTS ──
+   Offline captures the server could not attribute to a registered person on
+   site (unknown device, GPS outside any site, or a sign-out with no open
+   visit). Surfaced so nothing slips through unnoticed. */
+async function checkPendingEvents() {
+  try {
+    const r = await fetch(API_BASE + "/pending-events");
+    const d = await r.json();
+    const evs = (d && d.events) || [];
+    const el = document.getElementById("pendingEventsBanner");
+    if (!el) return;
+    if (!evs.length) { el.style.display = "none"; return; }
+    const rows = evs.slice(0, 20).map(e =>
+      '<li>' + escapeHtml(toLocal(e.occurred_at)) + ' &middot; ' +
+      (e.intent === "out" ? "sign-out" : "sign-in") + ' &middot; ' +
+      escapeHtml(e.site_code || "unknown site") + ' &middot; device ' +
+      escapeHtml(String(e.device_token || "").slice(0, 8)) + '&hellip;</li>'
+    ).join("");
+    el.innerHTML = '<strong>&#9888;&#65039; ' + evs.length + ' offline event' + (evs.length > 1 ? 's' : '') +
+      ' need attention.</strong> Captured offline but not matched to someone registered on site ' +
+      '(unknown device, GPS outside any site, or a sign-out with no open visit):' +
+      '<ul style="margin:8px 0 0;padding-left:20px;">' + rows + '</ul>';
+    el.style.display = "block";
+  } catch (e) {}
 }
 
 /* ── DELETE ── */

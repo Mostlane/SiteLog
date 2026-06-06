@@ -111,6 +111,7 @@
 #registerView .status-card .btn-prevreg-cancel { background: #d1d5db; color: #374151; }
 .prev-reg-divider { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
 .prev-reg-hint { font-size: 13px; color: var(--muted); margin: 0 0 8px; line-height: 1.4; }
+#offlineBanner { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 9100; padding: calc(var(--safe-top, 0px) + 9px) 14px 9px; background: #1e293b; color: #f8fafc; font-size: 12.5px; line-height: 1.4; text-align: center; }
 #webviewBanner { display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 9000; padding: 12px 16px calc(var(--safe-bot, 0px) + 12px); background: #fff3cd; border-top: 1px solid #ffe08a; color: #7a5b00; font-size: 13px; line-height: 1.45; text-align: center; }
 #registerView .status-card label {
   display: flex;
@@ -497,6 +498,8 @@ text-align: center;
       <div class="err-title" style="color:var(--amber);">No Connection</div>
       <div class="err-body" id="appNetworkMsg">Could not reach the SiteLog server. Switch to mobile data and try again.</div>
       <button class="err-btn" onclick="appRetryNetwork()">Try Again</button>
+      <button class="err-btn" id="appOfflineSaveBtn" onclick="saveOfflineEvent()" style="display:none;margin-top:10px;background:var(--blue);color:#fff;">Save on this phone</button>
+      <div class="err-body" id="appOfflineHint" style="display:none;margin-top:10px;font-size:13px;">No signal? Save it here and it will sync automatically the moment you&rsquo;re back online.</div>
     </div>
     <div id="appGpsError">
       <div class="err-title" style="color:var(--red);">Location Unavailable</div>
@@ -689,6 +692,8 @@ text-align: center;
     <button class="modal-btn secondary" onclick="appConfirmSignInNo()">No</button>
   </div>
 </div>
+
+<div id="offlineBanner"></div>
 
 <div id="webviewBanner">
   &#9888;&#65039; <strong>Please open this in your browser.</strong> Tap the menu (&#8943; or the share icon) and choose <strong>&ldquo;Open in Safari&rdquo;</strong> or <strong>&ldquo;Open in Chrome&rdquo;</strong> &mdash; sign-in needs your location, which in-app browsers block.
@@ -921,6 +926,21 @@ function showNetworkError(action, msg) {
   document.getElementById("appNetworkError").style.display = "block";
   document.getElementById("appGpsError").style.display = "none";
   document.getElementById("appNetworkMsg").textContent = msg || "Could not reach the SiteLog server. Switch to mobile data and try again.";
+  // Offer to capture the sign-in/out on the device when there's no connection.
+  // (Registration still needs a connection, so it's excluded.)
+  var btn  = document.getElementById("appOfflineSaveBtn");
+  var hint = document.getElementById("appOfflineHint");
+  var canOffline = (action === "scan" || action === "checkin" || action === "checkout");
+  if (btn && hint && canOffline) {
+    dbGet("last_checkin").then(function(ci) {
+      btn.textContent = ci ? "Save sign-out on this phone" : "Save sign-in on this phone";
+      btn.style.display = "block";
+      hint.style.display = "block";
+    });
+  } else if (btn && hint) {
+    btn.style.display = "none";
+    hint.style.display = "none";
+  }
 }
 function hideNetworkError() { document.getElementById("appNetworkError").style.display = "none"; }
 async function appRetryNetwork() {
@@ -932,6 +952,95 @@ async function appRetryNetwork() {
   else if (action === "register") { await appRegister(); }
   else { startLocation(); }
 }
+
+// OFFLINE CAPTURE & SYNC
+// When there's no signal, a sign-in/out is stored on the device (GPS works
+// offline) with the device-clock timestamp, then replayed to /sync-event the
+// moment connectivity returns. The server reconciles in/out and stamps the
+// records as offline-synced, so events are never missed.
+var offlineFlushing = false;
+
+async function getOfflineQueue() {
+  var q = await dbGet("offline_queue");
+  return Array.isArray(q) ? q : [];
+}
+async function setOfflineQueue(arr) { await dbSet("offline_queue", arr); }
+
+async function updateOfflineUI() {
+  var banner = document.getElementById("offlineBanner");
+  if (!banner) return;
+  var q = await getOfflineQueue();
+  if (!navigator.onLine) {
+    banner.textContent = "📴 Offline — your sign-in/out is saved on this phone" +
+      (q.length ? " (" + q.length + " waiting)" : "") + " and syncs automatically when you reconnect.";
+    banner.style.display = "block";
+  } else if (q.length) {
+    banner.textContent = "🔄 Syncing " + q.length + " saved event" + (q.length > 1 ? "s" : "") + "…";
+    banner.style.display = "block";
+  } else {
+    banner.style.display = "none";
+  }
+}
+
+async function saveOfflineEvent() {
+  var checkedIn = await dbGet("last_checkin");
+  var intent = checkedIn ? "out" : "in";
+  var evt = {
+    deviceToken: deviceToken,
+    lat:      lastLocation ? lastLocation.lat : null,
+    lng:      lastLocation ? lastLocation.lng : null,
+    accuracy: lastLocation ? lastLocation.accuracy : null,
+    intent:   intent,
+    occurredAt: new Date().toISOString()
+  };
+  var q = await getOfflineQueue();
+  q.push(evt);
+  await setOfflineQueue(q);
+
+  // Reflect it locally so the dashboard is consistent.
+  if (intent === "in") { await dbSet("last_checkin", Date.now()); dashSetState("in", currentSite, null, Date.now()); }
+  else                 { await dbDel("last_checkin"); dashSetState("unknown", null, null, null); }
+
+  hideNetworkError();
+  recordLastEvent((intent === "in" ? "Signed in (offline" : "Signed out (offline") + ", pending sync)");
+  document.getElementById("appNetworkMsg").textContent =
+    "✓ Saved on this phone. It will sync automatically when you're back online — no need to do anything.";
+  document.getElementById("appNetworkError").style.display = "block";
+  document.getElementById("appOfflineSaveBtn").style.display = "none";
+  document.getElementById("appOfflineHint").style.display = "none";
+
+  updateOfflineUI();
+  flushOfflineQueue(); // attempt immediately in case signal is actually back
+}
+
+async function flushOfflineQueue() {
+  if (offlineFlushing || !navigator.onLine) { updateOfflineUI(); return; }
+  var q = await getOfflineQueue();
+  if (!q.length) { updateOfflineUI(); return; }
+  offlineFlushing = true;
+  try {
+    while (q.length) {
+      var evt = q[0];
+      var res;
+      try {
+        res = await fetchWithTimeout(API + "/sync-event", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(evt) }, 15000);
+      } catch (e) { break; } // still offline / network error -> keep queue, retry later
+      if (!res.ok) {
+        // Bad request (4xx) -> drop so it can't block the queue forever; 5xx -> stop and retry.
+        if (res.status >= 400 && res.status < 500) { q.shift(); await setOfflineQueue(q); continue; }
+        break;
+      }
+      q.shift();
+      await setOfflineQueue(q);
+    }
+  } finally {
+    offlineFlushing = false;
+    updateOfflineUI();
+  }
+}
+
+window.addEventListener("online",  function() { updateOfflineUI(); flushOfflineQueue(); });
+window.addEventListener("offline", function() { updateOfflineUI(); });
 
 // GPS ERROR IN SCAN SCREEN
 function showGpsErrorInScan(code, msg) {
@@ -2133,6 +2242,9 @@ function isInAppBrowser() {
   return false;
 }
 try { if (isInAppBrowser()) document.getElementById("webviewBanner").style.display = "block"; } catch(e) {}
+
+// Show offline state + flush any events captured on a previous offline session.
+try { updateOfflineUI(); flushOfflineQueue(); } catch(e) {}
 </script>
 
 </body>

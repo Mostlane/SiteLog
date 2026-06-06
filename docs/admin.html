@@ -236,13 +236,13 @@
   #liveTable tbody tr.empty-state-row{display:block;}
   #liveTable tbody tr.empty-state-row td{display:block !important;}
 
-  /* Modals - full-screen bottom sheets */
+  /* Modals - bottom sheets that leave the dimmed page peeking above */
   .modal{padding:0;align-items:flex-end;}
   .modal-content,.ts-modal-content{
     width:100% !important;
     max-width:100% !important;
-    max-height:100vh;
-    height:100vh;
+    max-height:90vh;
+    height:auto;
     border-radius:18px 18px 0 0;
     display:flex;
     flex-direction:column;
@@ -265,7 +265,7 @@
   }
   .modal-title{font-size:17px;font-weight:700;}
   .modal-subtitle{font-size:12.5px;}
-  .modal-body{padding:16px 14px 100px 14px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .modal-body{padding:14px 14px 18px 14px;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 
   /* Modal-actions becomes a sticky bottom bar - always reachable */
   .modal-actions{
@@ -320,11 +320,11 @@
     background:var(--surface);
     border:1px solid var(--border);
     border-radius:12px;
-    padding:14px;
-    margin-bottom:10px;
+    padding:12px;
+    margin-bottom:8px;
     display:flex;
     flex-direction:column;
-    gap:10px;
+    gap:7px;
   }
   .admin-table tbody tr:hover td{background:transparent;}
   .admin-table td{
@@ -336,14 +336,14 @@
   .admin-table td[data-label]::before{
     content:attr(data-label);
     display:block;
-    font-size:10.5px;
+    font-size:10px;
     font-weight:700;
     color:var(--label3);
     text-transform:uppercase;
     letter-spacing:0.5px;
-    margin-bottom:4px;
+    margin-bottom:2px;
   }
-  .admin-table td input{height:42px;font-size:16px;width:100% !important;}
+  .admin-table td input{height:40px;font-size:16px;width:100% !important;}
   .row-btns{justify-content:stretch;flex-wrap:nowrap;gap:8px;}
   .row-btns button{flex:1 1 auto;height:40px;}
 
@@ -358,7 +358,7 @@
   .add-form-title{font-size:11.5px;}
 
   /* Timesheets modal - special handling */
-  .ts-modal-content{height:100vh;max-height:100vh;}
+  .ts-modal-content{height:auto;max-height:92vh;}
   .ts-filter-bar{
     flex-direction:column;
     padding:14px;
@@ -370,7 +370,7 @@
   }
   .ts-filter-bar .field-stack{width:100%;}
   .ts-filter-bar select,.ts-filter-bar input{width:100% !important;height:44px;font-size:16px;}
-  .ts-body{padding:14px 12px 100px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .ts-body{padding:14px 12px 18px;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;}
   .ts-meta{font-size:12px;}
   .ts-company-title{font-size:12px;padding:8px 0 6px;}
   .ts-engineer-block{border-radius:14px;margin-bottom:14px;}

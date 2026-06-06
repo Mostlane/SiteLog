@@ -196,66 +196,53 @@
   .chip-group{gap:8px;width:100%;}
   .chip{flex:1 1 calc(33.333% - 8px);min-width:0;height:38px;font-size:13px;text-align:center;padding:0 8px;}
 
-  /* Live attendance - switch from table to card list */
+  /* Live attendance - clean 2-column card list (name+meta left, pill+duration right) */
   .card{border-radius:14px;}
   #liveTable thead{display:none;}
-  #liveTable, #liveTable tbody, #liveTable tr, #liveTable td{display:block;width:100%;}
+  #liveTable, #liveTable tbody{display:block;width:100%;}
   #liveTable tbody tr{
+    display:grid;
+    grid-template-columns:1fr auto;
+    grid-template-areas:"name pill" "meta dur";
+    column-gap:12px;
+    row-gap:3px;
+    align-items:center;
     padding:14px 16px;
     border-bottom:1px solid var(--border);
-    position:relative;
     cursor:pointer;
     -webkit-tap-highlight-color:rgba(0,74,153,0.08);
-    min-height:64px;
   }
   #liveTable tbody tr:active{background:var(--surface2);}
   #liveTable tbody tr:last-child{border-bottom:none;}
-  #liveTable td{
-    padding:0;
-    border:none;
-    text-align:left !important;
-  }
-  /* Hide most cells; only show the mobile-visible ones */
-  #liveTable tbody td{display:none;}
+  /* Hide every cell, then place only the four mobile ones into the grid */
+  #liveTable tbody td{display:none;padding:0;border:none;text-align:left;}
   #liveTable tbody td.live-mobile-name{
-    display:block;
-    font-size:16px;
-    font-weight:600;
-    color:var(--label);
-    margin-bottom:3px;
-    padding-right:80px; /* space for the right-aligned pill+duration */
+    grid-area:name;display:block;min-width:0;
+    font-size:16px;font-weight:600;color:var(--label);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   }
   #liveTable tbody td.live-mobile-meta{
-    display:block;
-    font-size:13px;
-    color:var(--label3);
-    padding-right:80px;
+    grid-area:meta;display:block;min-width:0;
+    font-size:13px;color:var(--label3);line-height:1.35;
   }
   #liveTable tbody td.live-mobile-pill{
-    display:block !important;
-    position:absolute;
-    top:14px;
-    right:16px;
-    padding:0;
+    grid-area:pill;display:flex !important;justify-content:flex-end;align-items:center;
+    position:static !important;top:auto;right:auto;
   }
   #liveTable tbody td.live-mobile-duration{
-    display:block;
-    position:absolute;
-    top:42px;
-    right:16px;
-    font-size:13px;
-    font-weight:600;
-    color:var(--label2);
+    grid-area:dur;display:flex;justify-content:flex-end;align-items:center;
+    font-size:13px;font-weight:600;color:var(--label2);white-space:nowrap;
   }
-  #liveTable tbody .empty-state-row td{display:block !important;}
+  #liveTable tbody tr.empty-state-row{display:block;}
+  #liveTable tbody tr.empty-state-row td{display:block !important;}
 
-  /* Modals - full-screen bottom sheets */
+  /* Modals - bottom sheets that leave the dimmed page peeking above */
   .modal{padding:0;align-items:flex-end;}
   .modal-content,.ts-modal-content{
     width:100% !important;
     max-width:100% !important;
-    max-height:100vh;
-    height:100vh;
+    max-height:90vh;
+    height:auto;
     border-radius:18px 18px 0 0;
     display:flex;
     flex-direction:column;
@@ -278,7 +265,7 @@
   }
   .modal-title{font-size:17px;font-weight:700;}
   .modal-subtitle{font-size:12.5px;}
-  .modal-body{padding:16px 14px 100px 14px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .modal-body{padding:14px 14px 18px 14px;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 
   /* Modal-actions becomes a sticky bottom bar - always reachable */
   .modal-actions{
@@ -333,11 +320,11 @@
     background:var(--surface);
     border:1px solid var(--border);
     border-radius:12px;
-    padding:14px;
-    margin-bottom:10px;
+    padding:12px;
+    margin-bottom:8px;
     display:flex;
     flex-direction:column;
-    gap:10px;
+    gap:7px;
   }
   .admin-table tbody tr:hover td{background:transparent;}
   .admin-table td{
@@ -349,14 +336,14 @@
   .admin-table td[data-label]::before{
     content:attr(data-label);
     display:block;
-    font-size:10.5px;
+    font-size:10px;
     font-weight:700;
     color:var(--label3);
     text-transform:uppercase;
     letter-spacing:0.5px;
-    margin-bottom:4px;
+    margin-bottom:2px;
   }
-  .admin-table td input{height:42px;font-size:16px;width:100% !important;}
+  .admin-table td input{height:40px;font-size:16px;width:100% !important;}
   .row-btns{justify-content:stretch;flex-wrap:nowrap;gap:8px;}
   .row-btns button{flex:1 1 auto;height:40px;}
 
@@ -371,7 +358,7 @@
   .add-form-title{font-size:11.5px;}
 
   /* Timesheets modal - special handling */
-  .ts-modal-content{height:100vh;max-height:100vh;}
+  .ts-modal-content{height:auto;max-height:92vh;}
   .ts-filter-bar{
     flex-direction:column;
     padding:14px;
@@ -383,7 +370,7 @@
   }
   .ts-filter-bar .field-stack{width:100%;}
   .ts-filter-bar select,.ts-filter-bar input{width:100% !important;height:44px;font-size:16px;}
-  .ts-body{padding:14px 12px 100px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .ts-body{padding:14px 12px 18px;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;}
   .ts-meta{font-size:12px;}
   .ts-company-title{font-size:12px;padding:8px 0 6px;}
   .ts-engineer-block{border-radius:14px;margin-bottom:14px;}

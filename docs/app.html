@@ -1094,12 +1094,20 @@ function appRetryGps() {
 
 // MAP
 function showMap(lat, lng) {
-  var map = new google.maps.Map(document.getElementById("appMap"), {
-    center: { lat: lat, lng: lng }, zoom: 18, mapTypeId: "hybrid",
-    disableDefaultUI: true, draggable: false, scrollwheel: false,
-    disableDoubleClickZoom: true, keyboardShortcuts: false, gestureHandling: "none"
-  });
-  new google.maps.Marker({ position: { lat: lat, lng: lng }, map: map });
+  // The map is decorative — sign-in must work even if Google Maps fails to load
+  // (offline cold start, blocked CDN, etc). Never let this throw and block the
+  // scan/check-in that follows it.
+  try {
+    if (typeof google === "undefined" || !google.maps || !google.maps.Map) return;
+    var el = document.getElementById("appMap");
+    if (!el) return;
+    var map = new google.maps.Map(el, {
+      center: { lat: lat, lng: lng }, zoom: 18, mapTypeId: "hybrid",
+      disableDefaultUI: true, draggable: false, scrollwheel: false,
+      disableDoubleClickZoom: true, keyboardShortcuts: false, gestureHandling: "none"
+    });
+    new google.maps.Marker({ position: { lat: lat, lng: lng }, map: map });
+  } catch (e) {}
 }
 
 // SUCCESS OVERLAY
@@ -1316,6 +1324,7 @@ function closeSignInModal() {
   pendingCheckinSite = ""; pendingCheckinFirst = ""; pendingCheckinCo = ""; pendingCheckinRules = [];
 }
 async function appConfirmSignInYes() {
+  if (!lastLocation) { closeSignInModal(); showScreen("screen-scan"); showGpsErrorInScan(2, "We lost your location. Tap Try Again to refresh it, then check in."); return; }
   var res, data;
   try {
     res  = await fetchWithTimeout(API + "/confirm-checkin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceToken: deviceToken, lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy, site: pendingCheckinSite }) });
@@ -1369,11 +1378,13 @@ async function submitUnmatchedCheckin() {
 
 // SCAN
 async function appScan() {
+  if (!lastLocation) { showScreen("screen-scan"); showGpsErrorInScan(2, "We couldn't read your location. Tap Try Again."); return; }
   var res, data;
   try {
     res  = await fetchWithTimeout(API + "/scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceToken: deviceToken, lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy }) });
     data = await res.json();
   } catch(e) { showNetworkError("scan"); return; }
+  if (!res.ok || !data || !data.status) { showNetworkError("scan", "Something went wrong reading your status. Please try again."); return; }
 
   if (data.status === "unknown_site") {
     unmatchedHint = data.nearestSite
@@ -1457,6 +1468,7 @@ async function appRegister() {
   var company = document.getElementById("appCompany").value;
   var ack     = document.getElementById("appHsAck").checked;
   if (!first || !last || !purpose || !company || !ack) { alert("Please complete all fields and confirm the site rules."); return; }
+  if (!lastLocation) { alert("We couldn't read your location. Please make sure location is on and try again."); return; }
   // Store identity before hitting the server
   storeIdentity(first, last, company);
   await dbSet("profile", { firstName: first, lastName: last, purpose: purpose, company: company });
@@ -2198,7 +2210,7 @@ window.addEventListener("pageshow", function(e) {
     resetScanUI();
     navigator.geolocation.getCurrentPosition(
       function(pos) { lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; showMap(lastLocation.lat, lastLocation.lng); appScan(); },
-      function(err) { if (err.code !== 1) showGpsErrorInScan(err.code, err.message); },
+      function(err) { if (err.code === 1) { dbDel("gps_granted"); showScreen("screen-permission"); showPermissionError(err.code, err.message); } else { showGpsErrorInScan(err.code, err.message); } },
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );
   }

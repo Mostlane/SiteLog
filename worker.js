@@ -872,6 +872,15 @@ export default {
         return json({ ok: false, error: "Invalid manualTime format" }, 400);
       }
 
+      if (manualTime) {
+        const vrow = await env.DB.prepare(
+          "SELECT check_in_at FROM visits WHERE id = ?"
+        ).bind(visitId).first();
+        if (vrow && vrow.check_in_at && new Date(manualTime) <= new Date(vrow.check_in_at)) {
+          return json({ ok: false, error: "Sign-out time must be after sign-in time" }, 400);
+        }
+      }
+
       let checkoutTimeSQL = "CURRENT_TIMESTAMP";
       let bindValues = [visitId];
 
@@ -927,7 +936,7 @@ export default {
 
       const result = await env.DB.prepare(`
         UPDATE visits
-        SET check_out_at = COALESCE(check_out_at, CURRENT_TIMESTAMP),
+        SET check_out_at = MAX(check_in_at, COALESCE(check_out_at, CURRENT_TIMESTAMP)),
             auto_checkout = 0,
             sign_out_confirmed = 1
         WHERE id = ?
@@ -1269,6 +1278,13 @@ export default {
 
       // intent === "in" — idempotent if already on site at this site.
       if (openVisit) return json({ ok: true, status: "already_in", site: siteCode, offline: true });
+      // Idempotency on retry: if a response was lost and the same event is
+      // re-sent, a visit with this exact person+site+timestamp already exists
+      // (even if since signed out) — don't create a duplicate check-in.
+      const dupIn = await env.DB.prepare(
+        "SELECT id FROM visits WHERE person_id = ? AND site_code = ? AND check_in_at = ? LIMIT 1"
+      ).bind(device.person_id, siteCode, occurredSql).first();
+      if (dupIn) return json({ ok: true, status: "duplicate_ignored", site: siteCode, offline: true });
       await env.DB.prepare(
         "INSERT INTO visits (id, person_id, site_code, lat, lng, accuracy, hs_ack, auto_checkout, sign_in_confirmed, sign_out_confirmed, offline_synced, check_in_at) VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, 0, 1, ?)"
       ).bind(crypto.randomUUID(), device.person_id, siteCode, latVal, lngVal, accuracy, occurredSql).run();
@@ -1322,6 +1338,32 @@ export default {
       }
 
       if (!matchedSite) {
+        // Even with no GPS-matched site, a device that is currently signed in
+        // must be able to sign OUT — otherwise an unmatched-location check-in
+        // (or someone who left a site and has no signal at a matched one) is
+        // stuck open until the 16:00 auto-close. Offer sign-out for their most
+        // recent open visit.
+        const devNoSite = await env.DB.prepare(
+          "SELECT * FROM devices WHERE device_token = ?"
+        ).bind(deviceToken).first();
+        if (devNoSite) {
+          const openAny = await env.DB.prepare(
+            "SELECT id, site_code FROM visits WHERE person_id = ? AND check_out_at IS NULL ORDER BY check_in_at DESC LIMIT 1"
+          ).bind(devNoSite.person_id).first();
+          if (openAny) {
+            const perNoSite = await env.DB.prepare(
+              "SELECT first_name, company FROM people WHERE id = ?"
+            ).bind(devNoSite.person_id).first();
+            return json({
+              status: "confirm_sign_out",
+              visitId: openAny.id,
+              site: openAny.site_code,
+              firstName: perNoSite?.first_name || null,
+              company: perNoSite?.company || null
+            });
+          }
+        }
+
         let nearestSite = null;
         let nearestDist = null;
 
@@ -1382,12 +1424,14 @@ export default {
       for (const v of allOpenVisits.results || []) {
         const visitDateKey = londonDateKeyFromUtcString(v.check_in_at);
 
-        if (visitDateKey !== nowDateKey) {
-          const forcedCheckoutUtc = londonLocalToUtcIso(visitDateKey, "16:00:00");
+        if (visitDateKey < nowDateKey) {
+          // MAX(check_in_at, ...) so a night-shift / late check-in can never be
+          // closed BEFORE it opened (which would record negative hours).
+          const forcedCheckoutUtc = toSqlUtc(Date.parse(londonLocalToUtcIso(visitDateKey, "16:00:00")));
 
           await env.DB.prepare(`
             UPDATE visits
-            SET check_out_at = ?, auto_checkout = 1
+            SET check_out_at = MAX(check_in_at, ?), auto_checkout = 1
             WHERE id = ? AND check_out_at IS NULL
           `).bind(forcedCheckoutUtc, v.id).run();
         }
@@ -1996,11 +2040,13 @@ export default {
         const visitDateKey = londonDateKeyFromUtcString(v.check_in_at);
 
         if (visitDateKey < now.dateKey) {
-          const forcedCheckoutUtc = londonLocalToUtcIso(visitDateKey, "16:00:00");
+          // MAX(check_in_at, ...) guards against negative durations for late /
+          // overnight check-ins (see the matching guard in /scan).
+          const forcedCheckoutUtc = toSqlUtc(Date.parse(londonLocalToUtcIso(visitDateKey, "16:00:00")));
 
           await env.DB.prepare(`
             UPDATE visits
-            SET check_out_at = ?, auto_checkout = 1
+            SET check_out_at = MAX(check_in_at, ?), auto_checkout = 1
             WHERE id = ? AND check_out_at IS NULL
           `).bind(forcedCheckoutUtc, v.id).run();
         }

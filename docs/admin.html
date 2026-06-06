@@ -149,6 +149,26 @@
     .company-chip-toggle.active{background:var(--blue-soft);color:var(--blue);border-color:var(--blue);}
     .site-row-detail{background:var(--surface2);}
     .site-row-detail td{padding:10px 14px 14px !important;}
+    /* Sites accordion - compact rows that expand to edit on tap */
+    .site-list{display:flex;flex-direction:column;gap:8px;}
+    .site-item{border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);overflow:hidden;}
+    .site-item.archived .site-item-name{color:var(--label3);}
+    .site-item-head{display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,74,153,0.06);}
+    .site-item-head:active{background:var(--surface2);}
+    .site-item-main{flex:1;min-width:0;}
+    .site-item-name{font-size:15px;font-weight:600;color:var(--label);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .site-item-sub{display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap;}
+    .site-item-fact{font-size:12px;color:var(--label3);white-space:nowrap;}
+    .site-item-chev{font-size:22px;line-height:1;color:var(--label4);transition:transform 0.2s;flex-shrink:0;}
+    .site-item.open .site-item-chev{transform:rotate(90deg);}
+    .site-item-body{display:none;padding:4px 14px 14px;border-top:1px solid var(--border);background:var(--surface2);}
+    .site-item.open .site-item-body{display:block;}
+    .site-edit-grid{display:flex;flex-direction:column;gap:10px;padding-top:12px;}
+    .site-edit-grid input{height:40px;width:100%;}
+    .site-item-coords{font-size:12px;color:var(--label3);margin:12px 0 4px;}
+    .site-item-actions{display:flex;gap:8px;margin-top:14px;}
+    .site-item-actions button{flex:1;height:40px;}
+    .muted-note{color:var(--label4);font-size:12px;}
     .add-form{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:18px;}
     .add-form-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--label3);margin-bottom:10px;}
     .add-form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:end;}
@@ -1903,19 +1923,81 @@ function renderSitesAdminTable() {
   const rows = sitesAll.slice().sort((a, b) => String(a.site_name || "").localeCompare(String(b.site_name || ""))).map(s => {
     const isArch = Number(s.archived || 0) === 1;
     const pill = isArch ? '<span class="pill pill-arch">Archived</span>' : '<span class="pill pill-active">Active</span>';
+    const companyIds = siteCompanyMap[s.id] || [];
     const chips = companiesAll.map(c => {
-      const active = (siteCompanyMap[s.id] || []).includes(c.id) ? "active" : "";
-      return '<span class="company-chip-toggle ' + active + '" data-site-id="' + escapeHtml(s.id) + '" data-company-id="' + escapeHtml(c.id) + '" onclick="toggleSiteCompanyChip(this)">' + escapeHtml(c.name) + '</span>';
+      const active = companyIds.includes(c.id) ? "active" : "";
+      return '<span class="company-chip-toggle ' + active + '" data-site-id="' + escapeHtml(s.id) + '" data-company-id="' + escapeHtml(c.id) + '" onclick="event.stopPropagation();toggleSiteCompanyChip(this)">' + escapeHtml(c.name) + '</span>';
     }).join("");
 
-    return '<tr><td data-label="Status">' + pill + '</td><td data-label="Site name"><input data-site-name="' + escapeHtml(s.id) + '" value="' + escapeHtml(s.site_name || "") + '"/></td><td data-label="Lat/Lng" style="color:var(--label3);font-size:12px;">' + escapeHtml((s.lat ?? "-") + ", " + (s.lng ?? "-")) + '</td><td data-label="Radius (m)"><input data-site-radius="' + escapeHtml(s.id) + '" type="number" min="50" step="10" value="' + escapeHtml(s.radius_m ?? 500) + '" style="width:80px;"/></td><td data-label="Actions"><div class="row-btns"><button class="btn-primary btn-sm" onclick="saveSite(\'' + escapeHtml(s.id) + '\')">Save</button><button class="btn-ghost btn-sm" onclick="toggleSite(\'' + escapeHtml(s.id) + '\')">' + (isArch ? "Unarchive" : "Archive") + '</button></div></td></tr>' +
-      '<tr class="site-row-detail"><td colspan="5"><div class="site-companies-section"><div class="site-companies-label">' + escapeHtml(s.site_name || "Site") + '</div><div class="company-chip-row" id="chips-' + escapeHtml(s.id) + '">' + (chips || '<span style="color:var(--label4);font-size:12px;">No companies</span>') + '</div><div style="margin-top:8px;"><button class="btn-primary btn-sm" onclick="saveSiteCompanies(\'' + escapeHtml(s.id) + '\')">Save company assignments</button></div></div></td></tr>';
+    return '<div class="site-item' + (isArch ? ' archived' : '') + '" id="site-item-' + escapeHtml(s.id) + '">' +
+        '<div class="site-item-head" onclick="toggleSiteItem(\'' + escapeHtml(s.id) + '\')">' +
+          '<div class="site-item-main">' +
+            '<div class="site-item-name">' + escapeHtml(s.site_name || "Unnamed site") + '</div>' +
+            '<div class="site-item-sub">' + pill +
+              '<span class="site-item-fact">&#128207; ' + escapeHtml(s.radius_m ?? 500) + 'm</span>' +
+              '<span class="site-item-fact">&#127970; ' + companyIds.length + ' ' + (companyIds.length === 1 ? 'company' : 'companies') + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<span class="site-item-chev">&#8250;</span>' +
+        '</div>' +
+        '<div class="site-item-body">' +
+          '<div class="site-edit-grid">' +
+            '<label class="field-stack"><span class="field-label">Site name</span><input data-site-name="' + escapeHtml(s.id) + '" value="' + escapeHtml(s.site_name || "") + '" onclick="event.stopPropagation();"/></label>' +
+            '<label class="field-stack"><span class="field-label">Radius (m)</span><input data-site-radius="' + escapeHtml(s.id) + '" type="number" min="50" step="10" value="' + escapeHtml(s.radius_m ?? 500) + '" onclick="event.stopPropagation();"/></label>' +
+          '</div>' +
+          '<div class="site-item-coords">&#128205; ' + escapeHtml((s.lat ?? "-") + ", " + (s.lng ?? "-")) + '</div>' +
+          '<div class="site-companies-label">Companies allowed on this site</div>' +
+          '<div class="company-chip-row" id="chips-' + escapeHtml(s.id) + '">' + (chips || '<span class="muted-note">No companies added yet</span>') + '</div>' +
+          '<div class="site-item-actions">' +
+            '<button class="btn-primary btn-sm" onclick="event.stopPropagation();saveSiteFull(\'' + escapeHtml(s.id) + '\')">Save changes</button>' +
+            '<button class="btn-ghost btn-sm" onclick="event.stopPropagation();toggleSite(\'' + escapeHtml(s.id) + '\')">' + (isArch ? "Unarchive" : "Archive") + '</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
   }).join("");
 
-  wrap.innerHTML = '<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Status</th><th>Name</th><th>Lat/Lng</th><th>Radius(m)</th><th style="text-align:right;">Actions</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  wrap.innerHTML = '<div class="site-list">' + rows + '</div>';
+}
+function toggleSiteItem(id) {
+  const el = document.getElementById("site-item-" + id);
+  if (el) el.classList.toggle("open");
 }
 function toggleSiteCompanyChip(el) {
   el.classList.toggle("active");
+}
+async function saveSiteFull(id) {
+  const n = (document.querySelector('[data-site-name="' + escSel(id) + '"]')?.value || "").trim();
+  const radius = Number(document.querySelector('[data-site-radius="' + escSel(id) + '"]')?.value || 500);
+  if (!n) { alert("Site name cannot be blank."); return; }
+
+  const chips = document.querySelectorAll('#chips-' + escSel(id) + ' .company-chip-toggle');
+  const companyIds = [...chips].filter(c => c.classList.contains("active")).map(c => c.dataset.companyId);
+
+  try {
+    const r = await fetch(API_BASE + "/update-site", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ id, siteName: n, radius })
+    });
+    let d = {}; try { d = await r.json(); } catch (e) {}
+    if (!r.ok || d.ok === false) { alert(d.error || "Failed to save site."); return; }
+
+    const rc = await fetch(API_BASE + "/update-site-companies", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ [id]: companyIds })
+    });
+    let dc = {}; try { dc = await rc.json(); } catch (e) {}
+    if (!rc.ok || !dc.ok) { alert("Site saved, but company assignments failed.\n\n" + (dc.error || "")); }
+  } catch (err) {
+    alert("Network error.\n\n" + err.message);
+    return;
+  }
+
+  await fetchSites();
+  await loadSiteCompanyMap();
+  renderSitesAdminTable();
+  renderAll();
 }
 async function saveSiteCompanies(siteId) {
   const chips = document.querySelectorAll('#chips-' + escSel(siteId) + ' .company-chip-toggle');

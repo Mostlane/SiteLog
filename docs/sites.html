@@ -282,7 +282,8 @@
 </div>
 
 <script>
-const API = "https://sitelog-api.jamie-def.workers.dev";
+const API = "https://api.site-log.co.uk";
+(function(){ var of = window.fetch.bind(window); window.fetch = function(input, init){ var u = typeof input === "string" ? input : (input && input.url) || ""; if (u.indexOf(API) === 0) { init = Object.assign({}, init); init.credentials = "include"; } return of(input, init); }; })();
 
 // Admin password (set when signing in to the dashboard). /add-site requires it.
 function getAdminSecret() {

@@ -699,7 +699,8 @@ text-align: center;
 </div>
 
 <script>
-var API = "https://sitelog-api.jamie-def.workers.dev";
+var API = "https://api.site-log.co.uk";
+(function(){ var of = window.fetch.bind(window); window.fetch = function(input, init){ var u = typeof input === "string" ? input : (input && input.url) || ""; if (u.indexOf(API) === 0) { init = Object.assign({}, init); init.credentials = "include"; } return of(input, init); }; })();
 
 try { document.cookie = "ml_pwa=1; max-age=63072000; path=/; SameSite=Lax"; } catch(e) {}
 try { localStorage.setItem("ml_pwa", "1"); } catch(e) {}

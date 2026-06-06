@@ -169,6 +169,23 @@
     .site-item-actions{display:flex;gap:8px;margin-top:14px;}
     .site-item-actions button{flex:1;height:40px;}
     .muted-note{color:var(--label4);font-size:12px;}
+    /* Shared accordion edit area (sites + engineers) */
+    .acc-edit{display:flex;flex-direction:column;gap:10px;padding-top:12px;}
+    .acc-edit input,.acc-edit select{height:40px;width:100%;}
+    /* Companies - compact one-line rows */
+    .comp-list{display:flex;flex-direction:column;gap:6px;}
+    .comp-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);}
+    .comp-name{flex:1;min-width:0;font-weight:500;font-size:15px;color:var(--label);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    /* Timesheets - collapsible engineer blocks */
+    .ts-eng-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;cursor:pointer;background:var(--surface2);-webkit-tap-highlight-color:rgba(0,74,153,0.06);}
+    .ts-eng-head:active{background:var(--surface3);}
+    .ts-eng-head .ts-engineer-title{margin:0;}
+    .ts-eng-quick{display:flex;align-items:center;gap:10px;color:var(--label3);font-size:12.5px;white-space:nowrap;flex-shrink:0;}
+    .ts-eng-quick b{color:var(--label);font-weight:700;}
+    .ts-eng-chev{font-size:22px;line-height:1;color:var(--label4);transition:transform 0.2s;}
+    .ts-acc.open .ts-eng-chev{transform:rotate(90deg);}
+    .ts-eng-body{display:none;}
+    .ts-acc.open .ts-eng-body{display:block;}
     .add-form{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:18px;}
     .add-form-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--label3);margin-bottom:10px;}
     .add-form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:end;}
@@ -376,6 +393,10 @@
   .site-row-detail{padding:10px !important;}
   .site-companies-section{padding-top:6px;}
   .company-chip-toggle{padding:6px 11px;font-size:12px;min-height:32px;}
+  /* Engineer accordion: stack travel fields full-width */
+  .site-item-body .travel-fields{flex-direction:column;align-items:stretch;gap:8px;}
+  .site-item-body .travel-fields > select,
+  .site-item-body .travel-fields > div{width:100%;}
 
   /* Add Site / Add Engineer add forms */
   .add-form{padding:14px;border-radius:12px;margin-bottom:14px;}
@@ -1721,6 +1742,7 @@ function renderTimesheetsModal() {
   });
 
   let html = "";
+  let tsIdx = 0;
   Object.keys(grouped).sort((a, b) => companySortKey(a).localeCompare(companySortKey(b))).forEach(co => {
     html += '<div class="ts-company-section"><div class="ts-company-title">' + escapeHtml(co) + '</div>';
     Object.keys(grouped[co]).sort().forEach(pe => {
@@ -1745,11 +1767,20 @@ function renderTimesheetsModal() {
           '<div class="eng-stat"><span class="eng-stat-val ' + (missed > 0 ? "warn" : "good") + '">' + missed + '</span><span class="eng-stat-label">Missed out</span></div>' +
         '</div>';
 
-      html += '<div class="ts-engineer-block"><div class="ts-engineer-header"><div class="ts-engineer-title">' + escapeHtml(pe) + '</div>' + buildEngineerAdminPanel(eng, pe, co, eid) + '</div>' + statsHtml;
+      const accId = "tseng-" + (tsIdx++);
+      html += '<div class="ts-engineer-block ts-acc" id="' + accId + '">' +
+        '<div class="ts-eng-head" onclick="toggleTsEng(\'' + accId + '\')">' +
+          '<div class="ts-engineer-title">' + escapeHtml(pe) + '</div>' +
+          '<div class="ts-eng-quick"><span><b>' + totalHrs.toFixed(1) + 'h</b></span><span>' + days + 'd</span>' +
+            (missed > 0 ? '<span style="color:var(--red);font-weight:600;">' + missed + ' missed</span>' : '') +
+            '<span class="ts-eng-chev">&#8250;</span></div>' +
+        '</div>' +
+        '<div class="ts-eng-body">' +
+          '<div class="ts-engineer-header">' + buildEngineerAdminPanel(eng, pe, co, eid) + '</div>' + statsHtml;
       Object.keys(grouped[co][pe].weeks).sort().forEach(wk => {
         html += buildWeekTable(grouped[co][pe].weeks[wk], pe, co, wk, eng);
       });
-      html += '</div>';
+      html += '</div></div>';
     });
     html += '</div>';
   });
@@ -1774,20 +1805,31 @@ function clearTimesheetFilters() {
 }
 function exportTimesheetsPdf() {
   const el = document.getElementById("timesheetsPdfRoot");
+  // Expand every collapsed engineer block so they're all included in the PDF
+  const accs = [...el.querySelectorAll(".ts-acc")];
+  const wasOpen = accs.map(a => a.classList.contains("open"));
+  accs.forEach(a => a.classList.add("open"));
   const mh = el.style.maxHeight;
   const mo = el.style.overflow;
   el.style.maxHeight = "none";
   el.style.overflow = "visible";
+
+  const restore = () => {
+    el.style.maxHeight = mh;
+    el.style.overflow = mo;
+    accs.forEach((a, i) => { if (!wasOpen[i]) a.classList.remove("open"); });
+  };
 
   html2pdf().set({
     margin: 0.2,
     filename: "SiteLog_Timesheets.pdf",
     jsPDF: { unit: "in", format: "a4", orientation: "landscape" },
     html2canvas: { scale: 2, useCORS: true, scrollY: 0, windowWidth: el.scrollWidth }
-  }).from(el).save().then(() => {
-    el.style.maxHeight = mh;
-    el.style.overflow = mo;
-  });
+  }).from(el).save().then(restore).catch(restore);
+}
+function toggleTsEng(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle("open");
 }
 
 async function saveTimesheetEngineer(id) {
@@ -2129,36 +2171,63 @@ function renderEngineersTable() {
     const ts = p.travel_status || "not_configured";
     const ct = p.travel_cap_type || "";
     const cv = p.travel_cap_value != null ? p.travel_cap_value : "";
+    const id = escapeHtml(p.id);
+    const fullName = escapeHtml(nameOf(p) || "Unnamed");
+    const company = escapeHtml(p.company || "No company");
+    const rate = (p.hourly_rate != null && String(p.hourly_rate) !== "" && Number(p.hourly_rate) > 0)
+      ? '&pound;' + Number(p.hourly_rate).toFixed(2) + '/hr' : null;
 
-    return '<tr><td data-label="Status">' + pill + '</td>' +
-      '<td data-label="First name"><input data-eng-first="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.first_name || "") + '"/></td>' +
-      '<td data-label="Last name"><input data-eng-last="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.last_name || "") + '"/></td>' +
-      '<td data-label="Company"><input data-eng-company="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.company || "") + '"/></td>' +
-      '<td data-label="Purpose"><input data-eng-purpose="' + escapeHtml(p.id) + '" value="' + escapeHtml(p.purpose || "") + '"/></td>' +
-      '<td data-label="Rate (per hr)"><input data-eng-rate="' + escapeHtml(p.id) + '" type="number" step="0.01" min="0" value="' + escapeHtml(p.hourly_rate != null ? String(p.hourly_rate) : "") + '" placeholder="-" style="width:80px;"/></td>' +
-      '<td data-label="Travel">' +
-        '<div class="travel-section" style="min-width:260px;">' +
-          '<div class="travel-section-label">Travel</div>' +
-          '<div class="travel-fields">' +
-            '<select data-eng-travel-status="' + escapeHtml(p.id) + '" onchange="onEngTravelChange(\'' + escapeHtml(p.id) + '\')">' +
-              '<option value="not_configured"' + (ts === "not_configured" ? " selected" : "") + '>Not configured</option>' +
-              '<option value="no_allowance"' + (ts === "no_allowance" ? " selected" : "") + '>No allowance</option>' +
-              '<option value="paid"' + (ts === "paid" ? " selected" : "") + '>Paid</option>' +
-            '</select>' +
-            '<div id="engCapGroup-' + escapeHtml(p.id) + '" style="display:' + (ts === "paid" ? "flex" : "none") + ';gap:6px;flex-wrap:wrap;">' +
-              '<select data-eng-cap-type="' + escapeHtml(p.id) + '">' +
-                '<option value="none"' + ((ct === "none" || ct === "") ? " selected" : "") + '>No cap</option>' +
-                '<option value="time"' + (ct === "time" ? " selected" : "") + '>Time (mins)</option>' +
-                '<option value="distance"' + (ct === "distance" ? " selected" : "") + '>Distance (mi)</option>' +
+    return '<div class="site-item' + (isArch ? ' archived' : '') + '" id="eng-item-' + id + '">' +
+        '<div class="site-item-head" onclick="toggleEngItem(\'' + id + '\')">' +
+          '<div class="site-item-main">' +
+            '<div class="site-item-name">' + fullName + '</div>' +
+            '<div class="site-item-sub">' + pill +
+              '<span class="site-item-fact">' + company + '</span>' +
+              (rate ? '<span class="site-item-fact">' + rate + '</span>' : '') +
+              (ts === "paid" ? '<span class="site-item-fact">Travel paid</span>' : '') +
+            '</div>' +
+          '</div>' +
+          '<span class="site-item-chev">&#8250;</span>' +
+        '</div>' +
+        '<div class="site-item-body">' +
+          '<div class="acc-edit">' +
+            '<label class="field-stack"><span class="field-label">First name</span><input data-eng-first="' + id + '" value="' + escapeHtml(p.first_name || "") + '"/></label>' +
+            '<label class="field-stack"><span class="field-label">Last name</span><input data-eng-last="' + id + '" value="' + escapeHtml(p.last_name || "") + '"/></label>' +
+            '<label class="field-stack"><span class="field-label">Company</span><input data-eng-company="' + id + '" value="' + escapeHtml(p.company || "") + '"/></label>' +
+            '<label class="field-stack"><span class="field-label">Purpose</span><input data-eng-purpose="' + id + '" value="' + escapeHtml(p.purpose || "") + '"/></label>' +
+            '<label class="field-stack"><span class="field-label">Rate (per hr)</span><input data-eng-rate="' + id + '" type="number" step="0.01" min="0" value="' + escapeHtml(p.hourly_rate != null ? String(p.hourly_rate) : "") + '" placeholder="-"/></label>' +
+          '</div>' +
+          '<div class="travel-section">' +
+            '<div class="travel-section-label">Travel allowance</div>' +
+            '<div class="travel-fields">' +
+              '<select data-eng-travel-status="' + id + '" onchange="onEngTravelChange(\'' + id + '\')">' +
+                '<option value="not_configured"' + (ts === "not_configured" ? " selected" : "") + '>Not configured</option>' +
+                '<option value="no_allowance"' + (ts === "no_allowance" ? " selected" : "") + '>No allowance</option>' +
+                '<option value="paid"' + (ts === "paid" ? " selected" : "") + '>Paid</option>' +
               '</select>' +
-              '<input type="number" data-eng-cap-val="' + escapeHtml(p.id) + '" value="' + escapeHtml(String(cv)) + '" placeholder="e.g. 30" style="width:70px;" min="0" step="1">' +
-            '</div></div></div>' +
-      '</td>' +
-      '<td data-label="Actions"><div class="row-btns"><button class="btn-primary btn-sm" onclick="saveEngineer(\'' + escapeHtml(p.id) + '\')">Save</button><button class="btn-ghost btn-sm" onclick="toggleEngineer(\'' + escapeHtml(p.id) + '\')">' + (isArch ? "Unarchive" : "Archive") + '</button></div></td>' +
-      '</tr>';
+              '<div id="engCapGroup-' + id + '" style="display:' + (ts === "paid" ? "flex" : "none") + ';gap:6px;flex-wrap:wrap;">' +
+                '<select data-eng-cap-type="' + id + '">' +
+                  '<option value="none"' + ((ct === "none" || ct === "") ? " selected" : "") + '>No cap</option>' +
+                  '<option value="time"' + (ct === "time" ? " selected" : "") + '>Time (mins)</option>' +
+                  '<option value="distance"' + (ct === "distance" ? " selected" : "") + '>Distance (mi)</option>' +
+                '</select>' +
+                '<input type="number" data-eng-cap-val="' + id + '" value="' + escapeHtml(String(cv)) + '" placeholder="e.g. 30" min="0" step="1">' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="site-item-actions">' +
+            '<button class="btn-primary btn-sm" onclick="event.stopPropagation();saveEngineer(\'' + id + '\')">Save changes</button>' +
+            '<button class="btn-ghost btn-sm" onclick="event.stopPropagation();toggleEngineer(\'' + id + '\')">' + (isArch ? "Unarchive" : "Archive") + '</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
   }).join("");
 
-  wrap.innerHTML = '<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Status</th><th>First</th><th>Last</th><th>Company</th><th>Purpose</th><th>Rate/hr</th><th>Travel</th><th style="text-align:right;">Actions</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  wrap.innerHTML = '<div class="site-list">' + rows + '</div>';
+}
+function toggleEngItem(id) {
+  const el = document.getElementById("eng-item-" + id);
+  if (el) el.classList.toggle("open");
 }
 function onEngTravelChange(id) {
   const sel = document.querySelector('[data-eng-travel-status="' + escSel(id) + '"]');
@@ -2228,11 +2297,13 @@ function closeCompaniesModal() {
 }
 function renderCompaniesAdmin() {
   const wrap = document.getElementById("companiesAdminBody");
-  const rows = companiesAll.map(c => '<tr><td data-label="Company name" style="font-weight:500;">' + escapeHtml(c.name) + '</td><td data-label="Actions"><div class="row-btns"><button class="btn-danger btn-sm" onclick="deleteCompany(\'' + escapeHtml(c.id) + '\',\'' + escapeHtml(c.name) + '\')">Delete</button></div></td></tr>').join("");
+  const rows = companiesAll.slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))).map(c =>
+    '<div class="comp-row"><span class="comp-name">' + escapeHtml(c.name) + '</span><button class="btn-danger btn-sm" onclick="deleteCompany(\'' + escapeHtml(c.id) + '\',\'' + escapeHtml(c.name) + '\')">Delete</button></div>'
+  ).join("");
   wrap.innerHTML =
     '<div class="add-form" style="margin-bottom:16px;"><div class="add-form-title">Add New Company</div><div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;"><div class="field-stack" style="flex:1;min-width:180px;"><span class="field-label">Company Name</span><input id="newCompanyName" type="text" placeholder="e.g. Acme Ltd" style="width:100%;"/></div><button class="btn-primary" onclick="addCompany()">Add Company</button></div></div>' +
     (companiesAll.length
-      ? '<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Company Name</th><th style="text-align:right;">Actions</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+      ? '<div class="comp-list">' + rows + '</div>'
       : '<div class="ts-empty">No companies yet.</div>');
 }
 async function addCompany() {

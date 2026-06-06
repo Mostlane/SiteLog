@@ -644,6 +644,7 @@
     </div>
   </div>
   <div id="pendingEventsBanner" style="display:none;margin-bottom:18px;padding:14px 16px;border-radius:10px;background:#fff7ed;border:1px solid #fdba74;color:#7c2d12;font-size:13.5px;line-height:1.5;"></div>
+  <div id="unmatchedVisitsBanner" style="display:none;margin-bottom:18px;padding:14px 16px;border-radius:10px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a;font-size:13.5px;line-height:1.5;"></div>
   <div class="section-header"><span class="section-label">&#128994; Live on site</span></div>
   <div class="card" style="margin-bottom:32px;">
     <div class="table-wrap">
@@ -664,6 +665,27 @@
     <div class="modal-header"><div><div class="modal-title">Delete Visit</div><div class="modal-subtitle">This cannot be undone</div></div></div>
     <div class="modal-body"><p id="deleteText" style="color:var(--label2);font-size:14px;line-height:1.5;"></p></div>
     <div class="modal-actions"><button class="btn-ghost" onclick="closeDeleteModal()">Cancel</button><button class="btn-danger" onclick="confirmDelete()">Delete Visit</button></div>
+  </div>
+</div>
+<div id="unmatchedModal" class="modal">
+  <div class="modal-content" style="width:min(440px,100%);">
+    <div class="modal-header"><div><div class="modal-title">Resolve location</div><div class="modal-subtitle" id="unmatchedSubtitle"></div></div><button class="btn-ghost btn-sm" onclick="closeUnmatchedModal()">Close</button></div>
+    <div class="modal-body">
+      <p style="color:var(--label2);font-size:13px;line-height:1.5;margin-bottom:14px;" id="unmatchedInfo"></p>
+
+      <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px;">
+        <div style="font-weight:600;font-size:13.5px;margin-bottom:8px;">Create a new site here</div>
+        <input id="unmatchedNewName" placeholder="Site name" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:8px;" />
+        <input id="unmatchedRadius" type="number" placeholder="Radius (m)" value="500" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:10px;" />
+        <button class="btn-primary btn-sm" onclick="resolveUnmatched('create')">Create site &amp; link visit</button>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:10px;padding:12px;">
+        <div style="font-weight:600;font-size:13.5px;margin-bottom:8px;">Or link to an existing site</div>
+        <select id="unmatchedLinkSelect" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:10px;"></select>
+        <button class="btn-secondary btn-sm" onclick="resolveUnmatched('link')">Link visit to this site</button>
+      </div>
+    </div>
   </div>
 </div>
 <div id="liveDetailModal" class="modal">
@@ -1324,6 +1346,7 @@ async function loadData() {
     renderAll();
     checkPendingTransfersBadge();
     checkPendingEvents();
+    checkUnmatchedVisits();
   } catch (err) {
     console.error(err);
     alert("Failed to load SiteLog data.");
@@ -1354,6 +1377,66 @@ async function checkPendingEvents() {
       '<ul style="margin:8px 0 0;padding-left:20px;">' + rows + '</ul>';
     el.style.display = "block";
   } catch (e) {}
+}
+
+/* ── UNMATCHED-LOCATION CHECK-INS ──
+   Check-ins made where GPS matched no site. Admin creates a site at the
+   captured GPS, or links the visit to an existing site. */
+let unmatchedVisitId = null;
+function checkUnmatchedVisits() {
+  const el = document.getElementById("unmatchedVisitsBanner");
+  if (!el) return;
+  const um = allVisits.filter(v => Number(v.unmatched_site || 0) === 1);
+  if (!um.length) { el.style.display = "none"; return; }
+  const rows = um.slice(0, 30).map(v =>
+    '<li style="margin:0 0 6px;">' +
+    escapeHtml(toLocal(v.check_in_at)) + ' &middot; ' + escapeHtml(nameOf(v)) + ' &middot; &ldquo;' +
+    escapeHtml(v.provided_site_name || v.site_code || "?") + '&rdquo; ' +
+    '<button class="btn-secondary btn-sm" style="margin-left:6px;" onclick="openUnmatchedModal(\'' + escapeHtml(v.visit_id) + '\')">Resolve</button></li>'
+  ).join("");
+  el.innerHTML = '<strong>&#128205; ' + um.length + ' check-in' + (um.length > 1 ? 's' : '') +
+    ' at an unrecognised location.</strong> Create a site or link each one:' +
+    '<ul style="margin:8px 0 0;padding-left:20px;list-style:none;">' + rows + '</ul>';
+  el.style.display = "block";
+}
+function openUnmatchedModal(visitId) {
+  const v = allVisits.find(x => String(x.visit_id) === String(visitId));
+  if (!v) return;
+  unmatchedVisitId = visitId;
+  const hasGps = (v.lat != null && v.lng != null);
+  document.getElementById("unmatchedSubtitle").textContent = nameOf(v) + " · " + toLocal(v.check_in_at);
+  document.getElementById("unmatchedInfo").innerHTML =
+    'Worker typed: <strong>' + escapeHtml(v.provided_site_name || v.site_code || "?") + '</strong>' +
+    (hasGps
+      ? '<br>Captured location: ' + Number(v.lat).toFixed(5) + ', ' + Number(v.lng).toFixed(5)
+      : '<br><em>No GPS captured for this visit — only linking to an existing site is possible.</em>');
+  document.getElementById("unmatchedNewName").value = v.provided_site_name || v.site_code || "";
+  document.getElementById("unmatchedRadius").value = 500;
+  const sel = document.getElementById("unmatchedLinkSelect");
+  sel.innerHTML = (sitesActive || []).map(s => '<option value="' + escapeHtml(s.site_name) + '">' + escapeHtml(s.site_name) + '</option>').join("");
+  document.getElementById("unmatchedModal").style.display = "flex";
+}
+function closeUnmatchedModal() {
+  document.getElementById("unmatchedModal").style.display = "none";
+  unmatchedVisitId = null;
+}
+async function resolveUnmatched(mode) {
+  if (!unmatchedVisitId) return;
+  const body = { visitId: unmatchedVisitId, mode: mode };
+  if (mode === "create") {
+    body.siteName = document.getElementById("unmatchedNewName").value.trim();
+    body.radius = Number(document.getElementById("unmatchedRadius").value) || 500;
+    if (!body.siteName) { alert("Enter a site name."); return; }
+  } else {
+    body.existingSiteName = document.getElementById("unmatchedLinkSelect").value;
+    if (!body.existingSiteName) { alert("No site selected."); return; }
+  }
+  const r = await fetch(API_BASE + "/resolve-unmatched", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const d = await r.json();
+  if (!d.ok) { alert(d.error || "Failed to resolve."); return; }
+  closeUnmatchedModal();
+  await fetchSites();
+  await loadData();
 }
 
 /* ── DELETE ── */

@@ -451,6 +451,7 @@ text-align: center;
       <div class="dash-action-site" id="dashActionSite"></div>
       <button class="dash-action-btn dash-btn-in"  id="dashBtnIn"  onclick="dashTriggerScan()"    style="display:none;">Check In</button>
       <button class="dash-action-btn dash-btn-out" id="dashBtnOut" onclick="dashTriggerSignOut()" style="display:none;">Sign Out</button>
+      <button class="dash-action-btn dash-btn-in"  id="dashBtnUnmatched" onclick="openUnmatchedModal()" style="display:none;background:var(--amber);">Check in here anyway</button>
       <div id="dashDuration" style="display:none;font-size:13px;color:var(--muted);margin-top:8px;text-align:center;"></div>
       <div class="dash-info-strip">
         <div class="dash-info-row">
@@ -693,6 +694,20 @@ text-align: center;
   </div>
 </div>
 
+<!-- UNRECOGNISED LOCATION CHECK-IN -->
+
+<div class="modal-overlay" id="modalUnmatched">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Location not recognised</div>
+    <div class="modal-body">Your location doesn&rsquo;t match a known site. Enter the site name to check in anyway &mdash; Mostlane will confirm and add the site afterwards.</div>
+    <div class="err-body" id="unmatchedHintText" style="display:none;font-size:12.5px;color:var(--muted);margin-bottom:10px;"></div>
+    <input id="unmatchedSiteName" placeholder="Site name (e.g. Smith Farm, Unit 4)" style="width:100%;box-sizing:border-box;padding:14px;border:1px solid var(--border);border-radius:12px;font-size:16px;margin-bottom:12px;" />
+    <button class="modal-btn primary"   onclick="submitUnmatchedCheckin()">Check In Here</button>
+    <button class="modal-btn secondary" onclick="closeUnmatchedModal()">Cancel</button>
+  </div>
+</div>
+
 <div id="offlineBanner"></div>
 
 <div id="webviewBanner">
@@ -822,6 +837,7 @@ function showScreen(id) {
 // STATE
 var lastLocation        = null;
 var currentSite         = null;
+var unmatchedHint       = "";
 var pendingCheckoutId   = null;
 var pendingCheckoutName = "";
 var pendingCheckoutSite = "";
@@ -1310,6 +1326,37 @@ async function appConfirmSignInYes() {
 }
 function appConfirmSignInNo() { closeSignInModal(); }
 
+// UNRECOGNISED LOCATION CHECK-IN
+function openUnmatchedModal() {
+  var hint = document.getElementById("unmatchedHintText");
+  if (hint) {
+    if (unmatchedHint) { hint.textContent = unmatchedHint; hint.style.display = "block"; }
+    else { hint.style.display = "none"; }
+  }
+  document.getElementById("unmatchedSiteName").value = "";
+  document.getElementById("modalUnmatched").classList.add("open");
+}
+function closeUnmatchedModal() {
+  document.getElementById("modalUnmatched").classList.remove("open");
+}
+async function submitUnmatchedCheckin() {
+  var siteName = document.getElementById("unmatchedSiteName").value.trim();
+  if (!siteName) { alert("Please enter a site name."); return; }
+  var res, data;
+  try {
+    res  = await fetchWithTimeout(API + "/checkin-unmatched", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceToken: deviceToken, siteName: siteName, lat: lastLocation ? lastLocation.lat : null, lng: lastLocation ? lastLocation.lng : null, accuracy: lastLocation ? lastLocation.accuracy : null }) });
+    data = await res.json();
+  } catch(e) { showNetworkError("scan"); return; }
+  if (!res.ok || !data.ok) { alert(data.error || "Could not check in. Please try again."); return; }
+  var t = Date.now();
+  closeUnmatchedModal();
+  currentSite = siteName;
+  await dbSet("last_checkin", t);
+  dashSetState("in", siteName, null, t);
+  recordLastEvent("Checked in at " + siteName + " (pending site confirmation)");
+  showSuccess("in", siteName, data.firstName || "", null, null);
+}
+
 // SCAN
 async function appScan() {
   var res, data;
@@ -1318,7 +1365,13 @@ async function appScan() {
     data = await res.json();
   } catch(e) { showNetworkError("scan"); return; }
 
-  if (data.status === "unknown_site") { dashSetState("unknown", null, null, null); return; }
+  if (data.status === "unknown_site") {
+    unmatchedHint = data.nearestSite
+      ? ("Nearest known site: " + data.nearestSite + (data.distance_m ? " (" + data.distance_m + " m away)" : ""))
+      : "";
+    dashSetState("unknown", null, null, null);
+    return;
+  }
 
   currentSite = data.site;
   await loadCompanies(currentSite);
@@ -1667,11 +1720,13 @@ function dashSetState(state, siteName, visitId, checkInTime) {
   var site     = document.getElementById("dashActionSite");
   var btnIn    = document.getElementById("dashBtnIn");
   var btnOut   = document.getElementById("dashBtnOut");
+  var btnUnmatched = document.getElementById("dashBtnUnmatched");
   var onSiteSub = document.getElementById("dashOnSiteSub");
   dashHideLocating();
   dot.className = "dash-status-dot";
   btnIn.style.display  = "none";
   btnOut.style.display = "none";
+  if (btnUnmatched) btnUnmatched.style.display = "none";
   stopDurationTicker();
   if (state === "in") {
     dot.classList.add("live");
@@ -1701,6 +1756,8 @@ function dashSetState(state, siteName, visitId, checkInTime) {
     dashCheckedIn     = false;
     dashCurrentSite   = null;
     if (onSiteSub) onSiteSub.textContent = "\u2014";
+    // Offer a manual check-in only if we actually have a location to record.
+    if (btnUnmatched && lastLocation && lastLocation.lat != null) btnUnmatched.style.display = "block";
   }
 }
 

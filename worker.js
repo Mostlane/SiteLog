@@ -36,6 +36,8 @@ let offlineSchemaReady = false;
 async function ensureOfflineSchema(env) {
   if (offlineSchemaReady) return;
   try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN offline_synced INTEGER DEFAULT 0").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN unmatched_site INTEGER DEFAULT 0").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN provided_site_name TEXT").run(); } catch (e) {}
   try {
     await env.DB.prepare(
       "CREATE TABLE IF NOT EXISTS pending_events (id TEXT PRIMARY KEY, device_token TEXT, lat REAL, lng REAL, accuracy REAL, site_code TEXT, intent TEXT, occurred_at TEXT, synced_at TEXT, resolved INTEGER DEFAULT 0)"
@@ -1076,7 +1078,108 @@ export default {
       });
     }
 
-    // POST /delete-visit
+    // POST /checkin-unmatched
+    // Check in when the GPS matched no configured site. The visit is stored
+    // with the captured location and a worker-typed site name, flagged for an
+    // admin to later create a site or link it to an existing one. No travel is
+    // computed until it's resolved to a real (geofenced) site.
+    if (url.pathname === "/checkin-unmatched" && request.method === "POST") {
+      await ensureOfflineSchema(env);
+      const body = await readBody(request);
+      const deviceToken = (body.deviceToken || readDidCookie(request) || "").toString().trim();
+      const siteName = (body.siteName || "").toString().trim().slice(0, 120);
+      const lat = body.lat, lng = body.lng, accuracy = body.accuracy;
+
+      if (!deviceToken) return json({ ok: false, error: "Missing deviceToken" }, 400);
+      if (!siteName) return json({ ok: false, error: "Please enter a site name" }, 400);
+      if (lat != null && lat !== "" && !isFiniteNumber(lat)) return json({ ok: false, error: "Invalid lat" }, 400);
+      if (lng != null && lng !== "" && !isFiniteNumber(lng)) return json({ ok: false, error: "Invalid lng" }, 400);
+
+      const device = await env.DB.prepare(
+        "SELECT person_id FROM devices WHERE device_token = ?"
+      ).bind(deviceToken).first();
+      if (!device) return json({ ok: false, error: "Device not registered" }, 404);
+
+      const person = await env.DB.prepare(
+        "SELECT first_name, company FROM people WHERE id = ?"
+      ).bind(device.person_id).first();
+
+      await env.DB.prepare(`
+        INSERT INTO visits
+          (id, person_id, site_code, lat, lng, accuracy, hs_ack, auto_checkout, sign_in_confirmed, sign_out_confirmed, unmatched_site, provided_site_name)
+        VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, 0, 1, ?)
+      `).bind(
+        crypto.randomUUID(),
+        device.person_id,
+        siteName,
+        isFiniteNumber(lat) ? Number(lat) : null,
+        isFiniteNumber(lng) ? Number(lng) : null,
+        isFiniteNumber(accuracy) ? Number(accuracy) : null,
+        siteName
+      ).run();
+
+      return json({
+        ok: true,
+        status: "checked_in",
+        site: siteName,
+        unmatched: true,
+        firstName: person?.first_name || null,
+        company: person?.company || null
+      });
+    }
+
+    // POST /resolve-unmatched
+    // Admin links an unmatched check-in to a site: either create a new site at
+    // the visit's captured GPS, or attach it to an existing site.
+    if (url.pathname === "/resolve-unmatched" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+
+      const { visitId, mode, siteName, radius, existingSiteName } = await readBody(request);
+      if (!visitId) return json({ ok: false, error: "Missing visitId" }, 400);
+
+      const visit = await env.DB.prepare(
+        "SELECT id, lat, lng FROM visits WHERE id = ?"
+      ).bind(visitId).first();
+      if (!visit) return json({ ok: false, error: "Visit not found" }, 404);
+
+      if (mode === "create") {
+        const name = (siteName || "").toString().trim().slice(0, 120);
+        if (!name) return json({ ok: false, error: "Missing site name" }, 400);
+        if (!isFiniteNumber(visit.lat) || !isFiniteNumber(visit.lng)) {
+          return json({ ok: false, error: "This visit has no captured location, so a site can't be created from it. Link to an existing site instead." }, 400);
+        }
+        const existing = await env.DB.prepare(
+          "SELECT id FROM sites WHERE site_name = ?"
+        ).bind(name).first();
+        if (!existing) {
+          await env.DB.prepare(
+            "INSERT INTO sites (id, site_name, lat, lng, radius_m, archived) VALUES (?, ?, ?, ?, ?, 0)"
+          ).bind(crypto.randomUUID(), name, Number(visit.lat), Number(visit.lng), Number(radius ?? 500)).run();
+        }
+        await env.DB.prepare(
+          "UPDATE visits SET site_code = ?, unmatched_site = 0 WHERE id = ?"
+        ).bind(name, visitId).run();
+        return json({ ok: true, site: name, created: !existing });
+      }
+
+      if (mode === "link") {
+        const name = (existingSiteName || "").toString().trim();
+        if (!name) return json({ ok: false, error: "Missing site to link to" }, 400);
+        const site = await env.DB.prepare(
+          "SELECT id FROM sites WHERE site_name = ?"
+        ).bind(name).first();
+        if (!site) return json({ ok: false, error: "Site not found" }, 404);
+        await env.DB.prepare(
+          "UPDATE visits SET site_code = ?, unmatched_site = 0 WHERE id = ?"
+        ).bind(name, visitId).run();
+        return json({ ok: true, site: name });
+      }
+
+      return json({ ok: false, error: "Invalid mode" }, 400);
+    }
+
     if (url.pathname === "/delete-visit" && request.method === "POST") {
       const guard = requireAdmin();
       if (guard) return guard;
@@ -1573,6 +1676,8 @@ export default {
                v.travel_out_miles, v.travel_out_mins,
                COALESCE(v.is_first_of_day,0) AS is_first_of_day,
                COALESCE(v.offline_synced,0) AS offline_synced,
+               COALESCE(v.unmatched_site,0) AS unmatched_site,
+               v.provided_site_name,
                CASE
                  WHEN COALESCE(v.auto_checkout,0) = 1 THEN 'No Sign Out'
                  WHEN v.check_out_at IS NOT NULL AND COALESCE(v.sign_out_confirmed,0) = 0 THEN 'Soft Sign Out'

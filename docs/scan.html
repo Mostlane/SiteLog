@@ -57,12 +57,41 @@
     .confirmTitle { margin-top:0; color:#0f172a; }
     .confirmText { color:#334155; margin-bottom:18px; }
     .secondaryBtn { background:#ccc; color:#333; }
+    .webview-banner { max-width:520px; margin:0 auto 14px; padding:12px 16px; border-radius:12px; background:#fff3cd; border:1px solid #ffe08a; color:#7a5b00; font-size:14px; line-height:1.45; text-align:left; }
+    .loc-card { max-width:520px; margin:16px auto; background:rgba(255,255,255,0.97); border-radius:16px; padding:24px 20px; box-shadow:0 8px 24px rgba(0,0,0,0.15); text-align:center; }
+    .loc-card .loc-icon { font-size:48px; line-height:1; }
+    .loc-card h2 { color:#0f172a; margin:10px 0 8px; font-size:22px; }
+    .loc-card p { color:#334155; font-size:15px; line-height:1.5; margin:0 auto 14px; max-width:460px; }
+    .loc-toggle { display:flex; gap:8px; justify-content:center; margin:0 auto 14px; max-width:300px; }
+    .loc-toggle button { width:auto; display:inline-block; margin:0; padding:9px 18px; background:#e2e8f0; color:#334155; font-weight:600; }
+    .loc-toggle button.active { background:#004a99; color:#fff; }
+    .loc-steps { text-align:left; background:#f1f5f9; border-radius:10px; padding:14px 18px; margin:0 auto 16px; max-width:480px; color:#0f172a; font-size:14px; line-height:1.55; }
+    .loc-steps ol { margin:0; padding-left:20px; }
+    .loc-steps li { margin-bottom:6px; }
   </style>
 </head>
 <body>
 
 <h1 id="title">Checking Location&#8230;</h1>
 <img src="/SiteLog/Mostlane%20Logo.jpg" alt="Mostlane" class="logo"/>
+
+<div class="webview-banner" id="webviewBanner" style="display:none;">
+  &#9888;&#65039; <strong>Please open this in your browser.</strong> Tap the menu (&#8943; or the share icon) and choose <strong>&ldquo;Open in Safari&rdquo;</strong> or <strong>&ldquo;Open in Chrome&rdquo;</strong> &mdash; sign-in needs your location, which in-app browsers block.
+</div>
+
+<div id="locationHelp" style="display:none;">
+  <div class="loc-card">
+    <div class="loc-icon">&#128205;</div>
+    <h2 id="locHelpTitle">Location Access Needed</h2>
+    <p id="locHelpBody">SiteLog needs your location to confirm you&rsquo;re on site and sign you in.</p>
+    <div class="loc-toggle">
+      <button id="locTabIphone" onclick="setLocSteps('iphone')">iPhone</button>
+      <button id="locTabAndroid" onclick="setLocSteps('android')">Android</button>
+    </div>
+    <div class="loc-steps" id="locSteps"></div>
+    <button onclick="retryLocation()">Try Again</button>
+  </div>
+</div>
 
 <div class="site-notice" id="noticeBox">
   <strong>&#9888;&#65039; Site Notice:</strong> Report to site foreman
@@ -143,10 +172,67 @@
 <script>
 const API = "https://sitelog-api.jamie-def.workers.dev";
 
-let deviceToken = localStorage.getItem("mostlane_device_id");
-if (!deviceToken) {
-  deviceToken = crypto.randomUUID();
-  localStorage.setItem("mostlane_device_id", deviceToken);
+let deviceToken = null;
+
+/* ── ROBUST DEVICE IDENTITY (IndexedDB + cookie + localStorage) ──
+   Shares the same stores/keys as app.html so a worker and the QR page
+   resolve to the SAME device, and the token survives one store being
+   evicted. (Nothing survives Incognito - that clears everything by design.) */
+var DB_NAME = "sitelog", DB_STORE = "kv";
+function openDB() {
+  return new Promise(function(resolve, reject) {
+    var req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = function(e) { e.target.result.createObjectStore(DB_STORE); };
+    req.onsuccess = function(e) { resolve(e.target.result); };
+    req.onerror   = function()  { reject(); };
+  });
+}
+async function dbGet(key) {
+  try { var db = await openDB(); return new Promise(function(resolve) {
+    var rq = db.transaction(DB_STORE, "readonly").objectStore(DB_STORE).get(key);
+    rq.onsuccess = function() { resolve(rq.result || null); };
+    rq.onerror   = function() { resolve(null); };
+  }); } catch(e) { return null; }
+}
+async function dbSet(key, value) {
+  try { var db = await openDB(); return new Promise(function(resolve) {
+    var tx = db.transaction(DB_STORE, "readwrite");
+    tx.objectStore(DB_STORE).put(value, key);
+    tx.oncomplete = function() { resolve(); };
+    tx.onerror    = function() { resolve(); };
+  }); } catch(e) {}
+}
+async function dbDel(key) {
+  try { var db = await openDB(); return new Promise(function(resolve) {
+    var tx = db.transaction(DB_STORE, "readwrite");
+    tx.objectStore(DB_STORE).delete(key);
+    tx.oncomplete = function() { resolve(); };
+    tx.onerror    = function() { resolve(); };
+  }); } catch(e) {}
+}
+function tokenFallbackRead() {
+  var c = document.cookie.split(";").map(function(x){ return x.trim(); }).find(function(x){ return x.startsWith("ml_did="); });
+  if (c) return c.split("=")[1];
+  try { return localStorage.getItem("mostlane_device_id"); } catch(e) { return null; }
+}
+function tokenFallbackWrite(tok) {
+  try { document.cookie = "ml_did=" + tok + "; max-age=63072000; path=/; SameSite=Lax"; } catch(e) {}
+  try { localStorage.setItem("mostlane_device_id", tok); } catch(e) {}
+}
+async function getDeviceToken() {
+  var tok = await dbGet("device_id");
+  if (tok) { tokenFallbackWrite(tok); return tok; }
+  tok = tokenFallbackRead();
+  if (tok) { await dbSet("device_id", tok); return tok; }
+  tok = crypto.randomUUID();
+  await dbSet("device_id", tok);
+  tokenFallbackWrite(tok);
+  return tok;
+}
+async function clearDeviceToken() {
+  await dbDel("device_id"); await dbDel("last_checkin"); await dbDel("profile");
+  try { localStorage.removeItem("mostlane_device_id"); localStorage.removeItem("mostlane_last_checkin"); localStorage.removeItem("mostlane_profile"); } catch(e) {}
+  document.cookie = "ml_did=; max-age=0; path=/";
 }
 
 let lastLocation = null;
@@ -158,11 +244,9 @@ let pendingCheckinFirstName = "";
 let pendingCheckinCompany = "";
 let pendingCheckinSite = "";
 
-function resetDeviceAndRegister() {
+async function resetDeviceAndRegister() {
   if (!confirm("Backup action.\n\nThis will reset this device and return to first-time registration.")) return;
-  localStorage.removeItem("mostlane_device_id");
-  localStorage.removeItem("mostlane_last_checkin");
-  localStorage.removeItem("mostlane_profile");
+  await clearDeviceToken();
   location.reload();
 }
 
@@ -527,6 +611,9 @@ async function register() {
 
 /* ── GPS ── */
 function startLocation() {
+  hideLocationHelp();
+  document.getElementById("title").innerText = "Checking Location…";
+  document.getElementById("status").innerText = "Requesting GPS…";
   // Two-attempt strategy: high-accuracy GPS (30s) → silent fallback to
   // network/cell positioning. Avoids dead-ends in basements/metal-clad sites.
   const onSuccess = (pos) => {
@@ -535,7 +622,7 @@ function startLocation() {
     scan();
   };
   const onFinalFailure = (err) => {
-    document.getElementById("status").innerText = "Location required: " + err.message;
+    showLocationHelp(err && err.code ? err.code : 2);
   };
   const tryNetworkFallback = (prevErr) => {
     navigator.geolocation.getCurrentPosition(
@@ -547,7 +634,7 @@ function startLocation() {
   navigator.geolocation.getCurrentPosition(
     onSuccess,
     (err) => {
-      // Permission denied → show error immediately. Timeout / unavailable → fallback.
+      // Permission denied → show help immediately. Timeout / unavailable → fallback.
       if (err.code === 1) onFinalFailure(err);
       else tryNetworkFallback(err);
     },
@@ -555,14 +642,69 @@ function startLocation() {
   );
 }
 
-if (navigator.permissions && navigator.permissions.query) {
-  navigator.permissions.query({ name: "geolocation" }).then((result) => {
-    if (result.state === "granted" || result.state === "prompt") startLocation();
-    else document.getElementById("status").innerText = "Location access is required. Please enable it in your browser settings.";
-  }).catch(() => startLocation());
-} else {
-  startLocation();
+/* ── LOCATION HELP (denied / unavailable) ── */
+function showLocationHelp(code) {
+  const titles = { 1: "Location Access Needed", 2: "Can’t Get GPS Signal", 3: "GPS Timed Out" };
+  const bodies = {
+    1: "SiteLog needs your location to confirm you’re on site and sign you in. Please allow location, then tap Try Again.",
+    2: "Your phone couldn’t get a GPS fix. Move outside or somewhere with a clearer view of the sky, then tap Try Again.",
+    3: "GPS took too long to respond — this can happen indoors. Tap Try Again, ideally near a window or outside."
+  };
+  document.getElementById("locHelpTitle").innerText = titles[code] || "Location Error";
+  document.getElementById("locHelpBody").innerText = bodies[code] || bodies[1];
+  setLocSteps(/android/i.test(navigator.userAgent) ? "android" : "iphone");
+  document.getElementById("locationHelp").style.display = "block";
+  document.getElementById("card").style.display = "none";
+  document.getElementById("noticeBox").style.display = "none";
+  document.getElementById("title").innerText = "Location Needed";
 }
+function hideLocationHelp() {
+  document.getElementById("locationHelp").style.display = "none";
+  document.getElementById("card").style.display = "";
+  document.getElementById("noticeBox").style.display = "";
+}
+function setLocSteps(platform) {
+  const iphone =
+    "<ol>" +
+    "<li>Open <strong>Settings</strong> &rarr; <strong>Privacy &amp; Security</strong> &rarr; <strong>Location Services</strong> &mdash; turn it <strong>On</strong>.</li>" +
+    "<li>Scroll to <strong>Safari Websites</strong> and set it to <strong>While Using the App</strong>.</li>" +
+    "<li>Come back here and tap <strong>Try Again</strong> (allow location if asked).</li>" +
+    "</ol>";
+  const android =
+    "<ol>" +
+    "<li>Tap the <strong>lock/&#9432; icon</strong> next to the web address &rarr; <strong>Permissions</strong> &rarr; <strong>Location</strong> &rarr; <strong>Allow</strong>.</li>" +
+    "<li>Make sure your phone&rsquo;s <strong>Location</strong> is switched on (swipe down from the top).</li>" +
+    "<li>Tap <strong>Try Again</strong> below.</li>" +
+    "</ol>";
+  document.getElementById("locSteps").innerHTML = platform === "android" ? android : iphone;
+  document.getElementById("locTabIphone").classList.toggle("active", platform !== "android");
+  document.getElementById("locTabAndroid").classList.toggle("active", platform === "android");
+}
+function retryLocation() { hideLocationHelp(); startLocation(); }
+
+/* ── IN-APP BROWSER (webview) DETECTION ── */
+function isInAppBrowser() {
+  var ua = navigator.userAgent || "";
+  if (/FBAN|FBAV|Instagram|Line\/|Snapchat|Twitter|WhatsApp|WeChat|MicroMessenger|TikTok|musical_ly|Pinterest|GSA/i.test(ua)) return true;
+  var iOS = /iPhone|iPad|iPod/i.test(ua);
+  if (iOS && !/Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS/i.test(ua)) return true; // iOS webview lacks Safari token
+  if (/Android/i.test(ua) && /; wv\)/i.test(ua)) return true;                     // Android System WebView
+  return false;
+}
+
+/* ── BOOTSTRAP ── */
+(async function initScan() {
+  try { if (isInAppBrowser()) document.getElementById("webviewBanner").style.display = "block"; } catch(e) {}
+  deviceToken = await getDeviceToken();
+  if (navigator.permissions && navigator.permissions.query) {
+    navigator.permissions.query({ name: "geolocation" }).then((result) => {
+      if (result.state === "granted" || result.state === "prompt") startLocation();
+      else showLocationHelp(1);
+    }).catch(() => startLocation());
+  } else {
+    startLocation();
+  }
+})();
 </script>
 
 </body>

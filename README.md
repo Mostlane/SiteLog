@@ -90,12 +90,16 @@ CREATE TABLE visits (
 
 ## Pages
 
-|File        |Purpose                                                                                                                                    |
-|------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-|`index.html`|Landing page with demo scan link                                                                                                           |
-|`scan.html` |Worker scan page — opened from QR code. Handles check-in, check-out, and first-time registration. Requires `?site=<SITE_NAME>` query param.|
-|`sites.html`|Admin: add a new site location on a map                                                                                                    |
-|`admin.html`|Admin dashboard: live view, timesheets, PDF export, engineer/company/site management                                                       |
+> The site is served from the `docs/` folder via GitHub Pages. Files at the repo root are not published.
+
+|File            |Purpose                                                                                                                                    |
+|----------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+|`index.html`    |Landing page with demo scan link                                                                                                           |
+|`app.html`      |Main worker PWA (installable). Check-in/out, registration, geolocation, my-visits, site occupants. Registers the `sw.js` service worker.    |
+|`scan.html`     |Worker scan page — opened from QR code. Handles check-in, check-out, and first-time registration. Requires `?site=<SITE_NAME>` query param.|
+|`documents.html`|Site documents: RAMS, toolbox talks, attendee signatures, PDF export                                                                       |
+|`sites.html`    |Admin: add a new site location on a map                                                                                                    |
+|`admin.html`    |Admin dashboard: live view, timesheets, PDF export, engineer/company/site management                                                       |
 
 -----
 

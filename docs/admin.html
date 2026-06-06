@@ -806,7 +806,7 @@ const API_BASE = "https://sitelog-api.jamie-def.workers.dev";
    every request to API_BASE. Falls back to a login overlay on 401 or on first
    load. */
 let __adminSecret = null;
-try { __adminSecret = sessionStorage.getItem("ml_admin_secret") || null; } catch (e) { __adminSecret = null; }
+try { __adminSecret = sessionStorage.getItem("ml_admin_secret") || localStorage.getItem("ml_admin_secret") || null; } catch (e) { __adminSecret = null; }
 
 const __originalFetch = window.fetch.bind(window);
 window.fetch = function (input, init) {
@@ -867,7 +867,7 @@ async function attemptAdminLogin() {
       return;
     }
     __adminSecret = candidate;
-    try { sessionStorage.setItem("ml_admin_secret", candidate); } catch (e) {}
+    try { sessionStorage.setItem("ml_admin_secret", candidate); localStorage.setItem("ml_admin_secret", candidate); } catch (e) {}
     input.value = "";
     errorEl.textContent = "";
     hideAdminLogin();

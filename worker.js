@@ -245,6 +245,18 @@ function constantTimeEqual(a, b) {
   return mismatch === 0;
 }
 
+// Durable device cookie. Fully effective only when the API shares the site's
+// domain (a custom domain); cross-site (workers.dev vs github.io) Safari blocks
+// it, so the client-side IndexedDB/localStorage stores remain the primary id.
+function readDidCookie(request) {
+  const c = request.headers.get("Cookie") || "";
+  const m = c.match(/(?:^|;\s*)ml_did=([^;]+)/);
+  return m ? m[1] : "";
+}
+function didSetCookie(token) {
+  return { "Set-Cookie": "ml_did=" + token + "; Max-Age=63072000; Path=/; Secure; SameSite=None; HttpOnly" };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -253,8 +265,9 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
-    function json(data, status = 200) {
-      return Response.json(data, { status, headers: corsHeaders });
+    function json(data, status = 200, extraHeaders) {
+      const headers = extraHeaders ? { ...corsHeaders, ...extraHeaders } : corsHeaders;
+      return Response.json(data, { status, headers });
     }
 
     async function readBody(req) {
@@ -341,6 +354,7 @@ export default {
         body.device_token ??
         body.device ??
         body.device_id ??
+        readDidCookie(request) ??
         ""
       ).toString().trim();
 
@@ -384,7 +398,7 @@ export default {
             ok: true,
             status: "already_registered",
             personId: existing.person_id
-          });
+          }, 200, didSetCookie(deviceToken));
         }
 
         const personId = crypto.randomUUID();
@@ -399,7 +413,7 @@ export default {
           VALUES (?, ?)
         `).bind(deviceToken, personId).run();
 
-        return json({ ok: true, status: "registered", personId });
+        return json({ ok: true, status: "registered", personId }, 200, didSetCookie(deviceToken));
       } catch (err) {
         return json({
           ok: false,
@@ -1040,7 +1054,9 @@ export default {
 
     // POST /scan
     if (url.pathname === "/scan" && request.method === "POST") {
-      const { deviceToken, lat, lng, accuracy } = await readBody(request);
+      const body = await readBody(request);
+      const lat = body.lat, lng = body.lng, accuracy = body.accuracy;
+      const deviceToken = body.deviceToken || readDidCookie(request);
 
       if (!deviceToken) return json({ ok: false, error: "Missing deviceToken" }, 400);
 

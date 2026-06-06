@@ -820,7 +820,7 @@
   </div>
 </div>
 <script>
-const API_BASE = "https://sitelog-api.jamie-def.workers.dev";
+const API_BASE = "https://api.site-log.co.uk";
 
 /* ===== ADMIN AUTH (added) =====
    Stores admin secret in sessionStorage and attaches it as x-admin-secret to
@@ -834,11 +834,14 @@ window.fetch = function (input, init) {
   let urlStr = "";
   try { urlStr = typeof input === "string" ? input : (input && input.url) || ""; } catch (e) {}
 
-  if (urlStr.indexOf(API_BASE) === 0 && __adminSecret) {
+  if (urlStr.indexOf(API_BASE) === 0) {
     init = init || {};
-    const headers = new Headers(init.headers || (typeof input !== "string" && input.headers) || {});
-    headers.set("x-admin-secret", __adminSecret);
-    init.headers = headers;
+    init.credentials = "include"; // send/receive the durable device cookie
+    if (__adminSecret) {
+      const headers = new Headers(init.headers || (typeof input !== "string" && input.headers) || {});
+      headers.set("x-admin-secret", __adminSecret);
+      init.headers = headers;
+    }
   }
 
   return __originalFetch(input, init).then(function (res) {

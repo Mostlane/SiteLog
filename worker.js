@@ -1,9 +1,22 @@
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "*",
-  "Access-Control-Max-Age": "86400"
-};
+// Origins allowed to call the API. Credentials (the device cookie) require a
+// specific origin to be echoed back - never "*" - so we reflect from this list.
+const ALLOWED_ORIGINS = [
+  "https://site-log.co.uk",
+  "https://www.site-log.co.uk",
+  "https://mostlane.github.io"
+];
+function corsFor(request) {
+  const origin = request.headers.get("Origin") || "";
+  const allow = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allow,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, x-admin-secret",
+    "Access-Control-Allow-Credentials": "true",
+    "Vary": "Origin",
+    "Access-Control-Max-Age": "86400"
+  };
+}
 
 const OFFICE_LAT = 50.8573;
 const OFFICE_LNG = -1.2343;
@@ -254,7 +267,7 @@ function readDidCookie(request) {
   return m ? m[1] : "";
 }
 function didSetCookie(token) {
-  return { "Set-Cookie": "ml_did=" + token + "; Max-Age=63072000; Path=/; Secure; SameSite=None; HttpOnly" };
+  return { "Set-Cookie": "ml_did=" + token + "; Max-Age=63072000; Path=/; Secure; SameSite=Lax; Domain=site-log.co.uk; HttpOnly" };
 }
 
 export default {
@@ -262,11 +275,12 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders });
+      return new Response(null, { status: 204, headers: corsFor(request) });
     }
 
     function json(data, status = 200, extraHeaders) {
-      const headers = extraHeaders ? { ...corsHeaders, ...extraHeaders } : corsHeaders;
+      const base = corsFor(request);
+      const headers = extraHeaders ? { ...base, ...extraHeaders } : base;
       return Response.json(data, { status, headers });
     }
 
@@ -1743,7 +1757,7 @@ export default {
       return json({ suggestions });
     }
 
-    return new Response("Not found", { status: 404, headers: corsHeaders });
+    return new Response("Not found", { status: 404, headers: corsFor(request) });
   },
 
   async scheduled(event, env, ctx) {

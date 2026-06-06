@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root{--bg:#f2f2f7;--surface:#fff;--surface2:#f9f9fb;--surface3:#f2f2f7;--border:rgba(0,0,0,0.08);--border-heavy:rgba(0,0,0,0.13);--blue:#0071e3;--blue-dark:#0058b0;--blue-soft:rgba(0,113,227,0.10);--red:#ff3b30;--red-soft:rgba(255,59,48,0.10);--green:#34c759;--green-soft:rgba(52,199,89,0.10);--amber:#ff9f0a;--amber-soft:rgba(255,159,10,0.10);--label:#1d1d1f;--label2:#48484a;--label3:#6e6e73;--label4:#aeaeb2;--radius-sm:8px;--radius-md:12px;--radius-lg:16px;--radius-xl:20px;--shadow-md:0 4px 16px rgba(0,0,0,0.08),0 1px 4px rgba(0,0,0,0.04);--shadow-xl:0 20px 60px rgba(0,0,0,0.18),0 4px 16px rgba(0,0,0,0.08);}
+    :root{--bg:#f2f2f7;--surface:#fff;--surface2:#f9f9fb;--surface3:#f2f2f7;--border:rgba(0,0,0,0.08);--border-heavy:rgba(0,0,0,0.13);--blue:#004a99;--blue-dark:#003a78;--blue-soft:rgba(0,74,153,0.10);--brand:#004a99;--red:#ff3b30;--red-soft:rgba(255,59,48,0.10);--green:#34c759;--green-soft:rgba(52,199,89,0.10);--amber:#ff9f0a;--amber-soft:rgba(255,159,10,0.10);--label:#1d1d1f;--label2:#48484a;--label3:#6e6e73;--label4:#aeaeb2;--radius-sm:8px;--radius-md:12px;--radius-lg:16px;--radius-xl:20px;--shadow-md:0 4px 16px rgba(0,0,0,0.08),0 1px 4px rgba(0,0,0,0.04);--shadow-xl:0 20px 60px rgba(0,0,0,0.18),0 4px 16px rgba(0,0,0,0.08);}
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
     html{-webkit-font-smoothing:antialiased;}
     body{font-family:"DM Sans",-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--label);min-height:100vh;padding:0 0 60px;}
@@ -21,9 +21,14 @@
     .topbar-subtitle{font-size:12px;color:var(--label3);}
     .topbar-actions{display:flex;align-items:center;gap:6px;}
     .nav-menu-btn{display:none;width:36px;height:36px;border:1px solid var(--border-heavy);border-radius:var(--radius-sm);background:var(--surface);font-size:16px;cursor:pointer;align-items:center;justify-content:center;}
-    .nav-drawer{display:none;position:fixed;top:calc(52px + env(safe-area-inset-top,0px));left:0;right:0;background:var(--surface);border-bottom:1px solid var(--border);padding:12px 16px 16px;z-index:99;flex-direction:column;gap:8px;box-shadow:var(--shadow-md);}
+    .nav-drawer{display:none;position:fixed;top:calc(56px + env(safe-area-inset-top,0px));left:8px;right:8px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:6px;z-index:99;flex-direction:column;gap:2px;box-shadow:var(--shadow-xl);animation:navDrop 0.22s cubic-bezier(0.2,0.8,0.2,1) both;}
+    @keyframes navDrop{from{opacity:0;transform:translateY(-10px) scale(0.98);}to{opacity:1;transform:translateY(0) scale(1);}}
     .nav-drawer.open{display:flex;}
-    .nav-drawer button{width:100%;height:44px;font-size:15px;justify-content:flex-start;padding:0 16px;border-radius:var(--radius-md);}
+    .nav-drawer button{width:100%;height:52px;font-size:15px;font-weight:500;justify-content:flex-start;gap:12px;padding:0 14px;border-radius:12px;}
+    .nav-drawer .btn-ghost{border:none !important;background:transparent !important;color:var(--label) !important;}
+    .nav-drawer .btn-ghost::after{content:'\203A';margin-left:auto;color:var(--label4);font-size:20px;font-weight:600;line-height:1;}
+    .nav-drawer .btn-ghost:active{background:var(--blue-soft) !important;color:var(--blue) !important;}
+    .nav-drawer .btn-primary{margin-top:4px;}
     .page{max-width:1120px;margin:0 auto;padding:28px 24px 0;}
     .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap;}
     .section-label{font-size:13px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:0.6px;}
@@ -52,7 +57,7 @@
     select[multiple]{height:auto;min-height:80px;padding:6px;}
     button{display:inline-flex;align-items:center;gap:5px;height:36px;padding:0 14px;border:none;border-radius:var(--radius-sm);font-size:13.5px;font-family:inherit;font-weight:500;cursor:pointer;transition:opacity 0.12s,transform 0.1s;white-space:nowrap;outline:none;}
     button:active{transform:scale(0.97);}
-    .btn-primary{background:var(--blue);color:#fff;}
+    .btn-primary{background:var(--blue);color:#fff;box-shadow:0 1px 2px rgba(0,74,153,0.25);}
     .btn-primary:hover{background:var(--blue-dark);}
     .btn-ghost{background:var(--surface3);color:var(--label2);border:1px solid var(--border-heavy);}
     .btn-ghost:hover{background:#e8e8ed;}
@@ -200,7 +205,7 @@
     border-bottom:1px solid var(--border);
     position:relative;
     cursor:pointer;
-    -webkit-tap-highlight-color:rgba(0,113,227,0.08);
+    -webkit-tap-highlight-color:rgba(0,74,153,0.08);
     min-height:64px;
   }
   #liveTable tbody tr:active{background:var(--surface2);}
@@ -254,6 +259,15 @@
     border-radius:18px 18px 0 0;
     display:flex;
     flex-direction:column;
+  }
+  /* Native-style drag handle at the top of each bottom sheet */
+  .modal-content::before,.ts-modal-content::before{
+    content:'';
+    flex-shrink:0;
+    width:40px;height:5px;
+    margin:8px auto 0;
+    border-radius:3px;
+    background:var(--border-heavy);
   }
   .modal-header{
     flex-wrap:nowrap;
@@ -521,7 +535,7 @@
     <p style="font-size:13.5px;color:#64748b;margin-bottom:16px;line-height:1.5;">Enter the admin password to access the dashboard.</p>
     <input id="adminLoginInput" type="password" placeholder="Password" autocomplete="current-password" style="width:100%;height:44px;padding:0 14px;border:1px solid rgba(0,0,0,0.2);border-radius:10px;font-size:16px;margin-bottom:10px;outline:none;" />
     <div id="adminLoginError" style="font-size:13px;color:#dc2626;min-height:18px;margin-bottom:6px;"></div>
-    <button id="adminLoginBtn" style="width:100%;height:44px;background:#0071e3;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;">Sign In</button>
+    <button id="adminLoginBtn" style="width:100%;height:48px;background:#004a99;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;">Sign In</button>
   </div>
 </div>
 <div class="topbar">

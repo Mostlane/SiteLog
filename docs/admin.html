@@ -153,6 +153,11 @@
     .add-form-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--label3);margin-bottom:10px;}
     .add-form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:end;}
     .add-form-grid input{width:100%;}
+    .add-site-map-btn{width:100%;justify-content:center;height:46px;font-size:15px;text-decoration:none;border-radius:var(--radius-md);}
+    .add-site-hint{font-size:12px;color:var(--label3);margin-top:8px;text-align:center;line-height:1.4;}
+    .manual-site-toggle{font-size:12.5px;color:var(--blue);font-weight:600;cursor:pointer;margin-top:12px;display:inline-block;}
+    .manual-site-toggle:hover{text-decoration:underline;}
+    #manualSiteFields{margin-top:12px;}
     @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
     .card,.filter-card{animation:fadeUp 0.3s ease both;}
     .checkout-field{margin:12px 0 20px;}
@@ -319,12 +324,12 @@
   .admin-table tbody tr{
     background:var(--surface);
     border:1px solid var(--border);
-    border-radius:12px;
-    padding:12px;
-    margin-bottom:8px;
+    border-radius:11px;
+    padding:10px 11px;
+    margin-bottom:6px;
     display:flex;
     flex-direction:column;
-    gap:7px;
+    gap:5px;
   }
   .admin-table tbody tr:hover td{background:transparent;}
   .admin-table td{
@@ -336,26 +341,32 @@
   .admin-table td[data-label]::before{
     content:attr(data-label);
     display:block;
-    font-size:10px;
+    font-size:9px;
     font-weight:700;
     color:var(--label3);
     text-transform:uppercase;
     letter-spacing:0.5px;
-    margin-bottom:2px;
+    margin-bottom:1px;
   }
-  .admin-table td input{height:40px;font-size:16px;width:100% !important;}
+  .admin-table td input{height:38px;font-size:16px;width:100% !important;}
   .row-btns{justify-content:stretch;flex-wrap:nowrap;gap:8px;}
   .row-btns button{flex:1 1 auto;height:40px;}
 
   /* Sites modal - company chip area */
-  .site-row-detail{padding:14px !important;}
+  .site-row-detail{padding:10px !important;}
   .site-companies-section{padding-top:6px;}
-  .company-chip-toggle{padding:8px 14px;font-size:13px;min-height:36px;}
+  .company-chip-toggle{padding:6px 11px;font-size:12px;min-height:32px;}
 
   /* Add Site / Add Engineer add forms */
   .add-form{padding:14px;border-radius:12px;margin-bottom:14px;}
   .add-form-grid{grid-template-columns:1fr !important;gap:10px;}
   .add-form-title{font-size:11.5px;}
+
+  /* Compact chrome so lists dominate the screen, not the surrounding UI */
+  .modal-note{font-size:12px;padding:8px 11px;margin-bottom:12px;line-height:1.4;}
+  .modal-header{padding:12px 14px 10px;}
+  .modal-title{font-size:16px;}
+  .filter-toggle{padding:11px 14px;min-height:44px;}
 
   /* Timesheets modal - special handling */
   .ts-modal-content{height:auto;max-height:92vh;}
@@ -703,13 +714,18 @@
       <div class="modal-note">Archived sites are hidden from scan matching. Historical logs still reference them.</div>
       <div class="add-form">
         <div class="add-form-title">Add New Site</div>
-        <div class="add-form-grid">
-          <div class="field-stack"><span class="field-label">Site Name</span><input id="newSiteName" type="text" placeholder="e.g. Warehouse A"/></div>
-          <div class="field-stack"><span class="field-label">Latitude</span><input id="newSiteLat" type="text" placeholder="51.5074"/></div>
-          <div class="field-stack"><span class="field-label">Longitude</span><input id="newSiteLng" type="text" placeholder="-0.1278"/></div>
-          <div class="field-stack"><span class="field-label">Radius (m)</span><input id="newSiteRadius" type="number" value="500" min="50" step="10"/></div>
+        <a href="sites.html" class="btn-primary add-site-map-btn">&#128205;&nbsp; Add a Site on the Map</a>
+        <div class="add-site-hint">Search a postcode or address, then drop a pin to set the exact location.</div>
+        <div class="manual-site-toggle" onclick="toggleManualSite()">Enter coordinates manually</div>
+        <div id="manualSiteFields" style="display:none;">
+          <div class="add-form-grid">
+            <div class="field-stack"><span class="field-label">Site Name</span><input id="newSiteName" type="text" placeholder="e.g. Warehouse A"/></div>
+            <div class="field-stack"><span class="field-label">Latitude</span><input id="newSiteLat" type="text" placeholder="51.5074"/></div>
+            <div class="field-stack"><span class="field-label">Longitude</span><input id="newSiteLng" type="text" placeholder="-0.1278"/></div>
+            <div class="field-stack"><span class="field-label">Radius (m)</span><input id="newSiteRadius" type="number" value="500" min="50" step="10"/></div>
+          </div>
+          <div style="margin-top:10px;"><button class="btn-primary btn-sm" onclick="addSite()">Add Site</button></div>
         </div>
-        <div style="margin-top:10px;"><button class="btn-primary btn-sm" onclick="addSite()">Add Site</button></div>
       </div>
       <div id="sitesAdminBody"></div>
     </div>
@@ -1969,6 +1985,10 @@ async function toggleSite(id) {
   await fetchSites();
   renderSitesAdminTable();
   renderAll();
+}
+function toggleManualSite() {
+  const el = document.getElementById("manualSiteFields");
+  if (el) el.style.display = (el.style.display === "none" || !el.style.display) ? "block" : "none";
 }
 async function addSite() {
   const n = (document.getElementById("newSiteName")?.value || "").trim();

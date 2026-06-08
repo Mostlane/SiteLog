@@ -2167,6 +2167,20 @@ function openAddLogModal() {
 function closeAddLogModal() {
   document.getElementById("addLogModal").style.display = "none";
 }
+// Convert an admin-entered local date + time (browser timezone, e.g.
+// Europe/London) to the 'YYYY-MM-DD HH:MM:SS' UTC string the DB stores. The
+// display helpers parse stored times as UTC, so this makes a 09:00 entry show
+// back as 09:00 (and keeps it on the right day) instead of shifting by the BST
+// offset.
+function localToUtcSql(dateStr, timeStr) {
+  if (!dateStr || !timeStr) return null;
+  const dp = dateStr.split("-").map(Number);
+  const tp = timeStr.split(":").map(Number);
+  if (dp.length < 3 || tp.length < 2 || [...dp, ...tp].some(n => Number.isNaN(n))) return null;
+  const dt = new Date(dp[0], dp[1] - 1, dp[2], tp[0], tp[1], 0); // local time
+  if (isNaN(dt.getTime())) return null;
+  return dt.toISOString().slice(0, 19).replace("T", " ");
+}
 async function submitAddLog() {
   const personId = document.getElementById("addLogPerson").value;
   const site = document.getElementById("addLogSite").value.trim();
@@ -2178,11 +2192,10 @@ async function submitAddLog() {
   if (!personId) return fail("Select a person.");
   if (!site) return fail("Enter a site / job.");
   if (!date || !start) return fail("Enter a date and a start time.");
-  const checkInAt = date + " " + start + ":00";
-  const checkOutAt = end ? date + " " + end + ":00" : null;
-  if (checkOutAt && new Date(checkOutAt.replace(" ", "T")) <= new Date(checkInAt.replace(" ", "T"))) {
-    return fail("End time must be after start time.");
-  }
+  if (end && end <= start) return fail("End time must be after start time.");
+  const checkInAt = localToUtcSql(date, start);
+  const checkOutAt = end ? localToUtcSql(date, end) : null;
+  if (!checkInAt || (end && !checkOutAt)) return fail("Invalid date or time.");
   let r;
   try {
     r = await fetch(API_BASE + "/add-visit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ personId, site, checkInAt, checkOutAt }) });

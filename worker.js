@@ -43,6 +43,8 @@ async function ensureOfflineSchema(env) {
   try { await env.DB.prepare("ALTER TABLE people ADD COLUMN is_main INTEGER DEFAULT 0").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE sites ADD COLUMN category TEXT DEFAULT 'Projects'").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE devices ADD COLUMN last_seen TEXT").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE documents ADD COLUMN doc_number TEXT").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE documents ADD COLUMN doc_seq INTEGER").run(); } catch (e) {}
   try {
     await env.DB.prepare(
       "CREATE TABLE IF NOT EXISTS pending_events (id TEXT PRIMARY KEY, device_token TEXT, lat REAL, lng REAL, accuracy REAL, site_code TEXT, intent TEXT, occurred_at TEXT, synced_at TEXT, resolved INTEGER DEFAULT 0)"
@@ -1994,16 +1996,25 @@ export default {
 
     // POST /documents/create
     if (url.pathname === "/documents/create" && request.method === "POST") {
+      await ensureOfflineSchema(env);
       const body = await readBody(request);
       const docId = crypto.randomUUID();
       const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+      // Per-type running document number (HWP-0001, IND-0001, TBT-0001). MAX(seq)
+      // rather than COUNT so deleting a document never reissues an old number.
+      const type = body.type || "";
+      const prefix = { induction: "IND", hwp: "HWP", tbt: "TBT" }[type] || "DOC";
+      const maxRow = await env.DB.prepare("SELECT MAX(doc_seq) AS m FROM documents WHERE type = ?").bind(type).first();
+      const docSeq = (maxRow && maxRow.m ? Number(maxRow.m) : 0) + 1;
+      const docNumber = prefix + "-" + String(docSeq).padStart(4, "0");
 
       await env.DB.prepare(`
         INSERT INTO documents
           (id, type, template_version, status, site_name, site_address,
            issued_by, issued_at, permit_no, valid_from,
-           manager_signature, manager_signed_at, form_data, created_at)
-        VALUES (?,?,1,'issued',?,?,?,?,?,?,?,?,?,?)
+           manager_signature, manager_signed_at, form_data, created_at, doc_number, doc_seq)
+        VALUES (?,?,1,'issued',?,?,?,?,?,?,?,?,?,?,?,?)
       `).bind(
         docId,
         body.type || "",
@@ -2016,7 +2027,9 @@ export default {
         body.manager_signature || null,
         body.manager_signature ? now : null,
         JSON.stringify(body.form_data || {}),
-        now
+        now,
+        docNumber,
+        docSeq
       ).run();
 
       const attendees = Array.isArray(body.attendees) ? body.attendees : [];
@@ -2089,7 +2102,7 @@ export default {
 
       let q = `
         SELECT d.id, d.type, d.status, d.site_name, d.issued_at,
-               d.permit_no, d.closed_at, d.form_data,
+               d.permit_no, d.closed_at, d.form_data, d.doc_number,
                GROUP_CONCAT(da.person_name, ', ') AS attendee_names
         FROM documents d
         LEFT JOIN document_attendees da ON da.document_id = d.id
@@ -2135,6 +2148,18 @@ export default {
       const rows = await env.DB.prepare(q).bind(...binds).all();
 
       return json({ documents: rows.results || [] });
+    }
+
+    // POST /documents/delete
+    if (url.pathname === "/documents/delete" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      const body = await readBody(request);
+      const id = body.id || body.docId;
+      if (!id) return json({ ok: false, error: "Missing id" }, 400);
+      await env.DB.prepare("DELETE FROM document_attendees WHERE document_id = ?").bind(id).run();
+      await env.DB.prepare("DELETE FROM documents WHERE id = ?").bind(id).run();
+      return json({ ok: true });
     }
 
     // GET /documents/single

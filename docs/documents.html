@@ -1123,8 +1123,23 @@ function docItem(doc) {
   const closeoutBtn = (doc.type === "hwp" && doc.status !== "closed")
     ? '<button class="btn-ghost btn-sm" onclick="openCloseout(\'' + safeId + '\')">Close Out</button>'
     : "";
+  const numTag = doc.doc_number ? '<span class="pill" style="background:#0f172a;color:#fff;font-weight:700;">' + escHtml(doc.doc_number) + '</span>' : "";
+  const safeNum = String(doc.doc_number || fname).replace(/'/g, "\\'");
 
-  return '<div class="doc-item"><div class="doc-item-info"><div class="doc-item-title">' + escHtml(fname) + '</div><div class="doc-item-meta"><span class="pill ' + (tp[doc.type] || "") + '">' + (tl[doc.type] || doc.type) + '</span>' + statusPill + '<span>' + escHtml(doc.site_name || "—") + '</span><span>' + escHtml(date) + '</span>' + (doc.attendee_names ? '<span style="color:var(--label2);">' + escHtml(doc.attendee_names) + '</span>' : '') + '</div></div><div class="doc-item-actions">' + closeoutBtn + '<button class="btn-primary btn-sm" onclick="viewDoc(\'' + safeId + '\')">View</button></div></div>';
+  return '<div class="doc-item"><div class="doc-item-info"><div class="doc-item-title">' + escHtml(fname) + '</div><div class="doc-item-meta">' + numTag + '<span class="pill ' + (tp[doc.type] || "") + '">' + (tl[doc.type] || doc.type) + '</span>' + statusPill + '<span>' + escHtml(doc.site_name || "—") + '</span><span>' + escHtml(date) + '</span>' + (doc.attendee_names ? '<span style="color:var(--label2);">' + escHtml(doc.attendee_names) + '</span>' : '') + '</div></div><div class="doc-item-actions">' + closeoutBtn + '<button class="btn-primary btn-sm" onclick="viewDoc(\'' + safeId + '\')">View</button><button class="btn-danger btn-sm" onclick="deleteDoc(\'' + safeId + '\',\'' + safeNum + '\')">Delete</button></div></div>';
+}
+
+async function deleteDoc(id, label) {
+  if (!confirm("Delete document " + (label || "") + "?\n\nThis permanently removes it and its signatures. This cannot be undone.")) return;
+  try {
+    const res = await fetch(API + "/documents/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.ok) throw new Error(d.error || "Failed");
+  } catch (e) {
+    alert("Could not delete: " + (e.message || e));
+    return;
+  }
+  loadRecords();
 }
 
 function docFileName(doc) {
@@ -1132,7 +1147,7 @@ function docFileName(doc) {
   const si = (doc.site_name || "Site").replace(/[^A-Za-z0-9]/g, "");
   const dt = (doc.issued_at || "").slice(0, 10);
   const nm = (doc.attendee_names || "").split(",")[0].trim().split(" ").pop() || "Unknown";
-  return tc + "_" + nm + "_" + si + "_" + dt;
+  return (doc.doc_number ? doc.doc_number + "_" : "") + tc + "_" + nm + "_" + si + "_" + dt;
 }
 
 function clearFilters() {
@@ -1155,7 +1170,7 @@ async function viewDoc(id) {
     }
     viewDocData = doc;
     document.getElementById("viewTitle").textContent = docFileName(doc);
-    document.getElementById("viewSub").textContent = (doc.site_name || "") + " · " + (doc.issued_at || "").slice(0, 10);
+    document.getElementById("viewSub").textContent = (doc.doc_number ? doc.doc_number + " · " : "") + (doc.site_name || "") + " · " + (doc.issued_at || "").slice(0, 10);
     document.getElementById("viewBody").innerHTML = buildPreview(doc);
     document.getElementById("viewModal").classList.add("open");
   } catch (e) {
@@ -1451,7 +1466,7 @@ async function generateDocPdf(doc) {
   }
 
   if (doc.type === "induction") {
-    header("Contractor Site Induction Form");
+    header("Contractor Site Induction Form", doc.doc_number ? "Document No: " + doc.doc_number : "");
     section("Site Details");
     grid2([["Project", fd.project], ["Site Address", fd.address || doc.site_address || ""], ["Site Manager", fd.site_manager], ["Start Date", fd.date]]);
     gap(); section("Site Induction Briefing Includes"); listBox(INDUCTION_BRIEFING);
@@ -1464,7 +1479,7 @@ async function generateDocPdf(doc) {
     });
     gap(); section("Induction Given By"); signatureBlock(fd.giver_name, doc.manager_signature);
   } else if (doc.type === "hwp") {
-    header("Hot Works Permit", "Permit No: " + (fd.permit_no || doc.permit_no || ""));
+    header("Hot Works Permit", (doc.doc_number ? doc.doc_number + "  ·  " : "") + "Permit No: " + (fd.permit_no || doc.permit_no || ""));
     section("Project Details");
     grid2([["Project", fd.project], ["Site", fd.site || doc.site_name], ["Client / PC", fd.client], ["Date", fd.date], ["Issued By", fd.issued_by], ["Valid From", fd.valid_from]]);
     gap(); section("1. Description of Hot Works");
@@ -1482,7 +1497,7 @@ async function generateDocPdf(doc) {
     } else { gap(); warnBox("Open Permit  —  Close out required after works complete."); }
     gap(); noteText("Permit valid for one shift only. Must be displayed at work location. Void if works stop for more than 2 hours. All works must comply with CDM Regulations and approved RAMS.");
   } else if (doc.type === "tbt") {
-    header("Toolbox Talk");
+    header("Toolbox Talk", doc.doc_number ? "Document No: " + doc.doc_number : "");
     section("Session Details");
     grid2([["Project", fd.project], ["Site Address", fd.address || doc.site_address || ""], ["Site Manager", fd.site_manager], ["Date", fd.date], ["Talk Title", fd.title], ["Delivered By", fd.delivered_by], ["Duration", fd.duration ? fd.duration + " mins" : ""], ["", ""]]);
     gap(); section("Talk Content");

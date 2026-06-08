@@ -223,6 +223,19 @@
     .ts-exporting .ts-eng-body{display:block !important;}
     .ts-exporting .tc-card{break-inside:avoid;page-break-inside:avoid;}
 
+    /* Native print (Export PDF -> Save as PDF): reveal only the print clone */
+    #tsPrintArea{display:none;}
+    @media print{
+      body{background:#fff !important;}
+      body *{visibility:hidden !important;}
+      #tsPrintArea, #tsPrintArea *{visibility:visible !important;-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
+      #tsPrintArea{display:block !important;position:absolute;left:0;top:0;width:100%;padding:0;}
+      #tsPrintArea .no-pdf{display:none !important;}
+      #tsPrintArea .tc-card{border:1px solid #e2e8f0;margin:0 0 16px;break-inside:avoid;page-break-inside:avoid;}
+      #tsPrintArea .ts-company-title{font-size:15px;font-weight:700;margin:6px 0 4px;}
+      @page{size:A4 portrait;margin:12mm;}
+    }
+
     .add-form{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:18px;}
     .add-form-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--label3);margin-bottom:10px;}
     .add-form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:end;}
@@ -861,7 +874,7 @@
         <div class="modal-title">Weekly Timesheets</div>
       </div>
       <div style="display:flex;gap:8px;">
-        <button class="btn-ghost btn-sm" onclick="exportTimesheetsPdf()">&#8593; Export PDF</button>
+        <button class="btn-ghost btn-sm" onclick="exportTimesheetsPdf()">&#128424; Print / Save PDF</button>
         <button class="btn-ghost btn-sm" onclick="closeTimesheetsModal()">Close</button>
       </div>
     </div>
@@ -2061,28 +2074,30 @@ function exportTimesheetsPdf() {
   const src = document.getElementById("timesheetsBody");
   if (!src || !src.querySelector(".tc-card")) { alert("No timesheets to export for the current filters."); return; }
 
-  // html2canvas is unreliable capturing the live modal (position:fixed +
-  // scroll + flex often render blank). Instead clone just the charts into a
-  // clean, normally-positioned container, strip the on-screen-only chrome, and
-  // render that.
+  // Use the browser's native print engine (crisp vector text, reliable
+  // pagination) instead of an html2canvas screenshot, which kept rendering
+  // blank from inside the modal. A print-only #tsPrintArea holds a clean clone
+  // of the charts; @media print reveals only it. The user picks "Save as PDF".
+  const old = document.getElementById("tsPrintArea");
+  if (old) old.remove();
+
+  const area = document.createElement("div");
+  area.id = "tsPrintArea";
   const clone = src.cloneNode(true);
   clone.querySelectorAll(".no-pdf").forEach(n => n.remove());
-  clone.querySelectorAll(".ts-acc").forEach(n => n.classList.add("open"));
   clone.querySelectorAll(".ts-eng-body").forEach(n => { n.style.display = "block"; });
+  clone.querySelectorAll(".ts-acc").forEach(n => n.classList.add("open"));
+  area.appendChild(clone);
+  document.body.appendChild(area);
 
-  const root = document.createElement("div");
-  root.style.cssText = "position:absolute;left:-10000px;top:0;width:780px;background:#fff;padding:18px;";
-  root.appendChild(clone);
-  document.body.appendChild(root);
-  const cleanup = () => { if (root.parentNode) root.parentNode.removeChild(root); };
-
-  html2pdf().set({
-    margin: 0.3,
-    filename: "SiteLog_Timesheets.pdf",
-    pagebreak: { mode: ["css", "legacy"], avoid: ".tc-card" },
-    jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
-    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", windowWidth: 820 }
-  }).from(root).save().then(cleanup).catch(cleanup);
+  const done = () => {
+    const a = document.getElementById("tsPrintArea");
+    if (a) a.remove();
+    window.removeEventListener("afterprint", done);
+  };
+  window.addEventListener("afterprint", done);
+  setTimeout(done, 60000); // fallback cleanup if afterprint never fires (some mobile browsers)
+  window.print();
 }
 function toggleTsEng(id) {
   const el = document.getElementById(id);

@@ -248,6 +248,18 @@
     }
     @media print{ @page{size:A4 portrait;margin:12mm;} }
 
+    /* Job Costing print clone — same approach as the timesheet one above. */
+    #jcPrintArea{display:none;}
+    @media print{
+      body.printing-jobcosting{background:#fff !important;}
+      body.printing-jobcosting *{visibility:hidden !important;}
+      body.printing-jobcosting #jcPrintArea,
+      body.printing-jobcosting #jcPrintArea *{visibility:visible !important;-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
+      body.printing-jobcosting #jcPrintArea{display:block !important;position:absolute;left:0;top:0;width:100%;padding:0;color:#0f172a;}
+      body.printing-jobcosting #jcPrintArea .jc-body{display:block !important;}
+      body.printing-jobcosting #jcPrintArea .jc-site{border:1px solid #e2e8f0 !important;margin:0 0 10px;break-inside:avoid;page-break-inside:avoid;}
+    }
+
     .add-form{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:18px;}
     .add-form-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--label3);margin-bottom:10px;}
     .add-form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:end;}
@@ -944,6 +956,7 @@
       <div style="display:flex;gap:8px;">
         <button class="btn-ghost btn-sm" onclick="toggleAllJobSites(true)">Expand all</button>
         <button class="btn-ghost btn-sm" onclick="toggleAllJobSites(false)">Collapse all</button>
+        <button class="btn-ghost btn-sm" onclick="exportJobCostingPdf()">&#128424; Print / Save PDF</button>
         <button class="btn-ghost btn-sm" onclick="closeJobCostingModal()">Close</button>
       </div>
     </div>
@@ -2015,7 +2028,7 @@ function buildWeekChart(visits, name, company, weekKey, eng) {
     dvs.forEach((v, idx) => {
       const h = minutesBetween(v.check_in_at, v.check_out_at) / 60;
       const times = formatTimeOnly(v.check_in_at) + " – " + (v.check_out_at ? formatTimeOnly(v.check_out_at) : "—");
-      const flag = !v.check_out_at ? ' <span class="tc-flag">(no sign-out)</span>' : (Number(v.auto_checkout || 0) === 1 ? ' <span class="tc-flag">(auto)</span>' : "");
+      const flag = !v.check_out_at ? ' <span class="tc-flag">(no sign-out)</span>' : (Number(v.auto_checkout || 0) === 1 ? ' <span class="tc-flag">&#9888; (auto sign-out)</span>' : "");
       const manualTag = Number(v.manual_entry || 0) === 1 ? ' <span style="color:#64748b;">(manual)</span>' : "";
       const pin = mapPinHtml(v);
       if (hasTravelPay) {
@@ -2285,11 +2298,12 @@ function costEngineerVisits(visits, eng) {
   const rate = (eng && eng.hourly_rate != null && Number(eng.hourly_rate) > 0) ? Number(eng.hourly_rate) : 0;
   const paid = !!(eng && eng.travel_status === "paid");
   const fuelRate = (paid && eng && eng.fuel_rate != null && Number(eng.fuel_rate) > 0) ? Number(eng.fuel_rate) : 0;
-  let workMins = 0, travelMins = 0, miles = 0, openCount = 0, costedVisits = 0;
+  let workMins = 0, travelMins = 0, miles = 0, openCount = 0, costedVisits = 0, autoCount = 0;
   visits.forEach(v => {
     if (!v.check_out_at) { openCount++; return; }
     workMins += minutesBetween(v.check_in_at, v.check_out_at);
     costedVisits++;
+    if (Number(v.auto_checkout || 0) === 1) autoCount++;
     if (paid) {
       if (v.travel_in_mins != null) travelMins += calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng);
       if (v.travel_out_mins != null) travelMins += calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng);
@@ -2299,7 +2313,7 @@ function costEngineerVisits(visits, eng) {
   });
   const workH = workMins / 60, travelH = travelMins / 60;
   const labour = workH * rate, travelCost = travelH * rate, fuelCost = miles * fuelRate;
-  return { rate, workH, travelH, miles, openCount, costedVisits, labour, travelCost, fuelCost, total: labour + travelCost + fuelCost };
+  return { rate, workH, travelH, miles, openCount, costedVisits, autoCount, labour, travelCost, fuelCost, total: labour + travelCost + fuelCost };
 }
 function renderJobCosting() {
   const body = document.getElementById("jobCostingBody");
@@ -2338,6 +2352,7 @@ function renderJobCosting() {
       workH: people.reduce((s, p) => s + p.workH, 0),
       visits: people.reduce((s, p) => s + p.costedVisits, 0),
       open: people.reduce((s, p) => s + p.openCount, 0),
+      auto: people.reduce((s, p) => s + p.autoCount, 0),
       noRate: people.some(p => p.rate === 0 && p.costedVisits > 0)
     };
   }).sort((a, b) => b.total - a.total);
@@ -2354,11 +2369,13 @@ function renderJobCosting() {
   const gVisits = cards.reduce((s, c) => s + c.visits, 0);
   const gHours = cards.reduce((s, c) => s + c.workH, 0);
   const gOpen = cards.reduce((s, c) => s + c.open, 0);
+  const gAuto = cards.reduce((s, c) => s + c.auto, 0);
   meta.innerHTML =
     '<strong>' + cards.length + '</strong> site' + (cards.length === 1 ? "" : "s") +
     ' &middot; <strong>' + gVisits + '</strong> costed visits' +
     ' &middot; <strong>' + gHours.toFixed(1) + '</strong> h' +
     ' &middot; <strong style="color:var(--blue);">' + money(gTotal) + '</strong> total cost' +
+    (gAuto ? ' <span style="color:#b45309;">&middot; &#9888; ' + gAuto + ' auto sign-out' + (gAuto === 1 ? "" : "s") + ' (cron-estimated time)</span>' : "") +
     (gOpen ? ' <span style="color:#b45309;">&middot; ' + gOpen + ' open visit' + (gOpen === 1 ? "" : "s") + ' not costed</span>' : "");
 
   body.innerHTML = cards.map(c => {
@@ -2378,6 +2395,7 @@ function renderJobCosting() {
             '<div style="font-weight:700;">' + money(p.total) + '</div>' +
             '<div style="font-size:11.5px;color:var(--label3);">' + p.costedVisits + ' visit' + (p.costedVisits === 1 ? "" : "s") + ' &middot; ' + p.workH.toFixed(1) + ' h' +
               (p.openCount ? ' &middot; +' + p.openCount + ' open' : '') + '</div>' +
+            (p.autoCount ? '<div style="font-size:11px;color:#b45309;">&#9888; ' + p.autoCount + ' auto sign-out' + (p.autoCount === 1 ? "" : "s") + '</div>' : '') +
           '</div>' +
         '</div>';
     }).join("");
@@ -2387,15 +2405,53 @@ function renderJobCosting() {
           '<span style="display:inline-block;transition:transform .15s;transform:rotate(' + (open ? "90" : "0") + 'deg);color:var(--label2);">&#9656;</span>' +
           '<span style="font-weight:700;font-size:14.5px;min-width:0;">' + escapeHtml(c.siteKey) + '</span>' +
           (c.noRate ? '<span style="color:#b45309;font-size:11px;">rate missing</span>' : '') +
+          (c.auto ? '<span title="includes cron auto sign-outs" style="color:#b45309;font-size:11px;">&#9888; ' + c.auto + ' auto</span>' : '') +
           '<span style="margin-left:auto;text-align:right;white-space:nowrap;">' +
             '<span style="font-weight:800;color:var(--blue);font-size:15px;">' + money(c.total) + '</span>' +
             '<span style="display:block;font-size:11.5px;color:var(--label3);">' + c.visits + ' visit' + (c.visits === 1 ? "" : "s") + ' &middot; ' + c.workH.toFixed(1) + ' h' +
               (c.open ? ' &middot; ' + c.open + ' open' : '') + '</span>' +
           '</span>' +
         '</div>' +
-        '<div style="display:' + (open ? "block" : "none") + ';">' + rows + '</div>' +
+        '<div class="jc-body" style="display:' + (open ? "block" : "none") + ';">' + rows + '</div>' +
       '</div>';
   }).join("");
+}
+function exportJobCostingPdf() {
+  const src = document.getElementById("jobCostingBody");
+  if (!src || !src.querySelector(".jc-site")) { alert("Nothing to export for the current period."); return; }
+
+  const old = document.getElementById("jcPrintArea");
+  if (old) old.remove();
+
+  const fr = document.getElementById("jcFromDate").value;
+  const to = document.getElementById("jcToDate").value;
+  const range = (fr || to) ? ((fr || "earliest") + " to " + (to || "today")) : "All time";
+
+  const area = document.createElement("div");
+  area.id = "jcPrintArea";
+  const header = document.createElement("div");
+  header.style.cssText = "margin:0 0 14px;border-bottom:2px solid #0f172a;padding-bottom:8px;";
+  header.innerHTML =
+    '<div style="font-size:19px;font-weight:800;">Job Costing</div>' +
+    '<div style="font-size:12px;color:#475569;">' + escapeHtml(range) + '</div>' +
+    '<div style="font-size:12px;margin-top:6px;">' + (document.getElementById("jobCostingMeta").innerHTML || "") + '</div>';
+  area.appendChild(header);
+
+  const clone = src.cloneNode(true);
+  clone.querySelectorAll(".jc-body").forEach(n => { n.style.display = "block"; });
+  area.appendChild(clone);
+  document.body.appendChild(area);
+
+  const done = () => {
+    document.body.classList.remove("printing-jobcosting");
+    const a = document.getElementById("jcPrintArea");
+    if (a) a.remove();
+    window.removeEventListener("afterprint", done);
+  };
+  window.addEventListener("afterprint", done);
+  setTimeout(done, 60000);
+  document.body.classList.add("printing-jobcosting");
+  window.print();
 }
 
 /* ── ADD LOG (manual time entry) ── */

@@ -682,6 +682,34 @@ export default {
       return json({ engineers: rows.results || [] });
     }
 
+    // POST /add-engineer
+    // Create an engineer (person) with NO device. A device can be linked later
+    // when they register on a phone (via the transfer-approval flow).
+    if (url.pathname === "/add-engineer" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+
+      const body = await readBody(request);
+      const firstName = (body.firstName ?? body.first_name ?? "").toString().trim().slice(0, 80);
+      const lastName = (body.lastName ?? body.last_name ?? "").toString().trim().slice(0, 80);
+      const company = ((body.company ?? "").toString().trim().slice(0, 120)) || null;
+      const purpose = ((body.purpose ?? "").toString().trim().slice(0, 60)) || null;
+      const rateIn = body.hourlyRate ?? body.hourly_rate;
+      const hourlyRate =
+        rateIn === "" || rateIn == null || Number.isNaN(Number(rateIn)) ? 0 : Number(rateIn);
+
+      if (!firstName && !lastName) return json({ ok: false, error: "Enter a name" }, 400);
+
+      const id = crypto.randomUUID();
+      await env.DB.prepare(`
+        INSERT INTO people (id, first_name, last_name, company, purpose, archived, hourly_rate)
+        VALUES (?, ?, ?, ?, ?, 0, ?)
+      `).bind(id, firstName, lastName, company, purpose, hourlyRate).run();
+
+      return json({ ok: true, id });
+    }
+
     // POST /update-engineer
     if (url.pathname === "/update-engineer" && request.method === "POST") {
       const guard = requireAdmin();

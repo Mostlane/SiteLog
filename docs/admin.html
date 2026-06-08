@@ -865,6 +865,18 @@
     </div>
     <div class="modal-body">
       <div class="modal-note">Travel allowance is hidden from engineers until configured. "Not configured" and "No allowance" both show nothing on timesheets.</div>
+      <div class="add-form">
+        <div class="add-form-title">Add Engineer</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <input id="addEngFirst" placeholder="First name">
+          <input id="addEngLast" placeholder="Last name">
+          <input id="addEngCompany" placeholder="Company">
+          <input id="addEngPurpose" placeholder="Purpose (e.g. Engineer)">
+          <input id="addEngRate" type="number" step="0.01" min="0" placeholder="Rate per hr">
+          <button class="btn-primary btn-sm" onclick="addEngineer()" style="grid-column:1 / -1;">&#43; Add Engineer</button>
+        </div>
+        <div id="addEngError" style="color:var(--red);font-size:13px;margin-top:8px;display:none;"></div>
+      </div>
       <div id="engineersAdminBody"></div>
     </div>
   </div>
@@ -2550,6 +2562,28 @@ async function openEngineersModal() {
 }
 function closeEngineersModal() {
   document.getElementById("engineersModal").style.display = "none";
+}
+async function addEngineer() {
+  const firstName = (document.getElementById("addEngFirst").value || "").trim();
+  const lastName = (document.getElementById("addEngLast").value || "").trim();
+  const company = (document.getElementById("addEngCompany").value || "").trim();
+  const purpose = (document.getElementById("addEngPurpose").value || "").trim();
+  const rateRaw = (document.getElementById("addEngRate").value || "").trim();
+  const hourlyRate = rateRaw === "" ? null : Number(rateRaw);
+  const err = document.getElementById("addEngError");
+  const fail = m => { err.textContent = m; err.style.display = "block"; };
+  if (!firstName && !lastName) return fail("Enter a name.");
+  let r;
+  try {
+    r = await fetch(API_BASE + "/add-engineer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ firstName, lastName, company, purpose, hourlyRate }) });
+  } catch (e) { return fail("Network error. Try again."); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.ok) return fail(d.error || "Failed to add engineer.");
+  ["addEngFirst", "addEngLast", "addEngCompany", "addEngPurpose", "addEngRate"].forEach(id => { document.getElementById(id).value = ""; });
+  err.style.display = "none";
+  await fetchEngineers();
+  renderEngineersTable();
+  await loadData(); // refresh engineer lists used elsewhere (e.g. Add Log)
 }
 function renderEngineersTable() {
   const wrap = document.getElementById("engineersAdminBody");

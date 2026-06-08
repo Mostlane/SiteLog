@@ -362,6 +362,7 @@
     .link-chip-x { cursor: pointer; color: #dc2626; font-weight: 800; padding: 0 2px; }
     .link-add { display: flex; gap: 8px; }
     .link-add input { flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; }
+    .link-select { flex: 1; min-width: 0; padding: 10px 34px 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; background: #fff; -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23004a99' d='M1 1l5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; }
   </style>
 </head>
 <body>
@@ -1211,14 +1212,28 @@ async function renderViewLinks(doc) {
   const extras = (doc.linked || []).filter(l => l.person_id && !signeeIds.has(l.person_id)).map(l => ({ id: l.person_id, name: l.person_name, kind: "link" }));
   const all = signees.concat(extras);
 
-  let people = [];
-  try {
-    const r = await fetch(API + "/site-people?site=" + enc(doc.site_name || ""));
-    people = (await r.json()).people || [];
-  } catch (e) {}
   const linkedIds = new Set(all.map(p => p.id));
-  const opts = people.filter(p => p.person_id && !linkedIds.has(p.person_id))
-    .map(p => '<option value="' + escAttr(p.name) + '" data-pid="' + escAttr(p.person_id) + '">').join("");
+
+  // People on this site, plus everyone (engineers) for the "Others" group.
+  let onSite = [], everyone = [];
+  try { onSite = ((await (await fetch(API + "/site-people?site=" + enc(doc.site_name || ""))).json()).people) || []; } catch (e) {}
+  try { everyone = ((await (await fetch(API + "/engineers")).json()).engineers) || []; } catch (e) {}
+
+  const onSitePeople = onSite.map(p => ({ id: p.person_id, name: p.name, company: p.company || "" })).filter(p => p.id && p.name);
+  const onSiteIds = new Set(onSitePeople.map(p => p.id));
+  const others = everyone
+    .map(e => ({ id: e.id, name: ((e.first_name || "") + " " + (e.last_name || "")).trim(), company: e.company || "" }))
+    .filter(p => p.id && p.name && !onSiteIds.has(p.id));
+
+  // id -> {name} lookup for the link action.
+  const byId = {};
+  onSitePeople.concat(others).forEach(p => { byId[p.id] = p; });
+  box._people = byId;
+
+  const optFor = p => '<option value="' + escAttr(p.id) + '">' + escHtml(p.name) + (p.company ? " — " + escHtml(p.company) : "") + '</option>';
+  const sortByName = (a, b) => a.name.localeCompare(b.name);
+  const onSiteOpts = onSitePeople.filter(p => !linkedIds.has(p.id)).sort(sortByName).map(optFor).join("");
+  const otherOpts = others.filter(p => !linkedIds.has(p.id)).sort(sortByName).map(optFor).join("");
 
   const chips = all.length
     ? all.map(p => '<span class="link-chip">' + escHtml(p.name) +
@@ -1230,22 +1245,27 @@ async function renderViewLinks(doc) {
     '<div class="links-panel">' +
       '<div class="links-title">&#128279; Linked people <span style="font-weight:400;color:var(--label3);font-size:11px;">(see this in their app)</span></div>' +
       '<div class="link-chips">' + chips + '</div>' +
-      '<div class="link-add"><input id="linkAddName" list="linkAddList" placeholder="Add a person on this site..."><datalist id="linkAddList">' + opts + '</datalist>' +
-      '<button class="btn-ghost btn-sm" onclick="linkPersonFromInput()">Link</button></div>' +
+      '<div class="link-add">' +
+        '<select id="linkAddSelect" class="link-select">' +
+          '<option value="">Add a person…</option>' +
+          (onSiteOpts ? '<optgroup label="On this site">' + onSiteOpts + '</optgroup>' : '') +
+          (otherOpts ? '<optgroup label="Others (not on site)">' + otherOpts + '</optgroup>' : '') +
+        '</select>' +
+        '<button class="btn-ghost btn-sm" onclick="linkPersonFromSelect()">Link</button>' +
+      '</div>' +
     '</div>';
-  box._people = people;
 }
 
-async function linkPersonFromInput() {
-  const input = document.getElementById("linkAddName");
+async function linkPersonFromSelect() {
+  const sel = document.getElementById("linkAddSelect");
   const box = document.getElementById("viewLinks");
-  if (!input || !viewDocData) return;
-  const name = input.value.trim();
-  const people = (box && box._people) || [];
-  const match = people.find(p => p.name === name);
-  if (!match || !match.person_id) { alert("Pick a person from the suggestions so they can be linked."); return; }
+  if (!sel || !viewDocData) return;
+  const personId = sel.value;
+  if (!personId) { alert("Pick a person from the list first."); return; }
+  const p = box && box._people ? box._people[personId] : null;
+  const name = p ? p.name : "";
   try {
-    const res = await fetch(API + "/documents/link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ docId: viewDocData.id, personId: match.person_id, personName: match.name }) });
+    const res = await fetch(API + "/documents/link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ docId: viewDocData.id, personId: personId, personName: name }) });
     const d = await res.json().catch(() => ({}));
     if (!res.ok || !d.ok) throw new Error(d.error || "Failed");
   } catch (e) { alert("Could not link: " + (e.message || e)); return; }

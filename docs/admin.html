@@ -1173,20 +1173,37 @@ function calcPaidMiles(actualMiles, eng) {
 }
 
 /* ── HELPERS ── */
+// Stored timestamps are UTC, normally "YYYY-MM-DD HH:MM:SS". Some legacy rows
+// were saved as full ISO ("…THH:MM:SSZ"); the old code blindly appended "Z",
+// turning those into "…ZZ" → Invalid Date → NaN hours/costs (one bad visit
+// poisoned a whole engineer's total). Parse defensively so it never NaNs.
+function parseStoredTs(ts) {
+  if (ts == null || ts === "") return null;
+  if (ts instanceof Date) return isNaN(ts.getTime()) ? null : ts;
+  if (typeof ts === "number") { const d = new Date(ts); return isNaN(d.getTime()) ? null : d; }
+  let s = String(ts).trim();
+  if (/^\d{12,}$/.test(s)) { const d = new Date(Number(s)); return isNaN(d.getTime()) ? null : d; } // epoch ms
+  s = s.replace(" ", "T");
+  const hasTz = /[zZ]$/.test(s) || /[+\-]\d{2}:?\d{2}$/.test(s);
+  if (!hasTz) s += "Z"; // bare wall-clock is stored as UTC
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
 function toLocal(ts) {
   if (!ts) return "-";
-  const d = new Date(String(ts).replace(" ", "T") + "Z");
-  return isNaN(d) ? ts : d.toLocaleString("en-GB");
+  const d = parseStoredTs(ts);
+  return d ? d.toLocaleString("en-GB") : ts;
 }
 function formatTimeOnly(ts) {
   if (!ts) return "-";
-  const d = new Date(String(ts).replace(" ", "T") + "Z");
-  return isNaN(d) ? "-" : d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const d = parseStoredTs(ts);
+  return d ? d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "-";
 }
 function minutesBetween(a, b) {
-  if (!a) return 0;
-  const s = new Date(String(a).replace(" ", "T") + "Z");
-  const e = b ? new Date(String(b).replace(" ", "T") + "Z") : new Date();
+  const s = parseStoredTs(a);
+  if (!s) return 0;
+  const e = b ? parseStoredTs(b) : new Date();
+  if (!e) return 0;
   return Math.max(0, Math.round((e - s) / 60000));
 }
 function fmtDuration(mins) {
@@ -1208,8 +1225,8 @@ function fmtDay(d) {
 // UTC midday to avoid any DST/local-parse drift.
 function londonDayKey(ts) {
   if (!ts) return "";
-  const dt = new Date(String(ts).replace(" ", "T") + "Z");
-  if (isNaN(dt.getTime())) return String(ts).slice(0, 10);
+  const dt = parseStoredTs(ts);
+  if (!dt) return String(ts).slice(0, 10);
   return dt.toLocaleDateString("en-CA", { timeZone: "Europe/London" }); // YYYY-MM-DD
 }
 function ymdKey(y, mIdx, d) {
@@ -1311,12 +1328,13 @@ async function confirmManualCheckout() {
     alert("Please select a time.");
     return;
   }
-  const ci = new Date(String(manualCheckoutCheckIn).replace(" ", "T") + "Z");
+  const ci = parseStoredTs(manualCheckoutCheckIn);
+  if (!ci) { alert("Could not read the check-in time."); return; }
   const yyyy = ci.getUTCFullYear();
   const mm = String(ci.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(ci.getUTCDate()).padStart(2, "0");
   const manualTime = yyyy + "-" + mm + "-" + dd + " " + tv + ":00";
-  const mo = new Date(manualTime.replace(" ", "T") + "Z");
+  const mo = parseStoredTs(manualTime);
   if (mo <= ci) {
     alert("Sign out time must be after check-in time.");
     return;

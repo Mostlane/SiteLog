@@ -2092,6 +2092,49 @@ export default {
     }
 
     // GET /documents
+    // GET /site-people — everyone signed into the site now OR previously, for the
+    // document name dropdowns (currently-on-site listed first).
+    if (url.pathname === "/site-people" && request.method === "GET") {
+      const site = url.searchParams.get("site") || "";
+      const rows = await env.DB.prepare(`
+        SELECT p.id AS person_id, p.first_name, p.last_name, p.company,
+               MAX(v.check_in_at) AS last_seen,
+               MAX(CASE WHEN v.check_out_at IS NULL THEN 1 ELSE 0 END) AS on_now
+        FROM visits v JOIN people p ON v.person_id = p.id
+        WHERE v.site_code = ? AND COALESCE(p.archived,0) = 0
+        GROUP BY p.id
+        ORDER BY on_now DESC, last_seen DESC
+      `).bind(site).all();
+      const people = (rows.results || []).map(r => ({
+        person_id: r.person_id || "",
+        name: `${r.first_name || ""} ${r.last_name || ""}`.trim(),
+        company: r.company || "",
+        on_now: Number(r.on_now || 0) === 1
+      })).filter(p => p.name);
+      return json({ people });
+    }
+
+    // GET /my-documents — documents at a site that the calling device's person is
+    // linked to (i.e. listed on the document). Powers the user app's Documents tab.
+    if (url.pathname === "/my-documents" && request.method === "GET") {
+      await ensureOfflineSchema(env);
+      const deviceToken = url.searchParams.get("deviceToken") || "";
+      const site = url.searchParams.get("site") || "";
+      if (!deviceToken) return json({ documents: [] });
+      const dev = await env.DB.prepare("SELECT person_id FROM devices WHERE device_token = ?").bind(deviceToken).first();
+      if (!dev || !dev.person_id) return json({ documents: [] });
+      const wheres = ["da.person_id = ?"];
+      const binds = [dev.person_id];
+      if (site) { wheres.push("d.site_name = ?"); binds.push(site); }
+      const rows = await env.DB.prepare(`
+        SELECT DISTINCT d.id, d.type, d.status, d.site_name, d.issued_at, d.doc_number, d.permit_no
+        FROM documents d JOIN document_attendees da ON da.document_id = d.id
+        WHERE ${wheres.join(" AND ")}
+        ORDER BY d.issued_at DESC LIMIT 100
+      `).bind(...binds).all();
+      return json({ documents: rows.results || [] });
+    }
+
     if (url.pathname === "/documents" && request.method === "GET") {
       const type = url.searchParams.get("type") || "";
       const status = url.searchParams.get("status") || "";

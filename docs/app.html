@@ -1831,11 +1831,15 @@ async function loadMyDocuments(siteName) {
   if (!siteName || !deviceToken) { card.style.display = "none"; return; }
   try {
     var res  = await fetchWithTimeout(API + "/my-documents?deviceToken=" + encodeURIComponent(deviceToken) + "&site=" + encodeURIComponent(siteName));
+    // Endpoint not deployed yet (old worker) — keep the section hidden rather
+    // than showing a misleading empty state.
+    if (!res.ok) { card.style.display = "none"; return; }
     var data = await res.json();
     var docs = data.documents || [];
-    if (!docs.length) { card.style.display = "none"; return; }
     if (siteEl) siteEl.textContent = "· " + siteName;
-    list.innerHTML = docs.map(dashDocItem).join("");
+    list.innerHTML = docs.length
+      ? docs.map(dashDocItem).join("")
+      : '<div style="padding:10px 0;font-size:13px;color:var(--muted);">No documents linked to you at this site yet.</div>';
     card.style.display = "block";
   } catch(e) { card.style.display = "none"; }
 }

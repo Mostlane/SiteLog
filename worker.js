@@ -926,6 +926,14 @@ export default {
         `UPDATE devices SET person_id = ? WHERE person_id IN (${placeholders})`
       ).bind(primaryId, ...mergeIds).run();
 
+      // Re-point document links too, so documents the duplicates were named on
+      // still show for the kept person (e.g. the user app's My Documents).
+      try {
+        await env.DB.prepare(
+          `UPDATE document_attendees SET person_id = ? WHERE person_id IN (${placeholders})`
+        ).bind(primaryId, ...mergeIds).run();
+      } catch (e) { /* documents tables may not exist on every deployment */ }
+
       await env.DB.prepare(
         `DELETE FROM people WHERE id IN (${placeholders})`
       ).bind(...mergeIds).run();

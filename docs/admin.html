@@ -2417,9 +2417,17 @@ function renderJobCosting() {
   const meta = document.getElementById("jobCostingMeta");
   const money = n => "£" + (Number(n) || 0).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // jcVisits is the complete, server-filtered range fetched by loadJobCosting
-  // (everyone who worked a site, incl. subcontractors). No re-filtering here.
-  const base = jcVisits;
+  // jcVisits is the fetched range (everyone, incl. subcontractors). Re-apply the
+  // From/To bound by London day as the authoritative guard — handles one-sided
+  // ranges and any UTC/London boundary edge regardless of server filtering.
+  const fr = document.getElementById("jcFromDate").value;
+  const to = document.getElementById("jcToDate").value;
+  const base = jcVisits.filter(v => {
+    const day = londonDayKey(v.check_in_at);
+    if (fr && day < fr) return false;
+    if (to && day > to) return false;
+    return true;
+  });
 
   const sites = {};
   base.forEach(v => {

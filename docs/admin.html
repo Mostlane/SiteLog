@@ -222,6 +222,10 @@
     .tc-pay-cell{text-align:right;font-weight:700;color:#004a99;white-space:nowrap;width:80px;}
     .tc-foot td{border-top:2px solid #0f172a;border-bottom:none;font-weight:800;padding-top:11px;}
     .tc-foot .tc-pay-cell{font-size:14px;}
+    .tc-stat.tc-fuel-stat{background:#fff7ed;border-color:#fdba74;}
+    .tc-stat.tc-fuel-stat .tc-stat-val{color:#c2410c;}
+    .tc-fuel{padding:11px 22px;background:#fff7ed;border-top:1px solid #fdba74;color:#7c2d12;font-size:13px;}
+    .tc-fuel strong{color:#9a3412;}
     .ts-detail-wrap{margin:6px 0 4px;}
     /* PDF export: show only the clean charts (+ company titles) */
     .ts-exporting .no-pdf{display:none !important;}
@@ -1041,6 +1045,15 @@ function calcPaidMins(actualMins, actualMiles, eng) {
   }
   return 0;
 }
+// Reimbursable miles for fuel: respects a distance cap (first capVal miles are
+// the unpaid commute), mirroring calcPaidMins. Per leg, like the time version.
+function calcPaidMiles(actualMiles, eng) {
+  if (!eng || eng.travel_status !== "paid" || !(actualMiles > 0)) return 0;
+  const capType = eng.travel_cap_type;
+  const capVal = parseFloat(eng.travel_cap_value) || 0;
+  if (capType === "distance") return Math.max(0, actualMiles - capVal);
+  return actualMiles;
+}
 
 /* ── HELPERS ── */
 function toLocal(ts) {
@@ -1782,6 +1795,7 @@ function buildEngineerAdminPanel(eng, name, company, id) {
   const travelStatus = r.travel_status || "not_configured";
   const capType = r.travel_cap_type || "";
   const capVal = r.travel_cap_value != null ? r.travel_cap_value : "";
+  const fuelRate = r.fuel_rate != null ? r.fuel_rate : "";
   const travelHtml =
     '<div class="travel-section">' +
       '<div class="travel-section-label">Travel Allowance</div>' +
@@ -1800,6 +1814,10 @@ function buildEngineerAdminPanel(eng, name, company, id) {
             '<option value="distance"' + (capType === "distance" ? " selected" : "") + '>Distance (miles)</option>' +
           '</select>' +
           '<input type="number" data-ts-eng-cap-val="' + escapeHtml(eid) + '" value="' + escapeHtml(String(capVal)) + '" placeholder="e.g. 30" style="width:80px;" min="0" step="1">' +
+        '</div>' +
+        '<div class="field-stack" id="fuelGroup-' + escapeHtml(eid) + '" style="display:' + (travelStatus === "paid" ? "flex" : "none") + ';">' +
+          '<span class="field-label">Fuel (£/mile)</span>' +
+          '<input type="number" data-ts-eng-fuel="' + escapeHtml(eid) + '" value="' + escapeHtml(String(fuelRate)) + '" placeholder="e.g. 0.25" style="width:90px;" min="0" step="0.01">' +
         '</div></div></div>';
 
   return '<div class="ts-engineer-admin">' +
@@ -1819,8 +1837,11 @@ function buildEngineerAdminPanel(eng, name, company, id) {
 
 function onTravelStatusChange(id) {
   const sel = document.querySelector('[data-ts-eng-travel-status="' + escSel(id) + '"]');
+  const show = sel && sel.value === "paid" ? "flex" : "none";
   const grp = document.getElementById("travelCapGroup-" + id);
-  if (grp) grp.style.display = sel && sel.value === "paid" ? "flex" : "none";
+  if (grp) grp.style.display = show;
+  const fuel = document.getElementById("fuelGroup-" + id);
+  if (fuel) fuel.style.display = show;
 }
 
 // Clean weekly chart (Mon–Sun) for a single employee+week. One row per visit,
@@ -1828,13 +1849,14 @@ function onTravelStatusChange(id) {
 function buildWeekChart(visits, name, company, weekKey, eng) {
   const hasTravelPay = eng && eng.travel_status === "paid";
   const rate = (eng && eng.hourly_rate != null && Number(eng.hourly_rate) > 0) ? Number(eng.hourly_rate) : 0;
+  const fuelRate = (hasTravelPay && eng.fuel_rate != null && Number(eng.fuel_rate) > 0) ? Number(eng.fuel_rate) : 0;
   const money = n => "£" + (Number(n) || 0).toFixed(2);
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const byDay = {};
   visits.forEach(v => { const d = (v.check_in_at || "").slice(0, 10); (byDay[d] = byDay[d] || []).push(v); });
 
   const start = new Date(weekKey + "T00:00:00");
-  let totTotal = 0, totStd = 0, totOT = 0, totTravelPaid = 0;
+  let totTotal = 0, totStd = 0, totOT = 0, totTravelPaid = 0, totMiles = 0;
   let rows = "";
 
   for (let i = 0; i < 7; i++) {
@@ -1862,6 +1884,8 @@ function buildWeekChart(visits, name, company, weekKey, eng) {
       if (hasTravelPay) {
         if (v.travel_in_mins != null) totTravelPaid += calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng);
         if (v.travel_out_mins != null) totTravelPaid += calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng);
+        if (v.travel_in_miles != null) totMiles += calcPaidMiles(v.travel_in_miles, eng);
+        if (v.travel_out_miles != null) totMiles += calcPaidMiles(v.travel_out_miles, eng);
       }
       const dayCell = idx === 0
         ? '<td class="tc-day"><span class="tc-day-name">' + dayNames[i] + '</span><span class="tc-day-date">' + escapeHtml(dateLabel) + '</span></td>'
@@ -1877,11 +1901,18 @@ function buildWeekChart(visits, name, company, weekKey, eng) {
 
   const travelPaidH = totTravelPaid / 60;
   const totalPay = rate ? (totTotal + travelPaidH) * rate : 0;
+  const fuelTotal = fuelRate ? totMiles * fuelRate : 0;
   const travelStat = hasTravelPay
     ? '<div class="tc-stat tc-travel"><span class="tc-stat-val">' + travelPaidH.toFixed(2) + '</span><span class="tc-stat-label">Travel paid</span></div>'
     : "";
   const payStat = rate
     ? '<div class="tc-stat tc-pay"><span class="tc-stat-val">' + money(totalPay) + '</span><span class="tc-stat-label">Pay @ £' + rate.toFixed(2) + '/hr</span></div>'
+    : "";
+  const fuelStat = fuelRate
+    ? '<div class="tc-stat tc-fuel-stat"><span class="tc-stat-val">' + money(fuelTotal) + '</span><span class="tc-stat-label">Fuel</span></div>'
+    : "";
+  const fuelLine = fuelRate
+    ? '<div class="tc-fuel">&#9981; ' + totMiles.toFixed(1) + ' miles @ £' + fuelRate.toFixed(2) + '/mile &nbsp;&middot;&nbsp; <strong>Total Fuel Payments = ' + money(fuelTotal) + '</strong></div>'
     : "";
   const payTh = rate ? '<th class="tc-r">Pay</th>' : "";
   const payFoot = rate ? '<td class="tc-pay-cell">' + money(totalPay) + "</td>" : "";
@@ -1898,12 +1929,13 @@ function buildWeekChart(visits, name, company, weekKey, eng) {
       '<div class="tc-stat"><span class="tc-stat-val">' + totStd.toFixed(2) + '</span><span class="tc-stat-label">Weekly hrs</span></div>' +
       '<div class="tc-stat tc-extra"><span class="tc-stat-val">' + totOT.toFixed(2) + '</span><span class="tc-stat-label">Extra hrs</span></div>' +
       '<div class="tc-stat tc-total"><span class="tc-stat-val">' + totTotal.toFixed(2) + '</span><span class="tc-stat-label">Total hrs</span></div>' +
-      travelStat + payStat +
+      travelStat + payStat + fuelStat +
     '</div>' +
     '<table class="tc-tbl"><thead><tr><th>Day</th><th>Site</th><th>Description</th><th class="tc-r">Hours</th>' + payTh + '</tr></thead>' +
     '<tbody>' + rows + '</tbody>' +
     '<tfoot><tr class="tc-foot"><td colspan="3">Weekly total' + (hasTravelPay ? ' &nbsp;·&nbsp; + ' + travelPaidH.toFixed(2) + 'h paid travel' : "") + '</td><td class="tc-hours">' + totTotal.toFixed(2) + '</td>' + payFoot + '</tr></tfoot>' +
     '</table>' +
+    fuelLine +
     '</div>';
 }
 
@@ -2140,6 +2172,8 @@ async function saveTimesheetEngineer(id) {
   const travelCapType = (document.querySelector('[data-ts-eng-cap-type="' + escSel(id) + '"]')?.value || null);
   const capValRaw = (document.querySelector('[data-ts-eng-cap-val="' + escSel(id) + '"]')?.value || "").trim();
   const travelCapValue = capValRaw === "" ? null : Number(capValRaw);
+  const fuelRaw = (document.querySelector('[data-ts-eng-fuel="' + escSel(id) + '"]')?.value || "").trim();
+  const fuelRate = fuelRaw === "" ? null : Number(fuelRaw);
 
   if (!firstName && !lastName) {
     alert("Engineer must have at least a first or last name.");
@@ -2149,7 +2183,7 @@ async function saveTimesheetEngineer(id) {
   const r = await fetch(API_BASE + "/update-engineer", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, travelStatus, travelCapType: travelCapType || null, travelCapValue })
+    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, travelStatus, travelCapType: travelCapType || null, travelCapValue, fuelRate })
   });
   const d = await r.json();
 

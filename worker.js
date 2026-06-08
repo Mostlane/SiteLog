@@ -38,6 +38,7 @@ async function ensureOfflineSchema(env) {
   try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN offline_synced INTEGER DEFAULT 0").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN unmatched_site INTEGER DEFAULT 0").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN provided_site_name TEXT").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE people ADD COLUMN fuel_rate REAL").run(); } catch (e) {}
   try {
     await env.DB.prepare(
       "CREATE TABLE IF NOT EXISTS pending_events (id TEXT PRIMARY KEY, device_token TEXT, lat REAL, lng REAL, accuracy REAL, site_code TEXT, intent TEXT, occurred_at TEXT, synced_at TEXT, resolved INTEGER DEFAULT 0)"
@@ -666,12 +667,13 @@ export default {
     if (url.pathname === "/engineers" && request.method === "GET") {
       const guard = requireAdmin();
       if (guard) return guard;
+      await ensureOfflineSchema(env);
       const rows = await env.DB.prepare(`
         SELECT id, first_name, last_name, company, purpose,
                COALESCE(archived,0) as archived,
                COALESCE(hourly_rate,0) as hourly_rate,
                COALESCE(travel_status,'not_configured') as travel_status,
-               travel_cap_type, travel_cap_value
+               travel_cap_type, travel_cap_value, fuel_rate
         FROM people
         ORDER BY first_name ASC, last_name ASC
       `).all();
@@ -683,6 +685,7 @@ export default {
     if (url.pathname === "/update-engineer" && request.method === "POST") {
       const guard = requireAdmin();
       if (guard) return guard;
+      await ensureOfflineSchema(env);
 
       const body = await readBody(request);
       const id = body?.id;
@@ -706,6 +709,12 @@ export default {
         body.travelCapValue != null && body.travelCapValue !== ""
           ? Number(body.travelCapValue)
           : null;
+
+      const fuelIn = body.fuelRate ?? body.fuel_rate;
+      const fuelRate =
+        fuelIn === "" || fuelIn == null || Number.isNaN(Number(fuelIn))
+          ? null
+          : Number(fuelIn);
 
       const sets = [];
       const binds = [];
@@ -744,6 +753,11 @@ export default {
 
         sets.push("travel_cap_value = ?");
         binds.push(Number.isFinite(travelCapValue) ? travelCapValue : null);
+      }
+
+      if (fuelIn !== undefined) {
+        sets.push("fuel_rate = ?");
+        binds.push(fuelRate);
       }
 
       if (!sets.length) return json({ ok: true, note: "No fields to update" });

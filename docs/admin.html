@@ -3161,10 +3161,24 @@ function mergeDuplicateGroups() {
 }
 // Suggested "keep" = someone with a rate already set, then Main, then the most
 // logs — i.e. the record you've already invested config in.
+// Short "last active" label from a device's most recent check-in.
+function lastSeenLabel(ts) {
+  const d = parseStoredTs(ts);
+  if (!d) return "never used";
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days <= 0) return "active today";
+  if (days === 1) return "active yesterday";
+  if (days < 30) return "active " + days + "d ago";
+  return "active " + d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" });
+}
+// Suggested "keep": prefer a record that already has a rate (so config isn't
+// lost), then the most recently active device, then Main, then the most logs.
 function mergeSuggestPrimary(group) {
   return group.slice().sort((a, b) => {
     const ar = Number(a.hourly_rate) > 0 ? 1 : 0, br = Number(b.hourly_rate) > 0 ? 1 : 0;
     if (ar !== br) return br - ar;
+    const al = a.device_last_seen || "", bl = b.device_last_seen || "";
+    if (al !== bl) return al > bl ? -1 : 1; // most recently active first
     const am = Number(a.is_main || 0), bm = Number(b.is_main || 0);
     if (am !== bm) return bm - am;
     return Number(b.visit_count || 0) - Number(a.visit_count || 0);
@@ -3196,9 +3210,12 @@ function renderMergeModal() {
     const rows = group.map(p => {
       const isPrimary = p.id === primaryId;
       const rate = Number(p.hourly_rate) > 0 ? '&pound;' + Number(p.hourly_rate).toFixed(2) + '/hr' : '<span style="color:#b45309;">no rate</span>';
+      const seen = Number(p.device_count || 0)
+        ? '<span style="color:' + (p.device_last_seen ? "var(--label3)" : "#b45309") + ';">' + lastSeenLabel(p.device_last_seen) + '</span>'
+        : "no device";
       const facts = [escapeHtml(p.company || "no company"), rate,
         (p.visit_count || 0) + ' log' + (Number(p.visit_count) === 1 ? "" : "s"),
-        (Number(p.device_count || 0) ? p.device_count + ' device' + (Number(p.device_count) === 1 ? "" : "s") : "no device"),
+        seen,
         (Number(p.is_main || 0) === 1 ? '&#11088; Main' : "")].filter(Boolean).join(' &middot; ');
       return '<label style="display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border-top:1px solid var(--border);cursor:pointer;">' +
           '<input type="radio" name="mergePrimary-' + gi + '" ' + (isPrimary ? "checked" : "") + ' onchange="setMergePrimary(' + gi + ',\'' + jsAttr(p.id) + '\')" style="margin-top:3px;">' +

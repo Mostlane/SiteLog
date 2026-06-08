@@ -42,6 +42,7 @@ async function ensureOfflineSchema(env) {
   try { await env.DB.prepare("ALTER TABLE people ADD COLUMN fuel_rate REAL").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE people ADD COLUMN is_main INTEGER DEFAULT 0").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE sites ADD COLUMN category TEXT DEFAULT 'Projects'").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE devices ADD COLUMN last_seen TEXT").run(); } catch (e) {}
   try {
     await env.DB.prepare(
       "CREATE TABLE IF NOT EXISTS pending_events (id TEXT PRIMARY KEY, device_token TEXT, lat REAL, lng REAL, accuracy REAL, site_code TEXT, intent TEXT, occurred_at TEXT, synced_at TEXT, resolved INTEGER DEFAULT 0)"
@@ -54,6 +55,16 @@ async function ensureOfflineSchema(env) {
 // matching what CURRENT_TIMESTAMP writes so date-key helpers keep working.
 function toSqlUtc(ms) {
   return new Date(ms).toISOString().slice(0, 19).replace("T", " ");
+}
+// Record that a device was active now (best-effort). Used to surface "last
+// active" per person and make duplicate-merge suggestions recency-aware.
+async function touchDevice(env, deviceToken) {
+  if (!deviceToken) return;
+  const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+  try {
+    await env.DB.prepare("UPDATE devices SET last_seen = ? WHERE device_token = ?")
+      .bind(now, deviceToken).run();
+  } catch (e) { /* column may not exist yet pre-migration */ }
 }
 
 
@@ -687,7 +698,8 @@ export default {
                travel_cap_type, travel_cap_value, fuel_rate,
                COALESCE(is_main,0) as is_main,
                (SELECT COUNT(*) FROM visits WHERE visits.person_id = people.id) AS visit_count,
-               (SELECT COUNT(*) FROM devices WHERE devices.person_id = people.id) AS device_count
+               (SELECT COUNT(*) FROM devices WHERE devices.person_id = people.id) AS device_count,
+               (SELECT MAX(last_seen) FROM devices WHERE devices.person_id = people.id) AS device_last_seen
         FROM people
         ORDER BY first_name ASC, last_name ASC
       `).all();
@@ -1401,6 +1413,8 @@ export default {
       const accuracy = isFiniteNumber(body.accuracy) ? Number(body.accuracy) : null;
       if (!deviceToken) return json({ ok: false, error: "Missing deviceToken" }, 400);
 
+      await touchDevice(env, deviceToken);
+
       // Trust the device clock, but guard against garbage or future timestamps.
       const nowMs = Date.now();
       const parsed = typeof body.occurredAt === "string" ? Date.parse(body.occurredAt) : NaN;
@@ -1492,6 +1506,8 @@ export default {
       if (!isFiniteNumber(lat) || !isFiniteNumber(lng)) {
         return json({ ok: false, error: "Missing or invalid lat/lng" }, 400);
       }
+
+      await touchDevice(env, deviceToken);
 
       const latNum = Number(lat);
       const lngNum = Number(lng);

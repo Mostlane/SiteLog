@@ -886,6 +886,7 @@
         <div class="modal-title">Weekly Timesheets</div>
       </div>
       <div style="display:flex;gap:8px;">
+        <button class="btn-primary btn-sm" onclick="openAddLogModal()">&#43; Add Log</button>
         <button class="btn-ghost btn-sm" onclick="exportTimesheetsPdf()">&#128424; Print / Save PDF</button>
         <button class="btn-ghost btn-sm" onclick="closeTimesheetsModal()">Close</button>
       </div>
@@ -902,6 +903,26 @@
       <div class="ts-meta" id="timesheetsMeta"></div>
       <div id="timesheetsBody"></div>
     </div>
+  </div>
+</div>
+
+<div id="addLogModal" class="modal">
+  <div class="modal-content" style="width:min(460px,100%);">
+    <div class="modal-header"><div><div class="modal-title">Add Log</div><div class="modal-subtitle">Manually record time for a person</div></div><button class="btn-ghost btn-sm" onclick="closeAddLogModal()">Close</button></div>
+    <div class="modal-body">
+      <label class="field-stack" style="margin-bottom:12px;"><span class="field-label">Person</span>
+        <select id="addLogPerson"></select></label>
+      <label class="field-stack" style="margin-bottom:12px;"><span class="field-label">Site / job</span>
+        <input id="addLogSite" list="addLogSiteList" placeholder="Select or type a site"><datalist id="addLogSiteList"></datalist></label>
+      <label class="field-stack" style="margin-bottom:12px;"><span class="field-label">Date</span>
+        <input id="addLogDate" type="date"></label>
+      <div style="display:flex;gap:12px;">
+        <label class="field-stack" style="flex:1;"><span class="field-label">Start</span><input id="addLogStart" type="time"></label>
+        <label class="field-stack" style="flex:1;"><span class="field-label">End</span><input id="addLogEnd" type="time"></label>
+      </div>
+      <div id="addLogError" style="color:var(--red);font-size:13px;margin-top:10px;display:none;"></div>
+    </div>
+    <div class="modal-actions"><button class="btn-ghost" onclick="closeAddLogModal()">Cancel</button><button class="btn-primary" onclick="submitAddLog()">Add Log</button></div>
   </div>
 </div>
 <script>
@@ -1880,6 +1901,7 @@ function buildWeekChart(visits, name, company, weekKey, eng) {
       const h = minutesBetween(v.check_in_at, v.check_out_at) / 60;
       const times = formatTimeOnly(v.check_in_at) + " – " + (v.check_out_at ? formatTimeOnly(v.check_out_at) : "—");
       const flag = !v.check_out_at ? ' <span class="tc-flag">(no sign-out)</span>' : (Number(v.auto_checkout || 0) === 1 ? ' <span class="tc-flag">(auto)</span>' : "");
+      const manualTag = Number(v.manual_entry || 0) === 1 ? ' <span style="color:#64748b;">(manual)</span>' : "";
       const pin = mapPinHtml(v);
       if (hasTravelPay) {
         if (v.travel_in_mins != null) totTravelPaid += calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng);
@@ -1892,7 +1914,7 @@ function buildWeekChart(visits, name, company, weekKey, eng) {
         : '<td class="tc-day"></td>';
       rows += "<tr" + weekendCls + ">" + dayCell +
         '<td class="tc-site">' + escapeHtml(v.site_code || "—") + "</td>" +
-        '<td class="tc-desc">' + escapeHtml(times) + flag + (pin ? " &nbsp;" + pin : "") + "</td>" +
+        '<td class="tc-desc">' + escapeHtml(times) + flag + manualTag + (pin ? " &nbsp;" + pin : "") + "</td>" +
         '<td class="tc-hours">' + h.toFixed(2) + "</td>" +
         (rate ? '<td class="tc-pay-cell">' + money(h * rate) + "</td>" : "") +
         "</tr>";
@@ -2113,6 +2135,51 @@ function openTimesheetsModal() {
 }
 function closeTimesheetsModal() {
   document.getElementById("timesheetsModal").style.display = "none";
+}
+
+/* ── ADD LOG (manual time entry) ── */
+function openAddLogModal() {
+  const ps = document.getElementById("addLogPerson");
+  ps.innerHTML = (engineersActive || []).slice()
+    .sort((a, b) => (nameOf(a) || "").localeCompare(nameOf(b) || ""))
+    .map(p => '<option value="' + escapeHtml(p.id) + '">' + escapeHtml(nameOf(p) || "Unknown") + (p.company ? " — " + escapeHtml(p.company) : "") + '</option>').join("");
+  document.getElementById("addLogSiteList").innerHTML =
+    (sitesActive || []).map(s => '<option value="' + escapeHtml(s.site_name) + '">').join("");
+  document.getElementById("addLogSite").value = "";
+  document.getElementById("addLogDate").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("addLogStart").value = "";
+  document.getElementById("addLogEnd").value = "";
+  document.getElementById("addLogError").style.display = "none";
+  document.getElementById("addLogModal").style.display = "flex";
+}
+function closeAddLogModal() {
+  document.getElementById("addLogModal").style.display = "none";
+}
+async function submitAddLog() {
+  const personId = document.getElementById("addLogPerson").value;
+  const site = document.getElementById("addLogSite").value.trim();
+  const date = document.getElementById("addLogDate").value;
+  const start = document.getElementById("addLogStart").value;
+  const end = document.getElementById("addLogEnd").value;
+  const err = document.getElementById("addLogError");
+  const fail = m => { err.textContent = m; err.style.display = "block"; };
+  if (!personId) return fail("Select a person.");
+  if (!site) return fail("Enter a site / job.");
+  if (!date || !start) return fail("Enter a date and a start time.");
+  const checkInAt = date + " " + start + ":00";
+  const checkOutAt = end ? date + " " + end + ":00" : null;
+  if (checkOutAt && new Date(checkOutAt.replace(" ", "T")) <= new Date(checkInAt.replace(" ", "T"))) {
+    return fail("End time must be after start time.");
+  }
+  let r;
+  try {
+    r = await fetch(API_BASE + "/add-visit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ personId, site, checkInAt, checkOutAt }) });
+  } catch (e) { return fail("Network error. Try again."); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.ok) return fail(d.error || "Failed to add log.");
+  closeAddLogModal();
+  await loadData();
+  renderTimesheetsModal();
 }
 function clearTimesheetFilters() {
   ["tsCompanyFilter", "tsPersonFilter", "tsSiteFilter"].forEach(id => document.getElementById(id).value = "");

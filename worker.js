@@ -38,6 +38,7 @@ async function ensureOfflineSchema(env) {
   try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN offline_synced INTEGER DEFAULT 0").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN unmatched_site INTEGER DEFAULT 0").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN provided_site_name TEXT").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN manual_entry INTEGER DEFAULT 0").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE people ADD COLUMN fuel_rate REAL").run(); } catch (e) {}
   try {
     await env.DB.prepare(
@@ -915,6 +916,39 @@ export default {
       return json({ ok: true });
     }
 
+    // POST /add-visit
+    // Admin manually logs a visit for a person (job costing / corrections).
+    // No GPS; flagged manual_entry = 1. Times are taken as entered.
+    if (url.pathname === "/add-visit" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+
+      const { personId, site, checkInAt, checkOutAt } = await readBody(request);
+      if (!personId || !site || !checkInAt) {
+        return json({ ok: false, error: "Missing person, site or start time" }, 400);
+      }
+      const siteName = String(site).trim().slice(0, 120);
+      if (!siteName) return json({ ok: false, error: "Missing site" }, 400);
+      if (!isValidDateTimeString(checkInAt)) return json({ ok: false, error: "Invalid start time" }, 400);
+      if (checkOutAt && !isValidDateTimeString(checkOutAt)) return json({ ok: false, error: "Invalid end time" }, 400);
+      if (checkOutAt && new Date(checkOutAt) <= new Date(checkInAt)) {
+        return json({ ok: false, error: "End time must be after start time" }, 400);
+      }
+
+      const person = await env.DB.prepare("SELECT id FROM people WHERE id = ?").bind(personId).first();
+      if (!person) return json({ ok: false, error: "Person not found" }, 404);
+
+      const id = crypto.randomUUID();
+      await env.DB.prepare(`
+        INSERT INTO visits
+          (id, person_id, site_code, lat, lng, accuracy, hs_ack, auto_checkout, sign_in_confirmed, sign_out_confirmed, manual_entry, check_in_at, check_out_at)
+        VALUES (?, ?, ?, NULL, NULL, NULL, 1, 0, 1, 1, 1, ?, ?)
+      `).bind(id, personId, siteName, checkInAt, checkOutAt ?? null).run();
+
+      return json({ ok: true, visitId: id });
+    }
+
     // POST /update-visit-times
     if (url.pathname === "/update-visit-times" && request.method === "POST") {
       const guard = requireAdmin();
@@ -1740,6 +1774,7 @@ export default {
                COALESCE(v.is_first_of_day,0) AS is_first_of_day,
                COALESCE(v.offline_synced,0) AS offline_synced,
                COALESCE(v.unmatched_site,0) AS unmatched_site,
+               COALESCE(v.manual_entry,0) AS manual_entry,
                v.provided_site_name,
                CASE
                  WHEN COALESCE(v.auto_checkout,0) = 1 THEN 'No Sign Out'

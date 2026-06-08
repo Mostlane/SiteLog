@@ -1117,23 +1117,50 @@ function fmtDay(d) {
   if (!d || d.length < 10) return d || "-";
   return d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(2, 4);
 }
-function formatTSDate(dayStr) {
-  if (!dayStr) return "-";
-  const d = new Date(dayStr + "T00:00:00");
-  const wd = d.toLocaleDateString("en-GB", { weekday: "short" });
-  const mo = d.toLocaleDateString("en-GB", { month: "short" });
-  const n = d.getDate();
-  const sf = (n % 10 === 1 && n % 100 !== 11) ? "st" : (n % 10 === 2 && n % 100 !== 12) ? "nd" : (n % 10 === 3 && n % 100 !== 13) ? "rd" : "th";
-  return wd + " " + n + sf + " " + mo + " " + d.getFullYear().toString().slice(2);
+// ── London-day helpers for the timesheet ──
+// Stored visit times are UTC. A "day" on the timesheet means the calendar day
+// in Europe/London (so a 00:30 BST check-in belongs to that day, not the prior
+// UTC day). Day keys are plain 'YYYY-MM-DD' London dates; week maths is done on
+// UTC midday to avoid any DST/local-parse drift.
+function londonDayKey(ts) {
+  if (!ts) return "";
+  const dt = new Date(String(ts).replace(" ", "T") + "Z");
+  if (isNaN(dt.getTime())) return String(ts).slice(0, 10);
+  return dt.toLocaleDateString("en-CA", { timeZone: "Europe/London" }); // YYYY-MM-DD
+}
+function ymdKey(y, mIdx, d) {
+  return y + "-" + String(mIdx + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+}
+function dayKeyToUtcNoon(dayKey) {
+  const p = String(dayKey).split("-").map(Number);
+  return new Date(Date.UTC(p[0], (p[1] || 1) - 1, p[2] || 1, 12));
+}
+function addDaysKey(dayKey, n) {
+  const dt = dayKeyToUtcNoon(dayKey);
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return ymdKey(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
 }
 function startOfWeekMonday(dayStr) {
-  const d = new Date(dayStr + "T00:00:00");
-  const dy = d.getDay();
-  d.setDate(d.getDate() + (dy === 0 ? -6 : 1 - dy));
-  return d.toISOString().slice(0, 10);
+  const dt = dayKeyToUtcNoon(dayStr);
+  const dow = dt.getUTCDay(); // 0=Sun..6=Sat
+  dt.setUTCDate(dt.getUTCDate() + (dow === 0 ? -6 : 1 - dow));
+  return ymdKey(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
+}
+function formatDayLabel(dayKey) {
+  return dayKeyToUtcNoon(dayKey).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
+}
+function formatTSDate(dayStr) {
+  if (!dayStr) return "-";
+  const d = dayKeyToUtcNoon(dayStr);
+  if (isNaN(d.getTime())) return dayStr;
+  const wd = d.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" });
+  const mo = d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" });
+  const n = d.getUTCDate();
+  const sf = (n % 10 === 1 && n % 100 !== 11) ? "st" : (n % 10 === 2 && n % 100 !== 12) ? "nd" : (n % 10 === 3 && n % 100 !== 13) ? "rd" : "th";
+  return wd + " " + n + sf + " " + mo + " " + d.getUTCFullYear().toString().slice(2);
 }
 function formatWeekCommencing(dayStr) {
-  return new Date(dayStr + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+  return dayKeyToUtcNoon(dayStr).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
 }
 function escapeHtml(str) {
   return String(str)
@@ -1812,7 +1839,7 @@ function getTSFiltered() {
   const to = document.getElementById("tsToDate").value;
 
   return filteredVisits.filter(passFilters).filter(v => {
-    const day = (v.check_in_at || "").slice(0, 10);
+    const day = londonDayKey(v.check_in_at);
     if (co && (v.company || "") !== co) return false;
     if (pe && nameOf(v) !== pe) return false;
     if (si && (v.site_code || "") !== si) return false;
@@ -1886,16 +1913,14 @@ function buildWeekChart(visits, name, company, weekKey, eng) {
   const money = n => "£" + (Number(n) || 0).toFixed(2);
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const byDay = {};
-  visits.forEach(v => { const d = (v.check_in_at || "").slice(0, 10); (byDay[d] = byDay[d] || []).push(v); });
+  visits.forEach(v => { const d = londonDayKey(v.check_in_at); (byDay[d] = byDay[d] || []).push(v); });
 
-  const start = new Date(weekKey + "T00:00:00");
   let totTotal = 0, totStd = 0, totOT = 0, totTravelPaid = 0, totMiles = 0;
   let rows = "";
 
   for (let i = 0; i < 7; i++) {
-    const dd = new Date(start.getTime() + i * 86400000);
-    const key = dd.toISOString().slice(0, 10);
-    const dateLabel = dd.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+    const key = addDaysKey(weekKey, i);
+    const dateLabel = formatDayLabel(key);
     const weekendCls = i >= 5 ? ' class="tc-row-weekend"' : "";
     const dvs = (byDay[key] || []).slice().sort((a, b) => (a.check_in_at || "").localeCompare(b.check_in_at || ""));
 
@@ -1987,7 +2012,7 @@ function buildWeekTable(visits, name, company, weekKey, eng) {
   let totTotal = 0, totStd = 0, totOT = 0, totTIPaid = 0, totTOPaid = 0;
 
   const rows = sorted.map(v => {
-    const day = (v.check_in_at || "").slice(0, 10);
+    const day = londonDayKey(v.check_in_at);
     const totalMins = minutesBetween(v.check_in_at, v.check_out_at);
     const totalH = totalMins / 60;
     const stdH = Math.min(totalH, 10);
@@ -2077,7 +2102,7 @@ function renderTimesheetsModal() {
     const co = (v.company || "No Company").trim() || "No Company";
     const pe = nameOf(v) || "Unknown";
     const pid = v.person_id || "";
-    const day = (v.check_in_at || "").slice(0, 10) || "";
+    const day = londonDayKey(v.check_in_at);
     const wk = startOfWeekMonday(day);
 
     if (!grouped[co]) grouped[co] = {};
@@ -2101,7 +2126,7 @@ function renderTimesheetsModal() {
       const avg = durs.length ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length) : 0;
       const missed = allV.filter(v => Number(v.auto_checkout || 0) === 1).length;
       const longest = durs.length ? Math.max(...durs) : 0;
-      const days = new Set(allV.map(v => (v.check_in_at || "").slice(0, 10))).size;
+      const days = new Set(allV.map(v => londonDayKey(v.check_in_at))).size;
 
       const statsHtml =
         '<div class="eng-stats">' +

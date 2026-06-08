@@ -2373,20 +2373,27 @@ function clearJobCostingFilters() {
 }
 // Fetch the full range (paged past the 500 cap) before aggregating, so totals
 // include older labour/travel/fuel rather than just the most recent 500 visits.
+let jcLoading = false;
 async function loadJobCosting() {
   const fr = document.getElementById("jcFromDate").value;
   const to = document.getElementById("jcToDate").value;
   const body = document.getElementById("jobCostingBody");
   const meta = document.getElementById("jobCostingMeta");
+  // While loading, jcVisits still holds the previous range — block exports so a
+  // PDF can't be saved from stale data filtered against the new date inputs.
+  jcLoading = true;
+  jcVisits = [];
   meta.innerHTML = "Loading…";
   body.innerHTML = '<p style="color:var(--label3);padding:16px;">Loading all visits in range…</p>';
   try {
     jcVisits = await fetchRangeComplete(fr, to);
   } catch (e) {
+    jcLoading = false;
     meta.innerHTML = "";
     body.innerHTML = '<p style="color:#dc2626;padding:16px;">Could not load visits: ' + escapeHtml(e.message) + '</p>';
     return;
   }
+  jcLoading = false;
   renderJobCosting();
 }
 function toggleJobSite(key) {
@@ -2631,6 +2638,7 @@ function jobCostingData() {
 // MULTIPLE JOBS — one-row-per-job summary report.
 async function exportJobCostingPdf() {
   if (!(window.jspdf && window.jspdf.jsPDF)) { alert("PDF engine not loaded — reload and try again."); return; }
+  if (jcLoading) { alert("Still loading the date range — try again in a moment."); return; }
   const { cards, range } = jobCostingData();
   if (!cards.length) { alert("Nothing to export for the current period."); return; }
   await ensurePdfLogo();
@@ -2649,6 +2657,7 @@ async function exportJobCostingPdf() {
 // SINGLE JOB — full per-engineer breakdown for one site.
 async function exportSiteJobPdf(siteKey) {
   if (!(window.jspdf && window.jspdf.jsPDF)) { alert("PDF engine not loaded — reload and try again."); return; }
+  if (jcLoading) { alert("Still loading the date range — try again in a moment."); return; }
   const { cards, range } = jobCostingData();
   const card = cards.find(c => c.siteKey === siteKey);
   if (!card) { alert("Job not found — try reopening Job Costing."); return; }

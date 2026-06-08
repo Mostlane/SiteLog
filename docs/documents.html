@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>SiteLog — Documents</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     :root {
       --bg: #f2f2f7;
@@ -1271,67 +1271,230 @@ function previewTBT(doc, fd, atts) {
   return '<div style="' + PF + 'font-size:11px;color:#1d1d1f;">' + pdfDocHeader("Toolbox Talk") + pdfSecHead("Session Details") + pdfGrid2([["Project", fd.project],["Site Address", fd.address || doc.site_address || ""],["Site Manager", fd.site_manager],["Date", fd.date],["Talk Title", fd.title],["Delivered By", fd.delivered_by],["Duration", fd.duration ? fd.duration + " mins" : ""],["",""]]) + pdfGap + pdfSecHead("Talk Content") + pdfGrid1([["Summary of Talk", fd.summary],["Key Points Raised", fd.key_points],["Site-Specific Hazards", fd.hazards]]) + pdfGap + pdfSecHead("Attendees") + attendeeRows + pdfGap + pdfSecHead("Delivered By — Manager Sign-Off") + pdfSigRow("Signature", fd.delivered_by, doc.manager_signature) + '</div>';
 }
 
-// Export via a dedicated print iframe. This page runs inside the PWA shell
-// (app.html) iframe, so window.print() there prints the whole shell — the PIN
-// screen and "Admin Dashboard" bar landed on top of the document. Building a
-// standalone iframe that holds ONLY the document and printing THAT frame
-// isolates the output (and paginates properly). html2canvas, used before,
-// rendered blank on iOS Safari.
-function exportPdf() {
+// ===== Clean A4 PDF generation (jsPDF) =====
+// Builds a real, self-contained A4 PDF from the document data and downloads it —
+// no print dialog, no PWA shell, no browser header/footer. (html2canvas-based
+// export rendered blank on iOS Safari.)
+const INDUCTION_BRIEFING = [
+  "Site rules and expected conduct",
+  "PPE requirements (hi-vis, boots, gloves, etc.)",
+  "Welfare arrangements (toilets, mess area)",
+  "Emergency procedures and muster point",
+  "Location of fire extinguishers and first aid kit",
+  "Site hazards (asbestos, live services, etc.)",
+  "Requirement to follow RAMS and safe systems of work",
+  "Permit-to-work systems (hot works, roof access, confined space)",
+  "Working at height procedures",
+  "Housekeeping and material storage",
+  "Accident / near miss reporting procedure"
+];
+const HWP_PREC = ["Area inspected and deemed safe","Combustibles removed (10m where possible)","Combustibles protected with fire blankets","Openings / voids sealed or protected","Minimum 2 fire extinguishers present","Fire alarm isolation agreed (if required)","Fire watch appointed during works","Gas cylinders secured & flashback arrestors fitted","Adequate ventilation confirmed"];
+const HWP_FW = ["Continuous fire watch during works","Fire watch to remain minimum 60 minutes after completion","Area re-inspected after 1 hour"];
+
+const _imgSizeCache = {};
+function measureImage(dataUrl) {
+  if (!dataUrl) return Promise.resolve(null);
+  if (_imgSizeCache[dataUrl]) return Promise.resolve(_imgSizeCache[dataUrl]);
+  return new Promise(resolve => {
+    const im = new Image();
+    im.onload = () => { const s = { w: im.naturalWidth || 1, h: im.naturalHeight || 1 }; _imgSizeCache[dataUrl] = s; resolve(s); };
+    im.onerror = () => resolve(null);
+    im.src = dataUrl;
+  });
+}
+
+async function exportPdf() {
   if (!viewDocData) return;
+  if (!(window.jspdf && window.jspdf.jsPDF)) { alert("PDF engine not loaded — please reload the page and try again."); return; }
+  try {
+    const pdf = await generateDocPdf(viewDocData);
+    pdf.save(docFileName(viewDocData) + ".pdf");
+  } catch (e) {
+    alert("Could not generate the PDF: " + (e && e.message ? e.message : e));
+  }
+}
 
-  const title = docFileName(viewDocData);
-  const html =
-    '<!doctype html><html><head><meta charset="utf-8">' +
-    '<meta name="viewport" content="width=794">' +
-    '<title>' + escHtml(title) + '</title>' +
-    '<style>' +
-      '@page{size:A4 portrait;margin:12mm;}' +
-      'html,body{margin:0;padding:0;background:#fff;}' +
-      'body{width:794px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#1d1d1f;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
-      'img{max-width:100%;}' +
-      'table{page-break-inside:avoid;}' +
-    '</style></head><body>' + buildPreview(viewDocData) + '</body></html>';
+async function generateDocPdf(doc) {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  const PW = 210, M = 12, CW = PW - 2 * M, PAD = 1.6, MINROW = 6.4, PH = 297;
+  const BLUE = [0, 74, 153], LB = [234, 239, 247], BD = [184, 196, 212], TX = [29, 29, 31], CH = [221, 229, 240], GBX = [246, 248, 251];
+  const mm = pt => pt * 0.3528;
+  let y = M;
+  const fd = doc.form_data || {};
+  const atts = doc.attendees || [];
 
-  const old = document.getElementById("docPrintFrame");
-  if (old) old.remove();
+  // Pre-measure every embedded image so signatures keep their aspect ratio.
+  const logoSize = await measureImage(logoDataUrl);
+  const sigSizes = {};
+  for (const a of atts) { if (a.signature) sigSizes[a.signature] = await measureImage(a.signature); }
+  if (doc.manager_signature) sigSizes[doc.manager_signature] = await measureImage(doc.manager_signature);
 
-  const frame = document.createElement("iframe");
-  frame.id = "docPrintFrame";
-  frame.setAttribute("aria-hidden", "true");
-  // Rendered (so iOS paints it) but kept out of view.
-  frame.style.cssText = "position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;";
-  document.body.appendChild(frame);
+  function setText(size, bold, color) { pdf.setFont("helvetica", bold ? "bold" : "normal"); pdf.setFontSize(size); pdf.setTextColor(color ? color[0] : TX[0], color ? color[1] : TX[1], color ? color[2] : TX[2]); }
+  function wrap(text, w, size, bold) { setText(size, bold); return pdf.splitTextToSize(String(text == null || text === "" ? "—" : text), Math.max(2, w - 2 * PAD)); }
+  function linesH(lines, size) { return lines.length * mm(size) * 1.2 + 2 * PAD; }
+  function need(h) { if (y + h > PH - M) { pdf.addPage(); y = M; } }
+  function gap(h) { y += (h == null ? 2.5 : h); }
+  function imgFmt(url) { return /image\/jpe?g/i.test(url) ? "JPEG" : "PNG"; }
 
-  const fire = () => {
-    const win = frame.contentWindow;
-    const fdoc = frame.contentDocument || win.document;
-    const cleanup = () => { setTimeout(() => { if (frame.parentNode) frame.remove(); }, 800); };
-
-    const imgs = Array.from(fdoc.images || []);
-    Promise.all(imgs.map(img =>
-      (img.complete && img.naturalWidth > 0)
-        ? Promise.resolve()
-        : new Promise(res => { img.onload = res; img.onerror = res; setTimeout(res, 3000); })
-    )).then(() => {
-      try {
-        win.focus();
-        if ("onafterprint" in win) win.onafterprint = cleanup;
-        win.print();
-        setTimeout(cleanup, 60000);
-      } catch (e) {
-        cleanup();
-        alert("Couldn't open the print dialog — please try again.");
-      }
+  function drawCell(x, w, h, o) {
+    if (o.fill) { pdf.setFillColor(o.fill[0], o.fill[1], o.fill[2]); pdf.rect(x, y, w, h, "F"); }
+    pdf.setDrawColor(BD[0], BD[1], BD[2]); pdf.setLineWidth(0.2); pdf.rect(x, y, w, h, "S");
+    if (o.lines && o.lines.length) {
+      setText(o.size, o.bold, o.color);
+      const lh = mm(o.size) * 1.2;
+      let ty = y + PAD + mm(o.size) * 0.92;
+      o.lines.forEach(ln => { pdf.text(ln, x + PAD, ty); ty += lh; });
+    }
+  }
+  function placeImage(url, x, yy, maxW, maxH) {
+    const s = sigSizes[url] || _imgSizeCache[url];
+    if (!s) return;
+    const sc = Math.min(maxW / s.w, maxH / s.h);
+    try { pdf.addImage(url, imgFmt(url), x, yy, s.w * sc, s.h * sc); } catch (e) {}
+  }
+  function header(title, sub) {
+    const h = 13; need(h + 2);
+    pdf.setFillColor(BLUE[0], BLUE[1], BLUE[2]); pdf.rect(M, y, CW, h, "F");
+    let tx = M + 4;
+    if (logoDataUrl && logoSize) {
+      const lh = 7, lw = lh * (logoSize.w / logoSize.h);
+      try { pdf.addImage(logoDataUrl, imgFmt(logoDataUrl), M + 4, y + (h - lh) / 2, lw, lh); tx = M + 4 + lw + 4; } catch (e) {}
+    }
+    setText(13, true, [255, 255, 255]); pdf.text(String(title), tx, y + (sub ? 5.6 : 7.6));
+    if (sub) { setText(8.5, false, [223, 232, 243]); pdf.text(String(sub), tx, y + 10); }
+    y += h;
+  }
+  function section(text) {
+    need(8); y += 2.5;
+    setText(8, true, BLUE); pdf.text(String(text).toUpperCase(), M, y + 3.8);
+    pdf.setDrawColor(BLUE[0], BLUE[1], BLUE[2]); pdf.setLineWidth(0.5); pdf.line(M, y + 5.2, M + CW, y + 5.2);
+    y += 6.4;
+  }
+  function grid2(pairs) {
+    const Lw = CW * 0.17, Vw = CW * 0.33;
+    for (let i = 0; i < pairs.length; i += 2) {
+      const p1 = pairs[i], p2 = pairs[i + 1] || ["", ""];
+      const v1 = wrap(p1[1], Vw, 8.5), v2 = wrap(p2[0] ? p2[1] : "", Vw, 8.5);
+      const rh = Math.max(MINROW, linesH(v1, 8.5), linesH(v2, 8.5));
+      need(rh);
+      drawCell(M, Lw, rh, { fill: LB, lines: wrap(p1[0], Lw, 7.6, true), size: 7.6, bold: true });
+      drawCell(M + Lw, Vw, rh, { lines: v1, size: 8.5 });
+      drawCell(M + Lw + Vw, Lw, rh, { fill: p2[0] ? LB : [255, 255, 255], lines: p2[0] ? wrap(p2[0], Lw, 7.6, true) : [], size: 7.6, bold: true });
+      drawCell(M + 2 * Lw + Vw, Vw, rh, { lines: p2[0] ? v2 : [], size: 8.5 });
+      y += rh;
+    }
+  }
+  function grid1(pairs) {
+    const Lw = CW * 0.26, Vw = CW * 0.74;
+    pairs.forEach(p => {
+      const v = wrap(p[1], Vw, 8.5);
+      const rh = Math.max(MINROW, linesH(v, 8.5));
+      need(rh);
+      drawCell(M, Lw, rh, { fill: LB, lines: wrap(p[0], Lw, 7.6, true), size: 7.6, bold: true });
+      drawCell(M + Lw, Vw, rh, { lines: v, size: 8.5 });
+      y += rh;
     });
-  };
+  }
+  function listBox(items, checks) {
+    const colW = CW / 2, half = Math.ceil(items.length / 2);
+    const build = (arr, off) => {
+      let out = [];
+      arr.forEach((t, idx) => {
+        // jsPDF's built-in fonts are WinAnsi — Unicode checkbox glyphs don't
+        // render, so use ASCII boxes (the • bullet is WinAnsi-safe).
+        const mark = checks ? (checks[idx + off] ? "[X]  " : "[  ]  ") : "•  ";
+        setText(8.5, false);
+        out = out.concat(pdf.splitTextToSize(mark + String(t), colW - 2 * PAD - 1));
+      });
+      return out;
+    };
+    const l1 = build(items.slice(0, half), 0), l2 = build(items.slice(half), half);
+    const lh = mm(8.5) * 1.32, h = Math.max(l1.length, l2.length) * lh + 2 * PAD;
+    need(h);
+    pdf.setFillColor(GBX[0], GBX[1], GBX[2]); pdf.rect(M, y, CW, h, "F");
+    pdf.setDrawColor(BD[0], BD[1], BD[2]); pdf.setLineWidth(0.2); pdf.rect(M, y, CW, h, "S"); pdf.line(M + colW, y, M + colW, y + h);
+    setText(8.5, false, TX);
+    let ty = y + PAD + mm(8.5) * 0.92; l1.forEach(ln => { pdf.text(ln, M + PAD, ty); ty += lh; });
+    ty = y + PAD + mm(8.5) * 0.92; l2.forEach(ln => { pdf.text(ln, M + colW + PAD, ty); ty += lh; });
+    y += h;
+  }
+  function headerBar(text) {
+    const lines = wrap(text, CW, 8, true), h = Math.max(6, linesH(lines, 8));
+    need(h); drawCell(M, CW, h, { fill: CH, lines: lines, size: 8, bold: true }); y += h;
+  }
+  function sigRow(label, sig) {
+    const Lw = CW * 0.26, Vw = CW * 0.74, rh = 18; need(rh);
+    drawCell(M, Lw, rh, { fill: LB, lines: wrap(label, Lw, 7.6, true), size: 7.6, bold: true });
+    drawCell(M + Lw, Vw, rh, {});
+    if (sig) placeImage(sig, M + Lw + PAD, y + PAD, Vw - 2 * PAD, rh - 2 * PAD);
+    y += rh;
+  }
+  function signatureBlock(printName, sig) {
+    grid1([["Print Name", printName || ""]]);
+    sigRow("Signature", sig);
+  }
+  function warnBox(text) {
+    setText(9, false); const lines = pdf.splitTextToSize(text, CW - 2 * PAD);
+    const lh = mm(9) * 1.25, h = lines.length * lh + 2 * PAD + 1; need(h);
+    pdf.setFillColor(255, 251, 235); pdf.rect(M, y, CW, h, "F");
+    pdf.setDrawColor(240, 208, 96); pdf.setLineWidth(0.3); pdf.rect(M, y, CW, h, "S");
+    setText(9, false, [122, 88, 0]); let ty = y + PAD + mm(9) * 0.92; lines.forEach(ln => { pdf.text(ln, M + PAD, ty); ty += lh; });
+    y += h;
+  }
+  function noteText(text) {
+    setText(7.5, false, [120, 120, 120]); const lines = pdf.splitTextToSize(text, CW);
+    const lh = mm(7.5) * 1.3, h = lines.length * lh + 3; need(h);
+    pdf.setDrawColor(205, 205, 205); pdf.setLineWidth(0.2); pdf.line(M, y + 1, M + CW, y + 1);
+    let ty = y + 3.6; lines.forEach(ln => { pdf.text(ln, M, ty); ty += lh; });
+    y += h;
+  }
 
-  const fdoc = frame.contentDocument || frame.contentWindow.document;
-  fdoc.open();
-  fdoc.write(html);
-  fdoc.close();
-  // Give the written document a tick to parse/layout before printing.
-  setTimeout(fire, 120);
+  if (doc.type === "induction") {
+    header("Contractor Site Induction Form");
+    section("Site Details");
+    grid2([["Project", fd.project], ["Site Address", fd.address || doc.site_address || ""], ["Site Manager", fd.site_manager], ["Start Date", fd.date]]);
+    gap(); section("Site Induction Briefing Includes"); listBox(INDUCTION_BRIEFING);
+    gap(); section("Contractor Details");
+    const dt = (doc.issued_at || "").slice(0, 10);
+    atts.forEach((a, i) => {
+      headerBar("CONTRACTOR " + (i + 1) + ": " + String(a.person_name || "").toUpperCase());
+      grid2([["Full Name", a.person_name], ["Company", a.company], ["Trade / Role", a.trade], ["Contact Number", a.contact_number], ["CSCS No.", a.cscs_number], ["Date", dt]]);
+      sigRow("Contractor Signature", a.signature); gap(2);
+    });
+    gap(); section("Induction Given By"); signatureBlock(fd.giver_name, doc.manager_signature);
+  } else if (doc.type === "hwp") {
+    header("Hot Works Permit", "Permit No: " + (fd.permit_no || doc.permit_no || ""));
+    section("Project Details");
+    grid2([["Project", fd.project], ["Site", fd.site || doc.site_name], ["Client / PC", fd.client], ["Date", fd.date], ["Issued By", fd.issued_by], ["Valid From", fd.valid_from]]);
+    gap(); section("1. Description of Hot Works");
+    grid1([["Location", fd.location], ["Nature of Works", (fd.nature || []).join(", ")], ["Equipment", fd.equipment]]);
+    gap(); section("2. Fire & Safety Precautions"); listBox(HWP_PREC, fd.precautions || []);
+    gap(); section("3. Fire Watch Requirements"); listBox(HWP_FW, fd.fire_watch || []);
+    grid1([["Fire Watch Name", fd.fire_watch_name || ""]]);
+    gap(); section("4. Operatives");
+    atts.forEach((a, i) => { grid2([["Operative " + (i + 1), a.person_name], ["Company", a.company]]); sigRow("Signature", a.signature); gap(1.5); });
+    gap(); section("5. Permit Issued By"); signatureBlock(fd.issued_by, doc.manager_signature);
+    if (doc.status === "closed") {
+      gap(); section("Close Out");
+      grid2([["Completion Time", doc.completion_time], ["Final Area", doc.final_area_safe === 1 ? "Area declared SAFE" : "Area declared NOT SAFE"]]);
+      sigRow("Manager Signature", doc.manager_signature);
+    } else { gap(); warnBox("Open Permit  —  Close out required after works complete."); }
+    gap(); noteText("Permit valid for one shift only. Must be displayed at work location. Void if works stop for more than 2 hours. All works must comply with CDM Regulations and approved RAMS.");
+  } else if (doc.type === "tbt") {
+    header("Toolbox Talk");
+    section("Session Details");
+    grid2([["Project", fd.project], ["Site Address", fd.address || doc.site_address || ""], ["Site Manager", fd.site_manager], ["Date", fd.date], ["Talk Title", fd.title], ["Delivered By", fd.delivered_by], ["Duration", fd.duration ? fd.duration + " mins" : ""], ["", ""]]);
+    gap(); section("Talk Content");
+    grid1([["Summary of Talk", fd.summary], ["Key Points Raised", fd.key_points], ["Site-Specific Hazards", fd.hazards]]);
+    gap(); section("Attendees");
+    atts.forEach((a, i) => { grid2([["Attendee " + (i + 1), a.person_name], ["Company", a.company]]); sigRow("Signature", a.signature); gap(1.5); });
+    gap(); section("Delivered By — Manager Sign-Off"); signatureBlock(fd.delivered_by, doc.manager_signature);
+  } else {
+    header("Document"); noteText("Unknown document type.");
+  }
+
+  return pdf;
 }
 
 // HWP CLOSEOUT

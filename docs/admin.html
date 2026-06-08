@@ -2532,7 +2532,7 @@ function renderSitesAdminTable() {
     const body = isCollapsed ? "" :
       '<div class="site-list" style="margin-top:8px;">' + list.map(renderSiteItem).join("") + '</div>';
     return '<div class="cat-group">' +
-        '<div class="cat-group-head" onclick="toggleCategoryGroup(' + jsAttr(cat) + ')" ' +
+        '<div class="cat-group-head" onclick="toggleCategoryGroup(\'' + jsAttr(cat) + '\')" ' +
           'style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;margin-top:12px;background:var(--card2,#1b1f27);border:1px solid var(--line,#2a2f3a);border-radius:10px;user-select:none;">' +
           '<span style="transition:transform .15s;transform:rotate(' + (isCollapsed ? "0" : "90") + 'deg);display:inline-block;color:var(--label2);">&#9656;</span>' +
           '<span style="font-weight:700;font-size:14px;">' + escapeHtml(cat) + '</span>' +

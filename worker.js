@@ -41,6 +41,7 @@ async function ensureOfflineSchema(env) {
   try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN manual_entry INTEGER DEFAULT 0").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE people ADD COLUMN fuel_rate REAL").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE people ADD COLUMN is_main INTEGER DEFAULT 0").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE sites ADD COLUMN category TEXT DEFAULT 'Projects'").run(); } catch (e) {}
   try {
     await env.DB.prepare(
       "CREATE TABLE IF NOT EXISTS pending_events (id TEXT PRIMARY KEY, device_token TEXT, lat REAL, lng REAL, accuracy REAL, site_code TEXT, intent TEXT, occurred_at TEXT, synced_at TEXT, resolved INTEGER DEFAULT 0)"
@@ -629,14 +630,20 @@ export default {
       const guard = requireAdmin();
       if (guard) return guard;
 
-      const { id, siteName, radius, siteRules } = await readBody(request);
+      const { id, siteName, radius, siteRules, category } = await readBody(request);
 
       if (!id) return json({ error: "Missing id" }, 400);
       if (!siteName) return json({ error: "Missing siteName" }, 400);
 
-      await env.DB.prepare(
-        "UPDATE sites SET site_name = ?, radius_m = ?, site_rules = ? WHERE id = ?"
-      ).bind(siteName, Number(radius ?? 500), siteRules ?? null, id).run();
+      if (category !== undefined) {
+        await env.DB.prepare(
+          "UPDATE sites SET site_name = ?, radius_m = ?, site_rules = ?, category = ? WHERE id = ?"
+        ).bind(siteName, Number(radius ?? 500), siteRules ?? null, (String(category || "").trim() || "Projects"), id).run();
+      } else {
+        await env.DB.prepare(
+          "UPDATE sites SET site_name = ?, radius_m = ?, site_rules = ? WHERE id = ?"
+        ).bind(siteName, Number(radius ?? 500), siteRules ?? null, id).run();
+      }
 
       return json({ ok: true });
     }
@@ -889,7 +896,7 @@ export default {
       const guard = requireAdmin();
       if (guard) return guard;
 
-      const { siteName, lat, lng, radius } = await readBody(request);
+      const { siteName, lat, lng, radius, category } = await readBody(request);
 
       if (!siteName || lat == null || lng == null) {
         return json({ error: "Missing siteName/lat/lng" }, 400);
@@ -900,16 +907,56 @@ export default {
       }
 
       await env.DB.prepare(
-        "INSERT INTO sites (id, site_name, lat, lng, radius_m, archived) VALUES (?, ?, ?, ?, ?, 0)"
+        "INSERT INTO sites (id, site_name, lat, lng, radius_m, archived, category) VALUES (?, ?, ?, ?, ?, 0, ?)"
       ).bind(
         crypto.randomUUID(),
         siteName,
         Number(lat),
         Number(lng),
-        Number(radius ?? 500)
+        Number(radius ?? 500),
+        (String(category || "").trim() || "Projects")
       ).run();
 
       return json({ ok: true, siteName });
+    }
+
+    // POST /bulk-add-sites  — import many sites at once; skips names that already exist
+    if (url.pathname === "/bulk-add-sites" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+
+      const body = await readBody(request);
+      const incoming = Array.isArray(body.sites) ? body.sites : [];
+      if (!incoming.length) return json({ ok: false, error: "No sites provided" }, 400);
+
+      const existing = await env.DB.prepare("SELECT site_name FROM sites").all();
+      const have = new Set((existing.results || []).map(r => String(r.site_name || "").trim().toLowerCase()));
+
+      const stmts = [];
+      let skipped = 0;
+      const insert = env.DB.prepare(
+        "INSERT INTO sites (id, site_name, lat, lng, radius_m, archived, category) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      );
+      for (const s of incoming) {
+        const name = String(s.siteName ?? s.n ?? "").trim();
+        const lat = s.lat, lng = s.lng ?? s.lon;
+        const key = name.toLowerCase();
+        if (!name || !isFiniteNumber(lat) || !isFiniteNumber(lng) || have.has(key)) { skipped++; continue; }
+        have.add(key);
+        stmts.push(insert.bind(
+          crypto.randomUUID(),
+          name,
+          Number(lat),
+          Number(lng),
+          Number(s.radius ?? 500),
+          (s.archived ?? s.arch) ? 1 : 0,
+          (String(s.category ?? s.cat ?? "").trim() || "Projects")
+        ));
+      }
+
+      if (stmts.length) await env.DB.batch(stmts);
+      return json({ ok: true, added: stmts.length, skipped });
     }
 
     // POST /manual-checkout

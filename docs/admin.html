@@ -186,6 +186,43 @@
     .ts-acc.open .ts-eng-chev{transform:rotate(90deg);}
     .ts-eng-body{display:none;}
     .ts-acc.open .ts-eng-body{display:block;}
+
+    /* ── Weekly timesheet chart (clean, print-friendly) ── */
+    .tc-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:22px 24px 18px;margin:16px 0;color:#0f172a;}
+    .tc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:16px;}
+    .tc-title{font-size:25px;font-weight:800;letter-spacing:3px;color:#0f172a;line-height:1;}
+    .tc-sub{font-size:11.5px;color:#64748b;margin-top:5px;letter-spacing:0.5px;text-transform:uppercase;}
+    .tc-id{margin-top:13px;}
+    .tc-id-row{display:flex;gap:8px;font-size:13.5px;margin-bottom:3px;align-items:baseline;}
+    .tc-id-label{color:#64748b;min-width:84px;text-transform:uppercase;font-size:10.5px;letter-spacing:0.6px;}
+    .tc-id-val{font-weight:600;color:#0f172a;}
+    .tc-stats{display:flex;gap:10px;flex-wrap:wrap;}
+    .tc-stat{background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:11px 16px;text-align:center;min-width:84px;}
+    .tc-stat-val{font-size:21px;font-weight:800;color:#004a99;line-height:1;display:block;}
+    .tc-stat.tc-extra .tc-stat-val{color:#d97706;}
+    .tc-stat.tc-total .tc-stat-val{color:#0f172a;}
+    .tc-stat.tc-travel .tc-stat-val{color:#16a34a;}
+    .tc-stat-label{font-size:9.5px;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;margin-top:6px;display:block;}
+    .tc-tbl{width:100%;border-collapse:collapse;font-size:13px;}
+    .tc-tbl th{background:#0f172a;color:#fff;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;padding:9px 12px;text-align:left;}
+    .tc-tbl th:last-child{text-align:right;}
+    .tc-tbl td{padding:9px 12px;border-bottom:1px solid #eef2f6;vertical-align:top;}
+    .tc-row-weekend td{background:#fafbfc;}
+    .tc-day{white-space:nowrap;width:92px;}
+    .tc-day-name{font-weight:800;color:#0f172a;display:block;font-size:13px;}
+    .tc-day-date{font-size:11px;color:#94a3b8;}
+    .tc-site{font-weight:600;color:#0f172a;}
+    .tc-desc{color:#475569;font-size:12.5px;}
+    .tc-flag{color:#dc2626;font-weight:600;}
+    .tc-hours{text-align:right;font-weight:700;color:#0f172a;white-space:nowrap;width:74px;}
+    .tc-foot td{border-top:2px solid #0f172a;border-bottom:none;font-weight:800;padding-top:11px;}
+    .tc-foot .tc-hours{color:#004a99;}
+    .ts-detail-wrap{margin:6px 0 4px;}
+    /* PDF export: show only the clean charts (+ company titles) */
+    .ts-exporting .no-pdf{display:none !important;}
+    .ts-exporting .ts-eng-body{display:block !important;}
+    .ts-exporting .tc-card{break-inside:avoid;page-break-inside:avoid;}
+
     .add-form{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:18px;}
     .add-form-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--label3);margin-bottom:10px;}
     .add-form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:end;}
@@ -1765,6 +1802,88 @@ function onTravelStatusChange(id) {
   if (grp) grp.style.display = sel && sel.value === "paid" ? "flex" : "none";
 }
 
+// Clean weekly chart (Mon–Sun) for a single employee+week. One row per visit,
+// grouped under each day; the detailed/editable table lives in buildWeekTable.
+function buildWeekChart(visits, name, company, weekKey, eng) {
+  const hasTravelPay = eng && eng.travel_status === "paid";
+  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const byDay = {};
+  visits.forEach(v => { const d = (v.check_in_at || "").slice(0, 10); (byDay[d] = byDay[d] || []).push(v); });
+
+  const start = new Date(weekKey + "T00:00:00");
+  let totTotal = 0, totStd = 0, totOT = 0, totTravelPaid = 0;
+  let rows = "";
+
+  for (let i = 0; i < 7; i++) {
+    const dd = new Date(start.getTime() + i * 86400000);
+    const key = dd.toISOString().slice(0, 10);
+    const dateLabel = dd.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+    const weekendCls = i >= 5 ? ' class="tc-row-weekend"' : "";
+    const dvs = (byDay[key] || []).slice().sort((a, b) => (a.check_in_at || "").localeCompare(b.check_in_at || ""));
+
+    if (!dvs.length) {
+      rows += "<tr" + weekendCls + '><td class="tc-day"><span class="tc-day-name">' + dayNames[i] + '</span><span class="tc-day-date">' + escapeHtml(dateLabel) + '</span></td><td></td><td class="tc-desc" style="color:#cbd5e1;">—</td><td class="tc-hours">—</td></tr>';
+      continue;
+    }
+
+    let dayMins = 0;
+    dvs.forEach(v => { dayMins += minutesBetween(v.check_in_at, v.check_out_at); });
+    const dayH = dayMins / 60;
+    totTotal += dayH; totStd += Math.min(dayH, 10); totOT += Math.max(dayH - 10, 0);
+
+    dvs.forEach((v, idx) => {
+      const h = minutesBetween(v.check_in_at, v.check_out_at) / 60;
+      const times = formatTimeOnly(v.check_in_at) + " – " + (v.check_out_at ? formatTimeOnly(v.check_out_at) : "—");
+      const flag = !v.check_out_at ? ' <span class="tc-flag">(no sign-out)</span>' : (Number(v.auto_checkout || 0) === 1 ? ' <span class="tc-flag">(auto)</span>' : "");
+      const pin = mapPinHtml(v);
+      if (hasTravelPay) {
+        if (v.travel_in_mins != null) totTravelPaid += calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng);
+        if (v.travel_out_mins != null) totTravelPaid += calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng);
+      }
+      const dayCell = idx === 0
+        ? '<td class="tc-day"><span class="tc-day-name">' + dayNames[i] + '</span><span class="tc-day-date">' + escapeHtml(dateLabel) + '</span></td>'
+        : '<td class="tc-day"></td>';
+      rows += "<tr" + weekendCls + ">" + dayCell +
+        '<td class="tc-site">' + escapeHtml(v.site_code || "—") + "</td>" +
+        '<td class="tc-desc">' + escapeHtml(times) + flag + (pin ? " &nbsp;" + pin : "") + "</td>" +
+        '<td class="tc-hours">' + h.toFixed(2) + "</td></tr>";
+    });
+  }
+
+  const travelStat = hasTravelPay
+    ? '<div class="tc-stat tc-travel"><span class="tc-stat-val">' + (totTravelPaid / 60).toFixed(2) + '</span><span class="tc-stat-label">Travel paid</span></div>'
+    : "";
+
+  return '<div class="tc-card">' +
+    '<div class="tc-top">' +
+      '<div><div class="tc-title">TIMESHEET</div><div class="tc-sub">Week commencing ' + escapeHtml(formatWeekCommencing(weekKey)) + '</div>' +
+        '<div class="tc-id">' +
+          '<div class="tc-id-row"><span class="tc-id-label">Employee</span><span class="tc-id-val">' + escapeHtml(name) + '</span></div>' +
+          '<div class="tc-id-row"><span class="tc-id-label">Company</span><span class="tc-id-val">' + escapeHtml(company || "—") + '</span></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="tc-stats">' +
+        '<div class="tc-stat"><span class="tc-stat-val">' + totStd.toFixed(2) + '</span><span class="tc-stat-label">Weekly hrs</span></div>' +
+        '<div class="tc-stat tc-extra"><span class="tc-stat-val">' + totOT.toFixed(2) + '</span><span class="tc-stat-label">Extra hrs</span></div>' +
+        '<div class="tc-stat tc-total"><span class="tc-stat-val">' + totTotal.toFixed(2) + '</span><span class="tc-stat-label">Total hrs</span></div>' +
+        travelStat +
+      '</div>' +
+    '</div>' +
+    '<table class="tc-tbl"><thead><tr><th>Day</th><th>Site</th><th>Description</th><th>Hours</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody>' +
+    '<tfoot><tr class="tc-foot"><td colspan="3">Weekly total' + (hasTravelPay ? ' &nbsp;·&nbsp; + ' + (totTravelPaid / 60).toFixed(2) + 'h paid travel' : "") + '</td><td class="tc-hours">' + totTotal.toFixed(2) + '</td></tr></tfoot>' +
+    '</table>' +
+    '</div>';
+}
+
+function toggleDetail(btn) {
+  const d = btn.nextElementSibling;
+  if (!d) return;
+  const open = d.style.display !== "none";
+  d.style.display = open ? "none" : "block";
+  btn.textContent = open ? "Show detailed / edit view" : "Hide detailed / edit view";
+}
+
 function buildWeekTable(visits, name, company, weekKey, eng) {
   const hasTravelPay = eng && eng.travel_status === "paid";
   const sorted = visits.slice().sort((a, b) => (a.check_in_at || "").localeCompare(b.check_in_at || ""));
@@ -1898,16 +2017,22 @@ function renderTimesheetsModal() {
 
       const accId = "tseng-" + (tsIdx++);
       html += '<div class="ts-engineer-block ts-acc" id="' + accId + '">' +
-        '<div class="ts-eng-head" onclick="toggleTsEng(\'' + accId + '\')">' +
+        '<div class="ts-eng-head no-pdf" onclick="toggleTsEng(\'' + accId + '\')">' +
           '<div class="ts-engineer-title">' + escapeHtml(pe) + '</div>' +
           '<div class="ts-eng-quick"><span><b>' + totalHrs.toFixed(1) + 'h</b></span><span>' + days + 'd</span>' +
             (missed > 0 ? '<span style="color:var(--red);font-weight:600;">' + missed + ' missed</span>' : '') +
             '<span class="ts-eng-chev">&#8250;</span></div>' +
         '</div>' +
         '<div class="ts-eng-body">' +
-          '<div class="ts-engineer-header">' + buildEngineerAdminPanel(eng, pe, co, eid) + '</div>' + statsHtml;
+          '<div class="ts-engineer-header no-pdf">' + buildEngineerAdminPanel(eng, pe, co, eid) + '</div>' +
+          '<div class="no-pdf">' + statsHtml + '</div>';
       Object.keys(grouped[co][pe].weeks).sort().forEach(wk => {
-        html += buildWeekTable(grouped[co][pe].weeks[wk], pe, co, wk, eng);
+        html += buildWeekChart(grouped[co][pe].weeks[wk], pe, co, wk, eng);
+        html += '<div class="ts-detail-wrap no-pdf">' +
+          '<button class="btn-ghost btn-sm" onclick="toggleDetail(this)">Show detailed / edit view</button>' +
+          '<div class="ts-detail" style="display:none;margin-top:10px;">' +
+            buildWeekTable(grouped[co][pe].weeks[wk], pe, co, wk, eng) +
+          '</div></div>';
       });
       html += '</div></div>';
     });
@@ -1943,16 +2068,22 @@ function exportTimesheetsPdf() {
   el.style.maxHeight = "none";
   el.style.overflow = "visible";
 
+  // ts-exporting hides all the on-screen admin chrome so the PDF is just the
+  // clean weekly charts (portrait, one employee-week per block).
+  el.classList.add("ts-exporting");
+
   const restore = () => {
+    el.classList.remove("ts-exporting");
     el.style.maxHeight = mh;
     el.style.overflow = mo;
     accs.forEach((a, i) => { if (!wasOpen[i]) a.classList.remove("open"); });
   };
 
   html2pdf().set({
-    margin: 0.2,
+    margin: 0.3,
     filename: "SiteLog_Timesheets.pdf",
-    jsPDF: { unit: "in", format: "a4", orientation: "landscape" },
+    pagebreak: { mode: ["css", "legacy"] },
+    jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
     html2canvas: { scale: 2, useCORS: true, scrollY: 0, windowWidth: el.scrollWidth }
   }).from(el).save().then(restore).catch(restore);
 }

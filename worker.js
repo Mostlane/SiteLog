@@ -1925,12 +1925,16 @@ export default {
 
       const params = [];
 
-      if (from && to) {
-        const fromUtc = londonLocalToUtcIso(from, "00:00:00");
-        const toUtc = londonLocalToUtcIso(to, "23:59:59");
-
-        sql += " AND v.check_in_at BETWEEN ? AND ?";
-        params.push(fromUtc, toUtc);
+      // Apply each bound independently so a one-sided range (just from, or just
+      // to) is honoured rather than ignored — otherwise the caller silently
+      // gets all-time data.
+      if (from) {
+        sql += " AND v.check_in_at >= ?";
+        params.push(londonLocalToUtcIso(from, "00:00:00"));
+      }
+      if (to) {
+        sql += " AND v.check_in_at <= ?";
+        params.push(londonLocalToUtcIso(to, "23:59:59"));
       }
 
       // Cursor for backward pagination: callers needing the complete set (e.g.

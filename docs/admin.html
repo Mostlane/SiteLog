@@ -652,6 +652,7 @@
     </div>
     <div class="topbar-actions">
       <button class="btn-ghost btn-sm" onclick="openTimesheetsModal()">&#129534; Timesheets</button>
+      <button class="btn-ghost btn-sm" onclick="openJobCostingModal()">&#128176; Job Costing</button>
       <button class="btn-ghost btn-sm" onclick="openSitesModal()">&#128194; Sites</button>
       <button class="btn-ghost btn-sm" onclick="openEngineersModal()">&#128119; Engineers</button>
       <button class="btn-ghost btn-sm" onclick="openCompaniesModal()">&#127970; Companies</button>
@@ -665,6 +666,7 @@
 </div>
 <div class="nav-drawer" id="navDrawer">
   <button class="btn-ghost" onclick="openTimesheetsModal();closeNavDrawer()">&#129534; Timesheets</button>
+  <button class="btn-ghost" onclick="openJobCostingModal();closeNavDrawer()">&#128176; Job Costing</button>
   <button class="btn-ghost" onclick="openSitesModal();closeNavDrawer()">&#128194; Sites</button>
   <button class="btn-ghost" onclick="openEngineersModal();closeNavDrawer()">&#128119; Engineers</button>
   <button class="btn-ghost" onclick="openCompaniesModal();closeNavDrawer()">&#127970; Companies</button>
@@ -928,6 +930,31 @@
     <div class="ts-body">
       <div class="ts-meta" id="timesheetsMeta"></div>
       <div id="timesheetsBody"></div>
+    </div>
+  </div>
+</div>
+
+<div id="jobCostingModal" class="modal">
+  <div class="ts-modal-content" id="jobCostingPdfRoot">
+    <div class="modal-header" style="border-radius:20px 20px 0 0;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <img src="Mostlane Logo.jpg" alt="Mostlane" style="height:24px;width:auto;border-radius:4px;" onerror="this.style.display='none'"/>
+        <div class="modal-title">&#128176; Job Costing</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-ghost btn-sm" onclick="toggleAllJobSites(true)">Expand all</button>
+        <button class="btn-ghost btn-sm" onclick="toggleAllJobSites(false)">Collapse all</button>
+        <button class="btn-ghost btn-sm" onclick="closeJobCostingModal()">Close</button>
+      </div>
+    </div>
+    <div class="ts-filter-bar">
+      <div class="field-stack"><span class="field-label">From</span><input type="date" id="jcFromDate" onchange="renderJobCosting()" style="width:148px;"></div>
+      <div class="field-stack"><span class="field-label">To</span><input type="date" id="jcToDate" onchange="renderJobCosting()" style="width:148px;"></div>
+      <div style="display:flex;align-items:flex-end;"><button class="btn-ghost btn-sm" onclick="clearJobCostingFilters()">All time</button></div>
+    </div>
+    <div class="ts-body">
+      <div class="ts-meta" id="jobCostingMeta"></div>
+      <div id="jobCostingBody"></div>
     </div>
   </div>
 </div>
@@ -2225,6 +2252,152 @@ function closeTimesheetsModal() {
   document.getElementById("timesheetsModal").style.display = "none";
 }
 
+/* ── JOB COSTING (per-site cost, broken down per engineer) ── */
+let jcExpanded = new Set();
+let jcLastSiteKeys = [];
+function openJobCostingModal() {
+  document.getElementById("jobCostingModal").style.display = "flex";
+  document.getElementById("jcFromDate").value = document.getElementById("fromDate").value || "";
+  document.getElementById("jcToDate").value = document.getElementById("toDate").value || "";
+  renderJobCosting();
+}
+function closeJobCostingModal() {
+  document.getElementById("jobCostingModal").style.display = "none";
+}
+function clearJobCostingFilters() {
+  document.getElementById("jcFromDate").value = "";
+  document.getElementById("jcToDate").value = "";
+  renderJobCosting();
+}
+function toggleJobSite(key) {
+  if (jcExpanded.has(key)) jcExpanded.delete(key); else jcExpanded.add(key);
+  renderJobCosting();
+}
+function toggleAllJobSites(expand) {
+  jcExpanded = expand ? new Set(jcLastSiteKeys) : new Set();
+  renderJobCosting();
+}
+// Aggregate one engineer's visits at a site into cost components. Open visits
+// (no sign-out) are excluded from time/cost and counted separately so a
+// forgotten check-out can't inflate a job total. Mirrors the timesheet math:
+// (work hours + paid travel hours) × rate + paid miles × fuel rate.
+function costEngineerVisits(visits, eng) {
+  const rate = (eng && eng.hourly_rate != null && Number(eng.hourly_rate) > 0) ? Number(eng.hourly_rate) : 0;
+  const paid = !!(eng && eng.travel_status === "paid");
+  const fuelRate = (paid && eng && eng.fuel_rate != null && Number(eng.fuel_rate) > 0) ? Number(eng.fuel_rate) : 0;
+  let workMins = 0, travelMins = 0, miles = 0, openCount = 0, costedVisits = 0;
+  visits.forEach(v => {
+    if (!v.check_out_at) { openCount++; return; }
+    workMins += minutesBetween(v.check_in_at, v.check_out_at);
+    costedVisits++;
+    if (paid) {
+      if (v.travel_in_mins != null) travelMins += calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng);
+      if (v.travel_out_mins != null) travelMins += calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng);
+      if (v.travel_in_miles != null) miles += calcPaidMiles(v.travel_in_miles, eng);
+      if (v.travel_out_miles != null) miles += calcPaidMiles(v.travel_out_miles, eng);
+    }
+  });
+  const workH = workMins / 60, travelH = travelMins / 60;
+  const labour = workH * rate, travelCost = travelH * rate, fuelCost = miles * fuelRate;
+  return { rate, workH, travelH, miles, openCount, costedVisits, labour, travelCost, fuelCost, total: labour + travelCost + fuelCost };
+}
+function renderJobCosting() {
+  const body = document.getElementById("jobCostingBody");
+  const meta = document.getElementById("jobCostingMeta");
+  const money = n => "£" + (Number(n) || 0).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fr = document.getElementById("jcFromDate").value;
+  const to = document.getElementById("jcToDate").value;
+
+  // Everyone who worked a site counts (incl. subcontractors); only the date
+  // range narrows the set. Independent of the dashboard's person/main filters.
+  const base = allVisits.filter(v => {
+    const day = londonDayKey(v.check_in_at);
+    if (fr && day < fr) return false;
+    if (to && day > to) return false;
+    return true;
+  });
+
+  const sites = {};
+  base.forEach(v => {
+    const siteKey = (v.site_code || "").trim() || "— Unmatched / no site —";
+    const pKey = v.person_id || nameOf(v) || "Unknown";
+    sites[siteKey] = sites[siteKey] || {};
+    sites[siteKey][pKey] = sites[siteKey][pKey] || { name: nameOf(v) || "Unknown", company: v.company || "", visits: [] };
+    sites[siteKey][pKey].visits.push(v);
+  });
+
+  const cards = Object.keys(sites).map(siteKey => {
+    const people = Object.keys(sites[siteKey]).map(pKey => {
+      const p = sites[siteKey][pKey];
+      const eng = findEngineer(p.visits[0].person_id, p.name, p.company);
+      return Object.assign({ name: p.name, company: p.company }, costEngineerVisits(p.visits, eng));
+    }).sort((a, b) => b.total - a.total);
+    return {
+      siteKey, people,
+      total: people.reduce((s, p) => s + p.total, 0),
+      workH: people.reduce((s, p) => s + p.workH, 0),
+      visits: people.reduce((s, p) => s + p.costedVisits, 0),
+      open: people.reduce((s, p) => s + p.openCount, 0),
+      noRate: people.some(p => p.rate === 0 && p.costedVisits > 0)
+    };
+  }).sort((a, b) => b.total - a.total);
+
+  jcLastSiteKeys = cards.map(c => c.siteKey);
+
+  if (!cards.length) {
+    body.innerHTML = '<p style="color:var(--label3);padding:16px;">No visits in this period.</p>';
+    meta.innerHTML = "";
+    return;
+  }
+
+  const gTotal = cards.reduce((s, c) => s + c.total, 0);
+  const gVisits = cards.reduce((s, c) => s + c.visits, 0);
+  const gHours = cards.reduce((s, c) => s + c.workH, 0);
+  const gOpen = cards.reduce((s, c) => s + c.open, 0);
+  meta.innerHTML =
+    '<strong>' + cards.length + '</strong> site' + (cards.length === 1 ? "" : "s") +
+    ' &middot; <strong>' + gVisits + '</strong> costed visits' +
+    ' &middot; <strong>' + gHours.toFixed(1) + '</strong> h' +
+    ' &middot; <strong style="color:var(--blue);">' + money(gTotal) + '</strong> total cost' +
+    (gOpen ? ' <span style="color:#b45309;">&middot; ' + gOpen + ' open visit' + (gOpen === 1 ? "" : "s") + ' not costed</span>' : "");
+
+  body.innerHTML = cards.map(c => {
+    const open = jcExpanded.has(c.siteKey);
+    const rows = c.people.map(p => {
+      const extra = (p.travelCost > 0 || p.fuelCost > 0)
+        ? '<div style="font-size:11.5px;color:var(--label3);margin-top:2px;">labour ' + money(p.labour) +
+          (p.travelCost > 0 ? ' &middot; travel ' + money(p.travelCost) : '') +
+          (p.fuelCost > 0 ? ' &middot; fuel ' + money(p.fuelCost) + ' (' + p.miles.toFixed(1) + ' mi)' : '') + '</div>'
+        : '';
+      return '<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 12px;border-top:1px solid var(--border,rgba(0,0,0,0.08));">' +
+          '<div style="min-width:0;"><div style="font-weight:600;">' + escapeHtml(p.name) +
+            (p.rate === 0 && p.costedVisits > 0 ? ' <span style="color:#b45309;font-size:11px;">(no rate set)</span>' : '') + '</div>' +
+            (p.company ? '<div style="font-size:11.5px;color:var(--label3);">' + escapeHtml(p.company) + '</div>' : '') + extra +
+          '</div>' +
+          '<div style="margin-left:auto;text-align:right;white-space:nowrap;">' +
+            '<div style="font-weight:700;">' + money(p.total) + '</div>' +
+            '<div style="font-size:11.5px;color:var(--label3);">' + p.costedVisits + ' visit' + (p.costedVisits === 1 ? "" : "s") + ' &middot; ' + p.workH.toFixed(1) + ' h' +
+              (p.openCount ? ' &middot; +' + p.openCount + ' open' : '') + '</div>' +
+          '</div>' +
+        '</div>';
+    }).join("");
+
+    return '<div class="jc-site" style="margin-top:10px;border:1px solid var(--border,rgba(0,0,0,0.08));border-radius:12px;overflow:hidden;">' +
+        '<div onclick="toggleJobSite(\'' + jsAttr(c.siteKey) + '\')" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 14px;background:var(--surface2,#f9f9fb);user-select:none;">' +
+          '<span style="display:inline-block;transition:transform .15s;transform:rotate(' + (open ? "90" : "0") + 'deg);color:var(--label2);">&#9656;</span>' +
+          '<span style="font-weight:700;font-size:14.5px;min-width:0;">' + escapeHtml(c.siteKey) + '</span>' +
+          (c.noRate ? '<span style="color:#b45309;font-size:11px;">rate missing</span>' : '') +
+          '<span style="margin-left:auto;text-align:right;white-space:nowrap;">' +
+            '<span style="font-weight:800;color:var(--blue);font-size:15px;">' + money(c.total) + '</span>' +
+            '<span style="display:block;font-size:11.5px;color:var(--label3);">' + c.visits + ' visit' + (c.visits === 1 ? "" : "s") + ' &middot; ' + c.workH.toFixed(1) + ' h' +
+              (c.open ? ' &middot; ' + c.open + ' open' : '') + '</span>' +
+          '</span>' +
+        '</div>' +
+        '<div style="display:' + (open ? "block" : "none") + ';">' + rows + '</div>' +
+      '</div>';
+  }).join("");
+}
+
 /* ── ADD LOG (manual time entry) ── */
 function openAddLogModal() {
   const ps = document.getElementById("addLogPerson");
@@ -2533,7 +2706,7 @@ function renderSitesAdminTable() {
       '<div class="site-list" style="margin-top:8px;">' + list.map(renderSiteItem).join("") + '</div>';
     return '<div class="cat-group">' +
         '<div class="cat-group-head" onclick="toggleCategoryGroup(\'' + jsAttr(cat) + '\')" ' +
-          'style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;margin-top:12px;background:var(--card2,#1b1f27);border:1px solid var(--line,#2a2f3a);border-radius:10px;user-select:none;">' +
+          'style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;margin-top:12px;background:var(--surface2,#f9f9fb);border:1px solid var(--border,rgba(0,0,0,0.08));border-radius:10px;user-select:none;">' +
           '<span style="transition:transform .15s;transform:rotate(' + (isCollapsed ? "0" : "90") + 'deg);display:inline-block;color:var(--label2);">&#9656;</span>' +
           '<span style="font-weight:700;font-size:14px;">' + escapeHtml(cat) + '</span>' +
           '<span class="site-item-fact" style="margin-left:auto;">' + list.length + ' site' + (list.length === 1 ? "" : "s") +

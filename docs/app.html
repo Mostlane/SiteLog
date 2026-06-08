@@ -1635,6 +1635,18 @@ function closePinScreen() {
   showScreen("screen-scan");
 }
 
+// Any embedded page (admin.html, documents.html) can ask for the admin secret;
+// hand it over so admin-guarded calls authenticate after the iframe navigates.
+window.addEventListener("message", function (ev) {
+  if (!ev || !ev.data || ev.data.type !== "request_admin_secret") return;
+  try {
+    var f = document.getElementById("adminFrame");
+    if (f && f.contentWindow && __mlAdminSecret) {
+      f.contentWindow.postMessage({ type: "ml_admin_secret", secret: __mlAdminSecret }, "*");
+    }
+  } catch (e) {}
+});
+
 // ADMIN
 function openAdmin() {
   var frame = document.getElementById("adminFrame");
@@ -1648,8 +1660,9 @@ function openAdmin() {
       }
     } catch (e) {}
   }
-  // Try once when iframe is loaded, and again shortly after, in case its listener mounts late
-  frame.addEventListener("load", pushSecret, { once: true });
+  // Push on every iframe load — including when admin.html navigates the frame to
+  // documents.html — and shortly after, in case the listener mounts late.
+  frame.addEventListener("load", pushSecret);
   setTimeout(pushSecret, 250);
 
   document.getElementById("screen-admin").classList.add("active");

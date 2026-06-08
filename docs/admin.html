@@ -853,9 +853,16 @@
             <div class="field-stack"><span class="field-label">Latitude</span><input id="newSiteLat" type="text" placeholder="51.5074"/></div>
             <div class="field-stack"><span class="field-label">Longitude</span><input id="newSiteLng" type="text" placeholder="-0.1278"/></div>
             <div class="field-stack"><span class="field-label">Radius (m)</span><input id="newSiteRadius" type="number" value="500" min="50" step="10"/></div>
+            <div class="field-stack"><span class="field-label">Category</span><input id="newSiteCategory" type="text" list="siteCategoryList" value="Projects" placeholder="Projects"/></div>
           </div>
           <div style="margin-top:10px;"><button class="btn-primary btn-sm" onclick="addSite()">Add Site</button></div>
         </div>
+      </div>
+      <datalist id="siteCategoryList"></datalist>
+      <div class="add-form" id="sitesImportBlock">
+        <div class="add-form-title">Bulk import</div>
+        <div class="add-site-hint" id="sitesImportHint">Import the bundled client site list. Existing site names are skipped, so this is safe to run more than once.</div>
+        <div style="margin-top:10px;"><button class="btn-primary btn-sm" id="sitesImportBtn" onclick="importSitesFromFile()">&#11015;&nbsp; Import bundled sites</button></div>
       </div>
       <div id="sitesAdminBody"></div>
     </div>
@@ -1294,13 +1301,29 @@ function passFilters(v) {
 function buildSiteFilter() {
   const sel = document.getElementById("siteFilter");
   const cur = sel.value;
-  const names = sitesActive.length
-    ? sitesActive.map(s => s.site_name).filter(Boolean)
-    : [...new Set(filteredVisits.map(v => v.site_code).filter(Boolean))];
 
-  sel.innerHTML = '<option value="">All Sites</option>' +
-    [...new Set(names)].sort().map(s => '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>').join("");
+  let optsHtml;
+  if (sitesActive.length) {
+    // Group the (potentially large) site list by category for a tidy dropdown.
+    const byCat = {};
+    sitesActive.forEach(s => {
+      const name = s.site_name;
+      if (!name) return;
+      const cat = siteCategoryOf(s);
+      (byCat[cat] = byCat[cat] || new Set()).add(name);
+    });
+    const cats = Object.keys(byCat).sort((a, b) =>
+      a === "Projects" ? -1 : b === "Projects" ? 1 : a.localeCompare(b));
+    optsHtml = cats.map(cat =>
+      '<optgroup label="' + escapeHtml(cat) + '">' +
+      [...byCat[cat]].sort().map(s => '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>').join("") +
+      '</optgroup>').join("");
+  } else {
+    const names = [...new Set(filteredVisits.map(v => v.site_code).filter(Boolean))].sort();
+    optsHtml = names.map(s => '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>').join("");
+  }
 
+  sel.innerHTML = '<option value="">All Sites</option>' + optsHtml;
   if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
 }
 function buildPersonFilter() {
@@ -2427,50 +2450,99 @@ async function openSitesModal() {
 function closeSitesModal() {
   document.getElementById("sitesModal").style.display = "none";
 }
+function siteCategoryOf(s) {
+  return (String(s.category || "").trim()) || "Projects";
+}
+function getCatCollapsed() {
+  try { return JSON.parse(localStorage.getItem("ml_cat_collapsed") || "{}") || {}; } catch (e) { return {}; }
+}
+function setCatCollapsed(map) {
+  try { localStorage.setItem("ml_cat_collapsed", JSON.stringify(map)); } catch (e) {}
+}
+// Non-"Projects" categories (the imported client lists) start collapsed/hidden;
+// "Projects" starts open. Once the user toggles a group, their choice sticks.
+function isCatCollapsed(cat, map) {
+  return map[cat] !== undefined ? !!map[cat] : cat !== "Projects";
+}
+function toggleCategoryGroup(cat) {
+  const map = getCatCollapsed();
+  map[cat] = !isCatCollapsed(cat, map);
+  setCatCollapsed(map);
+  renderSitesAdminTable();
+}
+function renderSiteItem(s) {
+  const isArch = Number(s.archived || 0) === 1;
+  const pill = isArch ? '<span class="pill pill-arch">Archived</span>' : '<span class="pill pill-active">Active</span>';
+  const companyIds = siteCompanyMap[s.id] || [];
+  const chips = companiesAll.map(c => {
+    const active = companyIds.includes(c.id) ? "active" : "";
+    return '<span class="company-chip-toggle ' + active + '" data-site-id="' + escapeHtml(s.id) + '" data-company-id="' + escapeHtml(c.id) + '" onclick="event.stopPropagation();toggleSiteCompanyChip(this)">' + escapeHtml(c.name) + '</span>';
+  }).join("");
+
+  return '<div class="site-item' + (isArch ? ' archived' : '') + '" id="site-item-' + escapeHtml(s.id) + '">' +
+      '<div class="site-item-head" onclick="toggleSiteItem(\'' + escapeHtml(s.id) + '\')">' +
+        '<div class="site-item-main">' +
+          '<div class="site-item-name">' + escapeHtml(s.site_name || "Unnamed site") + '</div>' +
+          '<div class="site-item-sub">' + pill +
+            '<span class="site-item-fact">&#128207; ' + escapeHtml(s.radius_m ?? 500) + 'm</span>' +
+            '<span class="site-item-fact">&#127970; ' + companyIds.length + ' ' + (companyIds.length === 1 ? 'company' : 'companies') + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<span class="site-item-chev">&#8250;</span>' +
+      '</div>' +
+      '<div class="site-item-body">' +
+        '<div class="site-edit-grid">' +
+          '<label class="field-stack"><span class="field-label">Site name</span><input data-site-name="' + escapeHtml(s.id) + '" value="' + escapeHtml(s.site_name || "") + '" onclick="event.stopPropagation();"/></label>' +
+          '<label class="field-stack"><span class="field-label">Radius (m)</span><input data-site-radius="' + escapeHtml(s.id) + '" type="number" min="50" step="10" value="' + escapeHtml(s.radius_m ?? 500) + '" onclick="event.stopPropagation();"/></label>' +
+          '<label class="field-stack"><span class="field-label">Category</span><input data-site-category="' + escapeHtml(s.id) + '" list="siteCategoryList" value="' + escapeHtml(siteCategoryOf(s)) + '" onclick="event.stopPropagation();"/></label>' +
+        '</div>' +
+        '<div class="site-item-coords">&#128205; ' + escapeHtml((s.lat ?? "-") + ", " + (s.lng ?? "-")) + '</div>' +
+        '<div class="site-companies-label">Companies allowed on this site</div>' +
+        '<div class="company-chip-row" id="chips-' + escapeHtml(s.id) + '">' + (chips || '<span class="muted-note">No companies added yet</span>') + '</div>' +
+        '<div class="site-item-actions">' +
+          '<button class="btn-primary btn-sm" onclick="event.stopPropagation();saveSiteFull(\'' + escapeHtml(s.id) + '\')">Save changes</button>' +
+          '<button class="btn-ghost btn-sm" onclick="event.stopPropagation();toggleSite(\'' + escapeHtml(s.id) + '\')">' + (isArch ? "Unarchive" : "Archive") + '</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+}
 function renderSitesAdminTable() {
   const wrap = document.getElementById("sitesAdminBody");
+
+  // Keep the category datalist (used by add + edit forms) in sync with what exists.
+  const allCats = [...new Set(sitesAll.map(siteCategoryOf))].sort((a, b) =>
+    a === "Projects" ? -1 : b === "Projects" ? 1 : a.localeCompare(b));
+  const dl = document.getElementById("siteCategoryList");
+  if (dl) dl.innerHTML = allCats.map(c => '<option value="' + escapeHtml(c) + '">').join("");
+
   if (!sitesAll.length) {
     wrap.innerHTML = '<p style="color:var(--label3);">No sites.</p>';
     return;
   }
 
-  const rows = sitesAll.slice().sort((a, b) => String(a.site_name || "").localeCompare(String(b.site_name || ""))).map(s => {
-    const isArch = Number(s.archived || 0) === 1;
-    const pill = isArch ? '<span class="pill pill-arch">Archived</span>' : '<span class="pill pill-active">Active</span>';
-    const companyIds = siteCompanyMap[s.id] || [];
-    const chips = companiesAll.map(c => {
-      const active = companyIds.includes(c.id) ? "active" : "";
-      return '<span class="company-chip-toggle ' + active + '" data-site-id="' + escapeHtml(s.id) + '" data-company-id="' + escapeHtml(c.id) + '" onclick="event.stopPropagation();toggleSiteCompanyChip(this)">' + escapeHtml(c.name) + '</span>';
-    }).join("");
+  // Group sites by category.
+  const groups = {};
+  sitesAll.forEach(s => { (groups[siteCategoryOf(s)] = groups[siteCategoryOf(s)] || []).push(s); });
+  const collapsed = getCatCollapsed();
 
-    return '<div class="site-item' + (isArch ? ' archived' : '') + '" id="site-item-' + escapeHtml(s.id) + '">' +
-        '<div class="site-item-head" onclick="toggleSiteItem(\'' + escapeHtml(s.id) + '\')">' +
-          '<div class="site-item-main">' +
-            '<div class="site-item-name">' + escapeHtml(s.site_name || "Unnamed site") + '</div>' +
-            '<div class="site-item-sub">' + pill +
-              '<span class="site-item-fact">&#128207; ' + escapeHtml(s.radius_m ?? 500) + 'm</span>' +
-              '<span class="site-item-fact">&#127970; ' + companyIds.length + ' ' + (companyIds.length === 1 ? 'company' : 'companies') + '</span>' +
-            '</div>' +
-          '</div>' +
-          '<span class="site-item-chev">&#8250;</span>' +
-        '</div>' +
-        '<div class="site-item-body">' +
-          '<div class="site-edit-grid">' +
-            '<label class="field-stack"><span class="field-label">Site name</span><input data-site-name="' + escapeHtml(s.id) + '" value="' + escapeHtml(s.site_name || "") + '" onclick="event.stopPropagation();"/></label>' +
-            '<label class="field-stack"><span class="field-label">Radius (m)</span><input data-site-radius="' + escapeHtml(s.id) + '" type="number" min="50" step="10" value="' + escapeHtml(s.radius_m ?? 500) + '" onclick="event.stopPropagation();"/></label>' +
-          '</div>' +
-          '<div class="site-item-coords">&#128205; ' + escapeHtml((s.lat ?? "-") + ", " + (s.lng ?? "-")) + '</div>' +
-          '<div class="site-companies-label">Companies allowed on this site</div>' +
-          '<div class="company-chip-row" id="chips-' + escapeHtml(s.id) + '">' + (chips || '<span class="muted-note">No companies added yet</span>') + '</div>' +
-          '<div class="site-item-actions">' +
-            '<button class="btn-primary btn-sm" onclick="event.stopPropagation();saveSiteFull(\'' + escapeHtml(s.id) + '\')">Save changes</button>' +
-            '<button class="btn-ghost btn-sm" onclick="event.stopPropagation();toggleSite(\'' + escapeHtml(s.id) + '\')">' + (isArch ? "Unarchive" : "Archive") + '</button>' +
-          '</div>' +
-        '</div>' +
+  const html = allCats.map(cat => {
+    const list = groups[cat].slice().sort((a, b) => String(a.site_name || "").localeCompare(String(b.site_name || "")));
+    const activeCount = list.filter(s => !Number(s.archived || 0)).length;
+    const isCollapsed = isCatCollapsed(cat, collapsed);
+    const body = isCollapsed ? "" :
+      '<div class="site-list" style="margin-top:8px;">' + list.map(renderSiteItem).join("") + '</div>';
+    return '<div class="cat-group">' +
+        '<div class="cat-group-head" onclick="toggleCategoryGroup(' + jsAttr(cat) + ')" ' +
+          'style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;margin-top:12px;background:var(--card2,#1b1f27);border:1px solid var(--line,#2a2f3a);border-radius:10px;user-select:none;">' +
+          '<span style="transition:transform .15s;transform:rotate(' + (isCollapsed ? "0" : "90") + 'deg);display:inline-block;color:var(--label2);">&#9656;</span>' +
+          '<span style="font-weight:700;font-size:14px;">' + escapeHtml(cat) + '</span>' +
+          '<span class="site-item-fact" style="margin-left:auto;">' + list.length + ' site' + (list.length === 1 ? "" : "s") +
+            (activeCount !== list.length ? ' &middot; ' + activeCount + ' active' : '') + '</span>' +
+        '</div>' + body +
       '</div>';
   }).join("");
 
-  wrap.innerHTML = '<div class="site-list">' + rows + '</div>';
+  wrap.innerHTML = html;
 }
 function toggleSiteItem(id) {
   const el = document.getElementById("site-item-" + id);
@@ -2482,6 +2554,7 @@ function toggleSiteCompanyChip(el) {
 async function saveSiteFull(id) {
   const n = (document.querySelector('[data-site-name="' + escSel(id) + '"]')?.value || "").trim();
   const radius = Number(document.querySelector('[data-site-radius="' + escSel(id) + '"]')?.value || 500);
+  const category = (document.querySelector('[data-site-category="' + escSel(id) + '"]')?.value || "").trim() || "Projects";
   if (!n) { alert("Site name cannot be blank."); return; }
 
   const chips = document.querySelectorAll('#chips-' + escSel(id) + ' .company-chip-toggle');
@@ -2491,7 +2564,7 @@ async function saveSiteFull(id) {
     const r = await fetch(API_BASE + "/update-site", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ id, siteName: n, radius })
+      body: JSON.stringify({ id, siteName: n, radius, category })
     });
     let d = {}; try { d = await r.json(); } catch (e) {}
     if (!r.ok || d.ok === false) { alert(d.error || "Failed to save site."); return; }
@@ -2586,11 +2659,63 @@ function toggleManualSite() {
   const el = document.getElementById("manualSiteFields");
   if (el) el.style.display = (el.style.display === "none" || !el.style.display) ? "block" : "none";
 }
+async function importSitesFromFile() {
+  const btn = document.getElementById("sitesImportBtn");
+  const hint = document.getElementById("sitesImportHint");
+  const setHint = m => { if (hint) hint.textContent = m; };
+  if (btn) btn.disabled = true;
+
+  let sites;
+  try {
+    const res = await fetch("./import-sites.json?v=" + Date.now());
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    sites = await res.json();
+  } catch (e) {
+    setHint("Could not load import-sites.json (" + e.message + ").");
+    if (btn) btn.disabled = false;
+    return;
+  }
+  if (!Array.isArray(sites) || !sites.length) {
+    setHint("Import file is empty.");
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  const CHUNK = 60;
+  let added = 0, skipped = 0;
+  try {
+    for (let i = 0; i < sites.length; i += CHUNK) {
+      const batch = sites.slice(i, i + CHUNK);
+      setHint("Importing " + Math.min(i + batch.length, sites.length) + " of " + sites.length + "...");
+      const r = await fetch(API_BASE + "/bulk-add-sites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sites: batch })
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.ok) throw new Error(d.error || ("HTTP " + r.status));
+      added += d.added || 0;
+      skipped += d.skipped || 0;
+    }
+  } catch (e) {
+    setHint("Import stopped after " + added + " added: " + e.message);
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  setHint("Done — " + added + " added, " + skipped + " already existed (skipped).");
+  if (btn) btn.disabled = false;
+  await fetchSites();
+  await loadSiteCompanyMap();
+  renderSitesAdminTable();
+  renderAll();
+}
 async function addSite() {
   const n = (document.getElementById("newSiteName")?.value || "").trim();
   const lat = document.getElementById("newSiteLat")?.value.trim();
   const lng = document.getElementById("newSiteLng")?.value.trim();
   const radius = Number(document.getElementById("newSiteRadius")?.value || 500);
+  const category = (document.getElementById("newSiteCategory")?.value || "").trim() || "Projects";
 
   if (!n || !lat || !lng) {
     alert("Name, lat and lng required.");
@@ -2604,7 +2729,7 @@ async function addSite() {
   const r = await fetch(API_BASE + "/add-site", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ siteName: n, lat: Number(lat), lng: Number(lng), radius })
+    body: JSON.stringify({ siteName: n, lat: Number(lat), lng: Number(lng), radius, category })
   });
   const d = await r.json();
   if (!r.ok || !d.ok) {
@@ -2614,6 +2739,7 @@ async function addSite() {
 
   ["newSiteName", "newSiteLat", "newSiteLng"].forEach(id => { document.getElementById(id).value = ""; });
   document.getElementById("newSiteRadius").value = "500";
+  document.getElementById("newSiteCategory").value = "Projects";
 
   await fetchSites();
   await loadSiteCompanyMap();

@@ -1890,6 +1890,16 @@ export default {
         params.push(fromUtc, toUtc);
       }
 
+      // Cursor for backward pagination: callers needing the complete set (e.g.
+      // job costing) page by passing the oldest check_in_at they've seen so far.
+      // Kept inclusive (<=) and deduped client-side so no rows fall through a
+      // page boundary even when timestamps tie.
+      const before = url.searchParams.get("before");
+      if (before) {
+        sql += " AND v.check_in_at <= ?";
+        params.push(before);
+      }
+
       sql += " ORDER BY v.check_in_at DESC LIMIT 500";
 
       const stmt = env.DB.prepare(sql);

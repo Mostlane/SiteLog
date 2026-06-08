@@ -961,8 +961,8 @@
       </div>
     </div>
     <div class="ts-filter-bar">
-      <div class="field-stack"><span class="field-label">From</span><input type="date" id="jcFromDate" onchange="renderJobCosting()" style="width:148px;"></div>
-      <div class="field-stack"><span class="field-label">To</span><input type="date" id="jcToDate" onchange="renderJobCosting()" style="width:148px;"></div>
+      <div class="field-stack"><span class="field-label">From</span><input type="date" id="jcFromDate" onchange="loadJobCosting()" style="width:148px;"></div>
+      <div class="field-stack"><span class="field-label">To</span><input type="date" id="jcToDate" onchange="loadJobCosting()" style="width:148px;"></div>
       <div style="display:flex;align-items:flex-end;"><button class="btn-ghost btn-sm" onclick="clearJobCostingFilters()">All time</button></div>
     </div>
     <div class="ts-body">
@@ -1435,6 +1435,33 @@ async function fetchRange(from, to) {
   const r = await fetch(API_BASE + "/admin?" + qs.toString());
   const d = await r.json();
   return d.visits || [];
+}
+// Fetch EVERY visit in a range (or all time), paging past the server's 500-row
+// cap via the `before` cursor. The dashboard tolerates the 500 cap, but job
+// costing must aggregate the complete set or per-site totals understate.
+const ADMIN_PAGE_SIZE = 500; // mirrors the worker's "LIMIT 500"
+async function fetchRangeComplete(from, to) {
+  const all = [];
+  const seen = new Set();
+  let before = null;
+  for (let page = 0; page < 1000; page++) { // hard stop ~500k visits
+    const qs = new URLSearchParams();
+    if (from) qs.set("from", from);
+    if (to) qs.set("to", to);
+    if (before) qs.set("before", before);
+    const r = await fetch(API_BASE + "/admin?" + qs.toString());
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const rows = (await r.json()).visits || [];
+    let added = 0;
+    for (const v of rows) {
+      if (!seen.has(v.visit_id)) { seen.add(v.visit_id); all.push(v); added++; }
+    }
+    if (rows.length < ADMIN_PAGE_SIZE) break;               // last page
+    const oldest = rows[rows.length - 1].check_in_at;        // rows are DESC
+    if (!oldest || oldest === before || added === 0) break;  // no progress guard
+    before = oldest;
+  }
+  return all;
 }
 async function fetchSites() {
   try {
@@ -2285,11 +2312,12 @@ function closeTimesheetsModal() {
 /* ── JOB COSTING (per-site cost, broken down per engineer) ── */
 let jcExpanded = new Set();
 let jcLastSiteKeys = [];
+let jcVisits = [];      // the complete set for the chosen range (not the 500-capped allVisits)
 function openJobCostingModal() {
   document.getElementById("jobCostingModal").style.display = "flex";
   document.getElementById("jcFromDate").value = document.getElementById("fromDate").value || "";
   document.getElementById("jcToDate").value = document.getElementById("toDate").value || "";
-  renderJobCosting();
+  loadJobCosting();
 }
 function closeJobCostingModal() {
   document.getElementById("jobCostingModal").style.display = "none";
@@ -2297,6 +2325,24 @@ function closeJobCostingModal() {
 function clearJobCostingFilters() {
   document.getElementById("jcFromDate").value = "";
   document.getElementById("jcToDate").value = "";
+  loadJobCosting();
+}
+// Fetch the full range (paged past the 500 cap) before aggregating, so totals
+// include older labour/travel/fuel rather than just the most recent 500 visits.
+async function loadJobCosting() {
+  const fr = document.getElementById("jcFromDate").value;
+  const to = document.getElementById("jcToDate").value;
+  const body = document.getElementById("jobCostingBody");
+  const meta = document.getElementById("jobCostingMeta");
+  meta.innerHTML = "Loading…";
+  body.innerHTML = '<p style="color:var(--label3);padding:16px;">Loading all visits in range…</p>';
+  try {
+    jcVisits = await fetchRangeComplete(fr, to);
+  } catch (e) {
+    meta.innerHTML = "";
+    body.innerHTML = '<p style="color:#dc2626;padding:16px;">Could not load visits: ' + escapeHtml(e.message) + '</p>';
+    return;
+  }
   renderJobCosting();
 }
 function toggleJobSite(key) {
@@ -2336,17 +2382,10 @@ function renderJobCosting() {
   const body = document.getElementById("jobCostingBody");
   const meta = document.getElementById("jobCostingMeta");
   const money = n => "£" + (Number(n) || 0).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const fr = document.getElementById("jcFromDate").value;
-  const to = document.getElementById("jcToDate").value;
 
-  // Everyone who worked a site counts (incl. subcontractors); only the date
-  // range narrows the set. Independent of the dashboard's person/main filters.
-  const base = allVisits.filter(v => {
-    const day = londonDayKey(v.check_in_at);
-    if (fr && day < fr) return false;
-    if (to && day > to) return false;
-    return true;
-  });
+  // jcVisits is the complete, server-filtered range fetched by loadJobCosting
+  // (everyone who worked a site, incl. subcontractors). No re-filtering here.
+  const base = jcVisits;
 
   const sites = {};
   base.forEach(v => {

@@ -5,6 +5,7 @@
   <title>SiteLog Admin</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -2522,47 +2523,151 @@ function renderJobCosting() {
             '<span style="display:block;font-size:11.5px;color:var(--label3);">' + c.visits + ' visit' + (c.visits === 1 ? "" : "s") + ' &middot; ' + c.workH.toFixed(1) + ' h' +
               (c.open ? ' &middot; ' + c.open + ' open' : '') + '</span>' +
           '</span>' +
+          '<button class="btn-ghost btn-sm" title="Export this job as a PDF" onclick="event.stopPropagation();exportSiteJobPdf(\'' + jsAttr(c.siteKey) + '\')" style="flex-shrink:0;">&#128196; PDF</button>' +
         '</div>' +
         '<div class="jc-body" style="display:' + (open ? "block" : "none") + ';">' + rows + '</div>' +
       '</div>';
   }).join("");
 }
-function exportJobCostingPdf() {
-  const src = document.getElementById("jobCostingBody");
-  if (!src || !src.querySelector(".jc-site")) { alert("Nothing to export for the current period."); return; }
+/* ===== Clean A4 PDF generation (jsPDF) — timesheets & job costing ===== */
+function pdfMoney(n) { return "£" + (Number(n) || 0).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
-  const old = document.getElementById("jcPrintArea");
-  if (old) old.remove();
+let _pdfLogo = null, _pdfLogoSize = null, _pdfLogoTried = false;
+async function ensurePdfLogo() {
+  if (_pdfLogoTried) return;
+  _pdfLogoTried = true;
+  try {
+    const res = await fetch("Mostlane Logo.jpg");
+    const blob = await res.blob();
+    _pdfLogo = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => r(null); fr.readAsDataURL(blob); });
+    if (_pdfLogo) _pdfLogoSize = await new Promise(r => { const im = new Image(); im.onload = () => r({ w: im.naturalWidth, h: im.naturalHeight }); im.onerror = () => r(null); im.src = _pdfLogo; });
+  } catch (e) { _pdfLogo = null; }
+}
 
-  const fr = document.getElementById("jcFromDate").value;
-  const to = document.getElementById("jcToDate").value;
-  const range = (fr || to) ? ((fr || "earliest") + " to " + (to || "today")) : "All time";
-
-  const area = document.createElement("div");
-  area.id = "jcPrintArea";
-  const header = document.createElement("div");
-  header.style.cssText = "margin:0 0 14px;border-bottom:2px solid #0f172a;padding-bottom:8px;";
-  header.innerHTML =
-    '<div style="font-size:19px;font-weight:800;">Job Costing</div>' +
-    '<div style="font-size:12px;color:#475569;">' + escapeHtml(range) + '</div>' +
-    '<div style="font-size:12px;margin-top:6px;">' + (document.getElementById("jobCostingMeta").innerHTML || "") + '</div>';
-  area.appendChild(header);
-
-  const clone = src.cloneNode(true);
-  clone.querySelectorAll(".jc-body").forEach(n => { n.style.display = "block"; });
-  area.appendChild(clone);
-  document.body.appendChild(area);
-
-  const done = () => {
-    document.body.classList.remove("printing-jobcosting");
-    const a = document.getElementById("jcPrintArea");
-    if (a) a.remove();
-    window.removeEventListener("afterprint", done);
+// Minimal A4 layout engine: header band, section rules, and a paginating table.
+function makeA4() {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  const M = 12, PW = 210, PH = 297, CW = PW - 2 * M, PAD = 1.6;
+  const BLUE = [0, 74, 153], LB = [234, 239, 247], BD = [184, 196, 212], TX = [29, 29, 31], GBX = [246, 248, 251];
+  const mm = pt => pt * 0.3528;
+  const S = { pdf, M, PW, PH, CW, PAD, BLUE, LB, BD, TX, GBX, y: M };
+  S.setText = (size, bold, color) => { pdf.setFont("helvetica", bold ? "bold" : "normal"); pdf.setFontSize(size); const c = color || TX; pdf.setTextColor(c[0], c[1], c[2]); };
+  S.need = h => { if (S.y + h > PH - M) { pdf.addPage(); S.y = M; } };
+  S.gap = h => { S.y += (h == null ? 2.5 : h); };
+  S.wrap = (t, w, size, bold) => { S.setText(size, bold); return pdf.splitTextToSize(String(t == null || t === "" ? "—" : t), Math.max(2, w - 2 * PAD)); };
+  S.linesH = (lines, size) => lines.length * mm(size) * 1.2 + 2 * PAD;
+  S.cell = (x, w, h, o) => {
+    if (o.fill) { pdf.setFillColor(o.fill[0], o.fill[1], o.fill[2]); pdf.rect(x, S.y, w, h, "F"); }
+    if (o.border !== false) { pdf.setDrawColor(BD[0], BD[1], BD[2]); pdf.setLineWidth(0.2); pdf.rect(x, S.y, w, h, "S"); }
+    if (o.lines && o.lines.length) {
+      S.setText(o.size, o.bold, o.color);
+      const lh = mm(o.size) * 1.2, align = o.align || "left";
+      let ty = S.y + PAD + mm(o.size) * 0.92;
+      o.lines.forEach(ln => { const tx = align === "right" ? x + w - PAD : align === "center" ? x + w / 2 : x + PAD; pdf.text(ln, tx, ty, { align }); ty += lh; });
+    }
   };
-  window.addEventListener("afterprint", done);
-  setTimeout(done, 60000);
-  document.body.classList.add("printing-jobcosting");
-  window.print();
+  S.logo = (x, yy, h) => { if (_pdfLogo && _pdfLogoSize) { const w = h * (_pdfLogoSize.w / _pdfLogoSize.h); try { pdf.addImage(_pdfLogo, "JPEG", x, yy, w, h); return w; } catch (e) {} } return 0; };
+  S.titleBar = (title, sub, rTop, rBot) => {
+    const h = 14; S.need(h + 2);
+    pdf.setFillColor(BLUE[0], BLUE[1], BLUE[2]); pdf.rect(M, S.y, CW, h, "F");
+    let tx = M + 4; const lw = S.logo(M + 4, S.y + (h - 7) / 2, 7); if (lw) tx = M + 4 + lw + 4;
+    S.setText(12.5, true, [255, 255, 255]); pdf.text(String(title), tx, S.y + (sub ? 6 : 8.4));
+    if (sub) { S.setText(8, false, [223, 232, 243]); pdf.text(String(sub), tx, S.y + 10.6); }
+    if (rTop) { S.setText(11.5, true, [255, 255, 255]); pdf.text(String(rTop), M + CW - 4, S.y + (rBot ? 6 : 8.4), { align: "right" }); }
+    if (rBot) { S.setText(8, false, [223, 232, 243]); pdf.text(String(rBot), M + CW - 4, S.y + 10.6, { align: "right" }); }
+    S.y += h;
+  };
+  S.section = text => { S.need(8); S.y += 2.5; S.setText(8, true, BLUE); pdf.text(String(text).toUpperCase(), M, S.y + 3.8); pdf.setDrawColor(BLUE[0], BLUE[1], BLUE[2]); pdf.setLineWidth(0.5); pdf.line(M, S.y + 5.2, M + CW, S.y + 5.2); S.y += 6.4; };
+  S.statStrip = items => {
+    const sw = CW / items.length, h = 11.5; S.need(h);
+    items.forEach((it, i) => {
+      const x = M + i * sw;
+      pdf.setFillColor(GBX[0], GBX[1], GBX[2]); pdf.rect(x, S.y, sw, h, "F");
+      pdf.setDrawColor(BD[0], BD[1], BD[2]); pdf.setLineWidth(0.2); pdf.rect(x, S.y, sw, h, "S");
+      S.setText(10, true, BLUE); pdf.text(String(it[1]), x + sw / 2, S.y + 5, { align: "center" });
+      S.setText(6.4, false, [90, 90, 90]); pdf.text(String(it[0]), x + sw / 2, S.y + 8.8, { align: "center" });
+    });
+    S.y += h;
+  };
+  S.table = (cols, rows, opts) => {
+    opts = opts || {};
+    const widths = cols.map(c => c.w * CW), HH = 7;
+    const head = () => { S.need(HH); let x = M; cols.forEach((c, i) => { S.cell(x, widths[i], HH, { fill: BLUE, lines: [c.label], size: 7.5, bold: true, color: [255, 255, 255], align: c.align || "left" }); x += widths[i]; }); S.y += HH; };
+    head();
+    rows.forEach(r => {
+      const wrapped = cols.map((c, i) => S.wrap(r[i], widths[i], 8, false));
+      let rh = 6; wrapped.forEach(w => { rh = Math.max(rh, S.linesH(w, 8)); });
+      if (S.y + rh > PH - M) { pdf.addPage(); S.y = M; head(); }
+      let x = M; cols.forEach((c, i) => { S.cell(x, widths[i], rh, { lines: wrapped[i], size: 8, align: c.align || "left", fill: r.__fill }); x += widths[i]; });
+      S.y += rh;
+    });
+    if (opts.foot) { const rh = 6.8; S.need(rh); let x = M; cols.forEach((c, i) => { S.cell(x, widths[i], rh, { fill: LB, lines: [opts.foot[i] == null ? "" : String(opts.foot[i])], size: 8, bold: true, align: c.align || "left" }); x += widths[i]; }); S.y += rh; }
+  };
+  S.note = (text, size) => { size = size || 7.5; S.setText(size, false, [120, 120, 120]); const lines = pdf.splitTextToSize(String(text), CW); const lh = mm(size) * 1.3, h = lines.length * lh + 2; S.need(h); let ty = S.y + 2; lines.forEach(ln => { pdf.text(ln, M, ty); ty += lh; }); S.y += h; };
+  return S;
+}
+
+// Recompute the job-costing cards from the loaded full range (mirrors renderJobCosting).
+function jobCostingData() {
+  const fr = document.getElementById("jcFromDate").value, to = document.getElementById("jcToDate").value;
+  const base = jcVisits.filter(v => { const day = londonDayKey(v.check_in_at); if (fr && day < fr) return false; if (to && day > to) return false; return true; });
+  const sites = {};
+  base.forEach(v => {
+    const siteKey = (v.site_code || "").trim() || "— Unmatched / no site —";
+    const pKey = v.person_id || nameOf(v) || "Unknown";
+    sites[siteKey] = sites[siteKey] || {};
+    sites[siteKey][pKey] = sites[siteKey][pKey] || { name: nameOf(v) || "Unknown", company: v.company || "", visits: [] };
+    sites[siteKey][pKey].visits.push(v);
+  });
+  const cards = Object.keys(sites).map(siteKey => {
+    const people = Object.keys(sites[siteKey]).map(pKey => { const p = sites[siteKey][pKey]; const eng = findEngineer(p.visits[0].person_id, p.name, p.company); return Object.assign({ name: p.name, company: p.company }, costEngineerVisits(p.visits, eng)); }).sort((a, b) => b.total - a.total);
+    return { siteKey, people, total: people.reduce((s, p) => s + p.total, 0), workH: people.reduce((s, p) => s + p.workH, 0), visits: people.reduce((s, p) => s + p.costedVisits, 0), open: people.reduce((s, p) => s + p.openCount, 0), auto: people.reduce((s, p) => s + p.autoCount, 0) };
+  }).sort((a, b) => b.total - a.total);
+  const range = (fr || to) ? ((fr || "earliest") + " to " + (to || "today")) : "All time";
+  return { cards, range };
+}
+
+// MULTIPLE JOBS — one-row-per-job summary report.
+async function exportJobCostingPdf() {
+  if (!(window.jspdf && window.jspdf.jsPDF)) { alert("PDF engine not loaded — reload and try again."); return; }
+  const { cards, range } = jobCostingData();
+  if (!cards.length) { alert("Nothing to export for the current period."); return; }
+  await ensurePdfLogo();
+  const A = makeA4();
+  const gTotal = cards.reduce((s, c) => s + c.total, 0), gVisits = cards.reduce((s, c) => s + c.visits, 0), gHours = cards.reduce((s, c) => s + c.workH, 0);
+  const gAuto = cards.reduce((s, c) => s + c.auto, 0), gOpen = cards.reduce((s, c) => s + c.open, 0);
+  A.titleBar("Job Costing — Summary", range, pdfMoney(gTotal), cards.length + " jobs");
+  A.gap(2); A.section("All jobs (by cost)");
+  const cols = [{ label: "Job / Site", w: 0.46 }, { label: "Visits", w: 0.14, align: "right" }, { label: "Hours", w: 0.18, align: "right" }, { label: "Cost", w: 0.22, align: "right" }];
+  const rows = cards.map(c => [c.siteKey + (c.auto ? "  (incl. auto sign-outs)" : ""), String(c.visits), c.workH.toFixed(1), pdfMoney(c.total)]);
+  A.table(cols, rows, { foot: ["TOTAL — " + cards.length + " jobs", String(gVisits), gHours.toFixed(1), pdfMoney(gTotal)] });
+  if (gAuto || gOpen) { A.gap(2); A.note((gAuto ? gAuto + " visit(s) were auto signed-out by the system (estimated time). " : "") + (gOpen ? gOpen + " open visit(s) are not costed." : "")); }
+  A.pdf.save("JobCosting_Summary_" + (document.getElementById("jcFromDate").value || "all") + ".pdf");
+}
+
+// SINGLE JOB — full per-engineer breakdown for one site.
+async function exportSiteJobPdf(siteKey) {
+  if (!(window.jspdf && window.jspdf.jsPDF)) { alert("PDF engine not loaded — reload and try again."); return; }
+  const { cards, range } = jobCostingData();
+  const card = cards.find(c => c.siteKey === siteKey);
+  if (!card) { alert("Job not found — try reopening Job Costing."); return; }
+  await ensurePdfLogo();
+  const A = makeA4();
+  A.titleBar("Job Cost — " + siteKey, range, pdfMoney(card.total), card.visits + " visits · " + card.workH.toFixed(1) + " h");
+  A.gap(2); A.section("Cost by engineer");
+  const cols = [
+    { label: "Engineer", w: 0.28 }, { label: "Visits", w: 0.09, align: "right" }, { label: "Hours", w: 0.11, align: "right" },
+    { label: "Labour", w: 0.14, align: "right" }, { label: "Travel", w: 0.12, align: "right" }, { label: "Fuel", w: 0.12, align: "right" }, { label: "Total", w: 0.14, align: "right" }
+  ];
+  const rows = card.people.map(p => [
+    p.name + (p.company ? "  (" + p.company + ")" : "") + (p.rate === 0 && p.costedVisits > 0 ? "  [no rate]" : "") + (p.autoCount ? "  [auto x" + p.autoCount + "]" : ""),
+    String(p.costedVisits), p.workH.toFixed(1), pdfMoney(p.labour), p.travelCost > 0 ? pdfMoney(p.travelCost) : "—", p.fuelCost > 0 ? pdfMoney(p.fuelCost) : "—", pdfMoney(p.total)
+  ]);
+  const sL = card.people.reduce((s, p) => s + p.labour, 0), sT = card.people.reduce((s, p) => s + p.travelCost, 0), sF = card.people.reduce((s, p) => s + p.fuelCost, 0);
+  A.table(cols, rows, { foot: ["TOTAL", String(card.visits), card.workH.toFixed(1), pdfMoney(sL), pdfMoney(sT), pdfMoney(sF), pdfMoney(card.total)] });
+  if (card.auto || card.open) { A.gap(2); A.note((card.auto ? card.auto + " visit(s) auto signed-out (cron-estimated time). " : "") + (card.open ? card.open + " open visit(s) not costed." : "")); }
+  A.pdf.save("JobCost_" + siteKey.replace(/[^A-Za-z0-9]+/g, "_") + ".pdf");
 }
 // Inline rate editor reachable from the Job Costing "+ set rate" links, so a
 // missing rate can be fixed without leaving the costing view.
@@ -2670,36 +2775,80 @@ function clearTimesheetFilters() {
   document.getElementById("tsToDate").value = document.getElementById("toDate").value || "";
   renderTimesheetsModal();
 }
-function exportTimesheetsPdf() {
-  const src = document.getElementById("timesheetsBody");
-  if (!src || !src.querySelector(".tc-card")) { alert("No timesheets to export for the current filters."); return; }
+// One A4 timesheet per engineer-week (mirrors the on-screen buildWeekChart math).
+function timesheetCard(A, visits, name, company, weekKey, eng) {
+  const hasTravelPay = eng && eng.travel_status === "paid";
+  const rate = (eng && eng.hourly_rate != null && Number(eng.hourly_rate) > 0) ? Number(eng.hourly_rate) : 0;
+  const fuelRate = (hasTravelPay && eng && eng.fuel_rate != null && Number(eng.fuel_rate) > 0) ? Number(eng.fuel_rate) : 0;
+  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const byDay = {}; visits.forEach(v => { const d = londonDayKey(v.check_in_at); (byDay[d] = byDay[d] || []).push(v); });
+  let totTotal = 0, totStd = 0, totOT = 0, totTravelPaid = 0, totMiles = 0;
+  const tableRows = [];
+  for (let i = 0; i < 7; i++) {
+    const key = addDaysKey(weekKey, i), dayName = dayNames[i] + " " + formatDayLabel(key);
+    const dvs = (byDay[key] || []).slice().sort((a, b) => (a.check_in_at || "").localeCompare(b.check_in_at || ""));
+    if (!dvs.length) { const r = [dayName, "", "—", "—"]; if (rate) r.push("—"); tableRows.push(r); continue; }
+    let dayMins = 0; dvs.forEach(v => { dayMins += minutesBetween(v.check_in_at, v.check_out_at); });
+    const dayH = dayMins / 60; totTotal += dayH; totStd += Math.min(dayH, 10); totOT += Math.max(dayH - 10, 0);
+    dvs.forEach((v, idx) => {
+      const h = minutesBetween(v.check_in_at, v.check_out_at) / 60;
+      const times = formatTimeOnly(v.check_in_at) + " – " + (v.check_out_at ? formatTimeOnly(v.check_out_at) : "—");
+      const flag = !v.check_out_at ? "  (no sign-out)" : (Number(v.auto_checkout || 0) === 1 ? "  (auto sign-out)" : "");
+      const manual = Number(v.manual_entry || 0) === 1 ? "  (manual)" : "";
+      if (hasTravelPay) {
+        if (v.travel_in_mins != null) totTravelPaid += calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng);
+        if (v.travel_out_mins != null) totTravelPaid += calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng);
+        if (v.travel_in_miles != null) totMiles += calcPaidMiles(v.travel_in_miles, eng);
+        if (v.travel_out_miles != null) totMiles += calcPaidMiles(v.travel_out_miles, eng);
+      }
+      const r = [idx === 0 ? dayName : "", v.site_code || "—", times + flag + manual, h.toFixed(2)];
+      if (rate) r.push(pdfMoney(h * rate));
+      tableRows.push(r);
+    });
+  }
+  const travelPaidH = totTravelPaid / 60, totalPay = rate ? (totTotal + travelPaidH) * rate : 0, fuelTotal = fuelRate ? totMiles * fuelRate : 0;
 
-  // Use the browser's native print engine (crisp vector text, reliable
-  // pagination) instead of an html2canvas screenshot, which kept rendering
-  // blank from inside the modal. A print-only #tsPrintArea holds a clean clone
-  // of the charts; @media print reveals only it. The user picks "Save as PDF".
-  const old = document.getElementById("tsPrintArea");
-  if (old) old.remove();
+  A.titleBar("TIMESHEET", "Week commencing " + formatWeekCommencing(weekKey), name, company || "—");
+  const stats = [["Weekly hrs", totStd.toFixed(2)], ["Extra hrs", totOT.toFixed(2)], ["Total hrs", totTotal.toFixed(2)]];
+  if (hasTravelPay) stats.push(["Travel paid", travelPaidH.toFixed(2) + "h"]);
+  if (rate) stats.push(["Pay @ £" + rate.toFixed(2), pdfMoney(totalPay)]);
+  if (fuelRate) stats.push(["Fuel", pdfMoney(fuelTotal)]);
+  A.gap(1.5); A.statStrip(stats); A.gap(1.5);
 
-  const area = document.createElement("div");
-  area.id = "tsPrintArea";
-  const clone = src.cloneNode(true);
-  clone.querySelectorAll(".no-pdf").forEach(n => n.remove());
-  clone.querySelectorAll(".ts-eng-body").forEach(n => { n.style.display = "block"; });
-  clone.querySelectorAll(".ts-acc").forEach(n => n.classList.add("open"));
-  area.appendChild(clone);
-  document.body.appendChild(area);
+  const cols = rate
+    ? [{ label: "Day", w: 0.16 }, { label: "Site", w: 0.18 }, { label: "Description", w: 0.34 }, { label: "Hours", w: 0.13, align: "right" }, { label: "Pay", w: 0.19, align: "right" }]
+    : [{ label: "Day", w: 0.18 }, { label: "Site", w: 0.22 }, { label: "Description", w: 0.42 }, { label: "Hours", w: 0.18, align: "right" }];
+  const foot = rate
+    ? ["", "", "Weekly total" + (hasTravelPay ? "  (+ " + travelPaidH.toFixed(2) + "h travel)" : ""), totTotal.toFixed(2), pdfMoney(totalPay)]
+    : ["", "", "Weekly total", totTotal.toFixed(2)];
+  A.table(cols, tableRows, { foot });
+  if (fuelRate) { A.gap(1); A.note("Fuel: " + totMiles.toFixed(1) + " miles @ £" + fuelRate.toFixed(2) + "/mile  =  " + pdfMoney(fuelTotal), 8); }
+}
 
-  const done = () => {
-    document.body.classList.remove("printing-timesheets");
-    const a = document.getElementById("tsPrintArea");
-    if (a) a.remove();
-    window.removeEventListener("afterprint", done);
-  };
-  window.addEventListener("afterprint", done);
-  setTimeout(done, 60000); // fallback cleanup if afterprint never fires (some mobile browsers)
-  document.body.classList.add("printing-timesheets");
-  window.print();
+async function exportTimesheetsPdf() {
+  if (!(window.jspdf && window.jspdf.jsPDF)) { alert("PDF engine not loaded — reload and try again."); return; }
+  const visits = getTSFiltered();
+  if (!visits.length) { alert("No timesheets to export for the current filters."); return; }
+  await ensurePdfLogo();
+  const grouped = {};
+  visits.forEach(v => {
+    const co = (v.company || "No Company").trim() || "No Company", pe = nameOf(v) || "Unknown", pid = v.person_id || "", wk = startOfWeekMonday(londonDayKey(v.check_in_at));
+    grouped[co] = grouped[co] || {}; grouped[co][pe] = grouped[co][pe] || { pid, weeks: {} };
+    grouped[co][pe].weeks[wk] = grouped[co][pe].weeks[wk] || []; grouped[co][pe].weeks[wk].push(v);
+  });
+  const A = makeA4();
+  let first = true;
+  Object.keys(grouped).sort((a, b) => companySortKey(a).localeCompare(companySortKey(b))).forEach(co => {
+    Object.keys(grouped[co]).sort().forEach(pe => {
+      const pid = grouped[co][pe].pid || "", eng = findEngineer(pid, pe, co);
+      Object.keys(grouped[co][pe].weeks).sort().forEach(wk => {
+        if (!first) { A.pdf.addPage(); A.y = A.M; }
+        first = false;
+        timesheetCard(A, grouped[co][pe].weeks[wk], pe, co, wk, eng);
+      });
+    });
+  });
+  A.pdf.save("Timesheets_" + (document.getElementById("tsFromDate").value || "all") + ".pdf");
 }
 function toggleTsEng(id) {
   const el = document.getElementById(id);

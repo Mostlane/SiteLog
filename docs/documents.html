@@ -353,6 +353,15 @@
       .doc-item-actions { width: 100%; }
       .doc-item-actions button { flex: 1; justify-content: center; }
     }
+
+    .links-panel { background: #f6f8fb; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin: 6px 0 12px; }
+    .links-title { font-size: 13px; font-weight: 700; color: var(--text, #1d1d1f); margin-bottom: 8px; }
+    .link-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .link-chip { display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 1px solid var(--border); border-radius: 20px; padding: 4px 10px; font-size: 13px; }
+    .link-chip-tag { font-size: 9px; color: #15803d; background: rgba(22,163,74,0.12); padding: 1px 6px; border-radius: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+    .link-chip-x { cursor: pointer; color: #dc2626; font-weight: 800; padding: 0 2px; }
+    .link-add { display: flex; gap: 8px; }
+    .link-add input { flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; }
   </style>
 </head>
 <body>
@@ -495,6 +504,7 @@
       </div>
       <button class="btn-ghost btn-sm" onclick="closeView()">&#10005;</button>
     </div>
+    <div id="viewLinks" style="padding:0 18px;"></div>
     <div class="modal-body" id="viewBody"></div>
     <div class="modal-footer">
       <button class="btn-ghost" onclick="closeView()">Close</button>
@@ -1175,9 +1185,72 @@ async function viewDoc(id) {
     document.getElementById("viewSub").textContent = (doc.doc_number ? doc.doc_number + " · " : "") + (doc.site_name || "") + " · " + (doc.issued_at || "").slice(0, 10);
     document.getElementById("viewBody").innerHTML = buildPreview(doc);
     document.getElementById("viewModal").classList.add("open");
+    renderViewLinks(doc);
   } catch (e) {
     alert("Failed to load document.");
   }
+}
+
+// People this document is linked to (who'll see it in the app), plus an
+// add-person control. Signed attendees are shown but can't be unlinked here;
+// extra links can be added/removed after the fact.
+async function renderViewLinks(doc) {
+  const box = document.getElementById("viewLinks");
+  if (!box) return;
+  const signees = (doc.attendees || []).filter(a => a.person_id).map(a => ({ id: a.person_id, name: a.person_name, kind: "signee" }));
+  const signeeIds = new Set(signees.map(s => s.id));
+  const extras = (doc.linked || []).filter(l => l.person_id && !signeeIds.has(l.person_id)).map(l => ({ id: l.person_id, name: l.person_name, kind: "link" }));
+  const all = signees.concat(extras);
+
+  let people = [];
+  try {
+    const r = await fetch(API + "/site-people?site=" + enc(doc.site_name || ""));
+    people = (await r.json()).people || [];
+  } catch (e) {}
+  const linkedIds = new Set(all.map(p => p.id));
+  const opts = people.filter(p => p.person_id && !linkedIds.has(p.person_id))
+    .map(p => '<option value="' + escAttr(p.name) + '" data-pid="' + escAttr(p.person_id) + '">').join("");
+
+  const chips = all.length
+    ? all.map(p => '<span class="link-chip">' + escHtml(p.name) +
+        (p.kind === "signee" ? ' <span class="link-chip-tag">signed</span>'
+          : ' <span class="link-chip-x" onclick="unlinkPerson(\'' + String(p.id).replace(/'/g, "\\'") + '\')">&times;</span>') + '</span>').join("")
+    : '<span style="color:var(--label3);font-size:13px;">No one linked yet.</span>';
+
+  box.innerHTML =
+    '<div class="links-panel">' +
+      '<div class="links-title">&#128279; Linked people <span style="font-weight:400;color:var(--label3);font-size:11px;">(see this in their app)</span></div>' +
+      '<div class="link-chips">' + chips + '</div>' +
+      '<div class="link-add"><input id="linkAddName" list="linkAddList" placeholder="Add a person on this site..."><datalist id="linkAddList">' + opts + '</datalist>' +
+      '<button class="btn-ghost btn-sm" onclick="linkPersonFromInput()">Link</button></div>' +
+    '</div>';
+  box._people = people;
+}
+
+async function linkPersonFromInput() {
+  const input = document.getElementById("linkAddName");
+  const box = document.getElementById("viewLinks");
+  if (!input || !viewDocData) return;
+  const name = input.value.trim();
+  const people = (box && box._people) || [];
+  const match = people.find(p => p.name === name);
+  if (!match || !match.person_id) { alert("Pick a person from the suggestions so they can be linked."); return; }
+  try {
+    const res = await fetch(API + "/documents/link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ docId: viewDocData.id, personId: match.person_id, personName: match.name }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.ok) throw new Error(d.error || "Failed");
+  } catch (e) { alert("Could not link: " + (e.message || e)); return; }
+  viewDoc(viewDocData.id);
+}
+
+async function unlinkPerson(personId) {
+  if (!viewDocData) return;
+  try {
+    const res = await fetch(API + "/documents/unlink", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ docId: viewDocData.id, personId }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.ok) throw new Error(d.error || "Failed");
+  } catch (e) { alert("Could not unlink: " + (e.message || e)); return; }
+  viewDoc(viewDocData.id);
 }
 
 function closeView() {

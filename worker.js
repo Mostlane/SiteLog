@@ -45,6 +45,7 @@ async function ensureOfflineSchema(env) {
   try { await env.DB.prepare("ALTER TABLE devices ADD COLUMN last_seen TEXT").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE documents ADD COLUMN doc_number TEXT").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE documents ADD COLUMN doc_seq INTEGER").run(); } catch (e) {}
+  try { await env.DB.prepare("CREATE TABLE IF NOT EXISTS document_links (id TEXT PRIMARY KEY, document_id TEXT, person_id TEXT, person_name TEXT, linked_at TEXT)").run(); } catch (e) {}
   try {
     await env.DB.prepare(
       "CREATE TABLE IF NOT EXISTS pending_events (id TEXT PRIMARY KEY, device_token TEXT, lat REAL, lng REAL, accuracy REAL, site_code TEXT, intent TEXT, occurred_at TEXT, synced_at TEXT, resolved INTEGER DEFAULT 0)"
@@ -2131,12 +2132,13 @@ export default {
       if (!deviceToken) return json({ documents: [] });
       const dev = await env.DB.prepare("SELECT person_id FROM devices WHERE device_token = ?").bind(deviceToken).first();
       if (!dev || !dev.person_id) return json({ documents: [] });
-      const wheres = ["da.person_id = ?"];
-      const binds = [dev.person_id];
+      // The person is linked via a signed attendee OR an extra link.
+      const wheres = ["d.id IN (SELECT document_id FROM document_attendees WHERE person_id = ? UNION SELECT document_id FROM document_links WHERE person_id = ?)"];
+      const binds = [dev.person_id, dev.person_id];
       if (site) { wheres.push("d.site_name = ?"); binds.push(site); }
       const rows = await env.DB.prepare(`
-        SELECT DISTINCT d.id, d.type, d.status, d.site_name, d.issued_at, d.doc_number, d.permit_no
-        FROM documents d JOIN document_attendees da ON da.document_id = d.id
+        SELECT d.id, d.type, d.status, d.site_name, d.issued_at, d.doc_number, d.permit_no
+        FROM documents d
         WHERE ${wheres.join(" AND ")}
         ORDER BY d.issued_at DESC LIMIT 100
       `).bind(...binds).all();
@@ -2209,7 +2211,45 @@ export default {
       const id = body.id || body.docId;
       if (!id) return json({ ok: false, error: "Missing id" }, 400);
       await env.DB.prepare("DELETE FROM document_attendees WHERE document_id = ?").bind(id).run();
+      await env.DB.prepare("DELETE FROM document_links WHERE document_id = ?").bind(id).run();
       await env.DB.prepare("DELETE FROM documents WHERE id = ?").bind(id).run();
+      return json({ ok: true });
+    }
+
+    // POST /documents/link — link an extra person to an existing document so it
+    // shows for them in the user app (separate from the signed attendees).
+    if (url.pathname === "/documents/link" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+      const body = await readBody(request);
+      const docId = body.docId, personId = body.personId;
+      if (!docId || !personId) return json({ ok: false, error: "Missing docId or personId" }, 400);
+      const existing = await env.DB.prepare(
+        "SELECT id FROM document_links WHERE document_id = ? AND person_id = ?"
+      ).bind(docId, personId).first();
+      const alreadyAttendee = await env.DB.prepare(
+        "SELECT id FROM document_attendees WHERE document_id = ? AND person_id = ?"
+      ).bind(docId, personId).first();
+      if (!existing && !alreadyAttendee) {
+        const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+        await env.DB.prepare(
+          "INSERT INTO document_links (id, document_id, person_id, person_name, linked_at) VALUES (?,?,?,?,?)"
+        ).bind(crypto.randomUUID(), docId, personId, body.personName || "", now).run();
+      }
+      return json({ ok: true });
+    }
+
+    // POST /documents/unlink — remove an extra link (does not touch signed attendees)
+    if (url.pathname === "/documents/unlink" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+      const body = await readBody(request);
+      if (!body.docId || !body.personId) return json({ ok: false, error: "Missing docId or personId" }, 400);
+      await env.DB.prepare(
+        "DELETE FROM document_links WHERE document_id = ? AND person_id = ?"
+      ).bind(body.docId, body.personId).run();
       return json({ ok: true });
     }
 
@@ -2235,6 +2275,15 @@ export default {
 
       doc.attendees = atts.results || [];
       doc.attendee_names = doc.attendees.map((a) => a.person_name).join(", ");
+
+      let linked = [];
+      try {
+        const lr = await env.DB.prepare(
+          "SELECT person_id, person_name FROM document_links WHERE document_id = ?"
+        ).bind(id).all();
+        linked = lr.results || [];
+      } catch (e) {}
+      doc.linked = linked;
 
       return json({ document: doc });
     }

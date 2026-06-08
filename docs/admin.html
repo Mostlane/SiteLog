@@ -707,7 +707,11 @@
   </div>
   <div id="pendingEventsBanner" style="display:none;margin-bottom:18px;padding:14px 16px;border-radius:10px;background:#fff7ed;border:1px solid #fdba74;color:#7c2d12;font-size:13.5px;line-height:1.5;"></div>
   <div id="unmatchedVisitsBanner" style="display:none;margin-bottom:18px;padding:14px 16px;border-radius:10px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a;font-size:13.5px;line-height:1.5;"></div>
-  <div class="section-header"><span class="section-label">&#128994; Live on site</span></div>
+  <div class="section-header"><span class="section-label">&#128994; Live on site</span>
+    <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--label2);cursor:pointer;user-select:none;white-space:nowrap;">
+      <input type="checkbox" id="mainOnlyToggle" onchange="setMainOnly(this.checked)"> Mostlane crew only
+    </label>
+  </div>
   <div class="card" style="margin-bottom:32px;">
     <div class="table-wrap">
       <table id="liveTable">
@@ -873,6 +877,9 @@
           <input id="addEngCompany" placeholder="Company">
           <input id="addEngPurpose" placeholder="Purpose (e.g. Engineer)">
           <input id="addEngRate" type="number" step="0.01" min="0" placeholder="Rate per hr">
+          <label style="grid-column:1 / -1;display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--label2);cursor:pointer;">
+            <input type="checkbox" id="addEngMain" checked> Main (Mostlane) &mdash; shows by default; leave unticked for subcontractors
+          </label>
           <button class="btn-primary btn-sm" onclick="addEngineer()" style="grid-column:1 / -1;">&#43; Add Engineer</button>
         </div>
         <div id="addEngError" style="color:var(--red);font-size:13px;margin-top:8px;display:none;"></div>
@@ -1059,6 +1066,19 @@ let engineersActive = [];
 let companiesAll = [];
 let siteCompanyMap = {};
 let pendingTransferIdToApprove = null;
+// "Main (Mostlane) only" view filter — default ON, remembered. Treated as a
+// no-op until at least one person is tagged Main, so nothing vanishes before
+// the crew is set up.
+let mainOnly = (function () { try { const v = localStorage.getItem("ml_main_only"); return v === null ? true : v === "1"; } catch (e) { return true; } })();
+let hasMainPeople = false;
+function mainFilterActive() { return mainOnly && hasMainPeople; }
+function setMainOnly(on) {
+  mainOnly = !!on;
+  try { localStorage.setItem("ml_main_only", mainOnly ? "1" : "0"); } catch (e) {}
+  const cb = document.getElementById("mainOnlyToggle");
+  if (cb) cb.checked = mainOnly;
+  renderAll();
+}
 
 function escSel(value) {
   if (window.CSS && typeof window.CSS.escape === "function") return window.CSS.escape(String(value));
@@ -1264,7 +1284,8 @@ function passFilters(v) {
   const si = document.getElementById("siteFilter").value;
   const n = nameOf(v);
 
-  return (!s || n.toLowerCase().includes(s)) &&
+  return (!mainFilterActive() || Number(v.is_main || 0) === 1) &&
+         (!s || n.toLowerCase().includes(s)) &&
          (!pp.length || pp.includes(n)) &&
          (!cp.length || cp.includes(v.company)) &&
          (!pu || v.purpose === pu) &&
@@ -1285,7 +1306,10 @@ function buildSiteFilter() {
 function buildPersonFilter() {
   const sel = document.getElementById("personFilter");
   const cur = Array.from(sel.selectedOptions).map(o => o.value);
-  const names = [...new Set((engineersActive.length ? engineersActive.map(p => nameOf(p)) : filteredVisits.map(v => nameOf(v))).filter(Boolean))].sort();
+  const pool = engineersActive.length
+    ? engineersActive.filter(p => !mainFilterActive() || Number(p.is_main || 0) === 1)
+    : filteredVisits.filter(v => !mainFilterActive() || Number(v.is_main || 0) === 1);
+  const names = [...new Set(pool.map(p => nameOf(p)).filter(Boolean))].sort();
   sel.innerHTML = names.map(n => '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>').join("");
   Array.from(sel.options).forEach(o => { if (cur.includes(o.value)) o.selected = true; });
 }
@@ -1473,6 +1497,9 @@ function openTimesheetForPerson(name, company) {
   }, 100);
 }
 function renderAll() {
+  hasMainPeople = engineersAll.some(p => Number(p.is_main || 0) === 1);
+  const mcb = document.getElementById("mainOnlyToggle");
+  if (mcb) mcb.checked = mainOnly;
   buildCompanyFilter();
   buildPersonFilter();
   buildSiteFilter();
@@ -1886,6 +1913,7 @@ function buildEngineerAdminPanel(eng, name, company, id) {
     '<input data-ts-eng-company="' + escapeHtml(eid) + '" value="' + escapeHtml(r.company || "") + '" placeholder="Company">' +
     '<input data-ts-eng-purpose="' + escapeHtml(eid) + '" value="' + escapeHtml(r.purpose || "") + '" placeholder="Purpose">' +
     '<input data-ts-eng-rate="' + escapeHtml(eid) + '" type="number" step="0.01" min="0" value="' + escapeHtml(r.hourly_rate != null ? String(r.hourly_rate) : "") + '" placeholder="Rate per hr">' +
+    '<label class="full" style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--label2);cursor:pointer;"><input type="checkbox" data-ts-eng-main="' + escapeHtml(eid) + '"' + (Number(r.is_main || 0) === 1 ? " checked" : "") + '> Main (Mostlane) &mdash; shown by default</label>' +
     '<div class="full">' + travelHtml + '</div>' +
     '<div class="ts-engineer-admin-btns full">' +
       '<button class="btn-ghost btn-sm" onclick="saveTimesheetEngineer(\'' + escapeHtml(eid) + '\')">Save</button>' +
@@ -2291,6 +2319,7 @@ async function saveTimesheetEngineer(id) {
   const travelCapValue = capValRaw === "" ? null : Number(capValRaw);
   const fuelRaw = (document.querySelector('[data-ts-eng-fuel="' + escSel(id) + '"]')?.value || "").trim();
   const fuelRate = fuelRaw === "" ? null : Number(fuelRaw);
+  const isMain = !!document.querySelector('[data-ts-eng-main="' + escSel(id) + '"]')?.checked;
 
   if (!firstName && !lastName) {
     alert("Engineer must have at least a first or last name.");
@@ -2300,7 +2329,7 @@ async function saveTimesheetEngineer(id) {
   const r = await fetch(API_BASE + "/update-engineer", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, travelStatus, travelCapType: travelCapType || null, travelCapValue, fuelRate })
+    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, travelStatus, travelCapType: travelCapType || null, travelCapValue, fuelRate, isMain })
   });
   const d = await r.json();
 
@@ -2608,16 +2637,18 @@ async function addEngineer() {
   const purpose = (document.getElementById("addEngPurpose").value || "").trim();
   const rateRaw = (document.getElementById("addEngRate").value || "").trim();
   const hourlyRate = rateRaw === "" ? null : Number(rateRaw);
+  const isMain = document.getElementById("addEngMain").checked;
   const err = document.getElementById("addEngError");
   const fail = m => { err.textContent = m; err.style.display = "block"; };
   if (!firstName && !lastName) return fail("Enter a name.");
   let r;
   try {
-    r = await fetch(API_BASE + "/add-engineer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ firstName, lastName, company, purpose, hourlyRate }) });
+    r = await fetch(API_BASE + "/add-engineer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ firstName, lastName, company, purpose, hourlyRate, isMain }) });
   } catch (e) { return fail("Network error. Try again."); }
   const d = await r.json().catch(() => ({}));
   if (!r.ok || !d.ok) return fail(d.error || "Failed to add engineer.");
   ["addEngFirst", "addEngLast", "addEngCompany", "addEngPurpose", "addEngRate"].forEach(id => { document.getElementById(id).value = ""; });
+  document.getElementById("addEngMain").checked = true;
   err.style.display = "none";
   await fetchEngineers();
   renderEngineersTable();
@@ -2647,6 +2678,7 @@ function renderEngineersTable() {
           '<div class="site-item-main">' +
             '<div class="site-item-name">' + fullName + '</div>' +
             '<div class="site-item-sub">' + pill +
+              (Number(p.is_main || 0) === 1 ? '<span class="site-item-fact" style="background:var(--blue-soft);color:var(--blue);font-weight:600;">Main</span>' : '') +
               '<span class="site-item-fact">' + company + '</span>' +
               (rate ? '<span class="site-item-fact">' + rate + '</span>' : '') +
               (ts === "paid" ? '<span class="site-item-fact">Travel paid</span>' : '') +
@@ -2661,6 +2693,7 @@ function renderEngineersTable() {
             '<label class="field-stack"><span class="field-label">Company</span><input data-eng-company="' + id + '" value="' + escapeHtml(p.company || "") + '"/></label>' +
             '<label class="field-stack"><span class="field-label">Purpose</span><input data-eng-purpose="' + id + '" value="' + escapeHtml(p.purpose || "") + '"/></label>' +
             '<label class="field-stack"><span class="field-label">Rate (per hr)</span><input data-eng-rate="' + id + '" type="number" step="0.01" min="0" value="' + escapeHtml(p.hourly_rate != null ? String(p.hourly_rate) : "") + '" placeholder="-"/></label>' +
+            '<label style="grid-column:1 / -1;display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--label2);cursor:pointer;"><input type="checkbox" data-eng-main="' + id + '"' + (Number(p.is_main || 0) === 1 ? " checked" : "") + '> Main (Mostlane) &mdash; shown by default</label>' +
           '</div>' +
           '<div class="travel-section">' +
             '<div class="travel-section-label">Travel allowance</div>' +
@@ -2710,6 +2743,7 @@ async function saveEngineer(id) {
   const travelCapType = (document.querySelector('[data-eng-cap-type="' + escSel(id) + '"]')?.value || null);
   const capValRaw = (document.querySelector('[data-eng-cap-val="' + escSel(id) + '"]')?.value || "").trim();
   const travelCapValue = capValRaw === "" ? null : Number(capValRaw);
+  const isMain = !!document.querySelector('[data-eng-main="' + escSel(id) + '"]')?.checked;
 
   if (!firstName && !lastName) {
     alert("Name required.");
@@ -2719,7 +2753,7 @@ async function saveEngineer(id) {
   const r = await fetch(API_BASE + "/update-engineer", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, travelStatus, travelCapType: travelCapType || null, travelCapValue })
+    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, travelStatus, travelCapType: travelCapType || null, travelCapValue, isMain })
   });
   const d = await r.json();
 
@@ -2730,7 +2764,7 @@ async function saveEngineer(id) {
 
   await fetchEngineers();
   renderEngineersTable();
-  renderAll();
+  await loadData();
 }
 async function toggleEngineer(id) {
   const r = await fetch(API_BASE + "/toggle-engineer", {

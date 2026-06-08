@@ -40,6 +40,7 @@ async function ensureOfflineSchema(env) {
   try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN provided_site_name TEXT").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN manual_entry INTEGER DEFAULT 0").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE people ADD COLUMN fuel_rate REAL").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE people ADD COLUMN is_main INTEGER DEFAULT 0").run(); } catch (e) {}
   try {
     await env.DB.prepare(
       "CREATE TABLE IF NOT EXISTS pending_events (id TEXT PRIMARY KEY, device_token TEXT, lat REAL, lng REAL, accuracy REAL, site_code TEXT, intent TEXT, occurred_at TEXT, synced_at TEXT, resolved INTEGER DEFAULT 0)"
@@ -674,7 +675,8 @@ export default {
                COALESCE(archived,0) as archived,
                COALESCE(hourly_rate,0) as hourly_rate,
                COALESCE(travel_status,'not_configured') as travel_status,
-               travel_cap_type, travel_cap_value, fuel_rate
+               travel_cap_type, travel_cap_value, fuel_rate,
+               COALESCE(is_main,0) as is_main
         FROM people
         ORDER BY first_name ASC, last_name ASC
       `).all();
@@ -698,14 +700,15 @@ export default {
       const rateIn = body.hourlyRate ?? body.hourly_rate;
       const hourlyRate =
         rateIn === "" || rateIn == null || Number.isNaN(Number(rateIn)) ? 0 : Number(rateIn);
+      const isMain = (body.isMain ?? body.is_main) ? 1 : 0;
 
       if (!firstName && !lastName) return json({ ok: false, error: "Enter a name" }, 400);
 
       const id = crypto.randomUUID();
       await env.DB.prepare(`
-        INSERT INTO people (id, first_name, last_name, company, purpose, archived, hourly_rate)
-        VALUES (?, ?, ?, ?, ?, 0, ?)
-      `).bind(id, firstName, lastName, company, purpose, hourlyRate).run();
+        INSERT INTO people (id, first_name, last_name, company, purpose, archived, hourly_rate, is_main)
+        VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+      `).bind(id, firstName, lastName, company, purpose, hourlyRate, isMain).run();
 
       return json({ ok: true, id });
     }
@@ -744,6 +747,8 @@ export default {
         fuelIn === "" || fuelIn == null || Number.isNaN(Number(fuelIn))
           ? null
           : Number(fuelIn);
+
+      const isMainIn = body.isMain ?? body.is_main;
 
       const sets = [];
       const binds = [];
@@ -787,6 +792,11 @@ export default {
       if (fuelIn !== undefined) {
         sets.push("fuel_rate = ?");
         binds.push(fuelRate);
+      }
+
+      if (isMainIn !== undefined) {
+        sets.push("is_main = ?");
+        binds.push(isMainIn ? 1 : 0);
       }
 
       if (!sets.length) return json({ ok: true, note: "No fields to update" });
@@ -1803,6 +1813,7 @@ export default {
                COALESCE(v.offline_synced,0) AS offline_synced,
                COALESCE(v.unmatched_site,0) AS unmatched_site,
                COALESCE(v.manual_entry,0) AS manual_entry,
+               COALESCE(p.is_main,0) AS is_main,
                v.provided_site_name,
                CASE
                  WHEN COALESCE(v.auto_checkout,0) = 1 THEN 'No Sign Out'

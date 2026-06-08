@@ -618,6 +618,7 @@ export default {
 
     // GET /sites
     if (url.pathname === "/sites" && request.method === "GET") {
+      await ensureOfflineSchema(env);
       const rows = await env.DB.prepare(
         "SELECT * FROM sites ORDER BY site_name ASC"
       ).all();
@@ -629,6 +630,7 @@ export default {
     if (url.pathname === "/update-site" && request.method === "POST") {
       const guard = requireAdmin();
       if (guard) return guard;
+      await ensureOfflineSchema(env);
 
       const { id, siteName, radius, siteRules, category } = await readBody(request);
 
@@ -895,6 +897,7 @@ export default {
     if (url.pathname === "/add-site" && request.method === "POST") {
       const guard = requireAdmin();
       if (guard) return guard;
+      await ensureOfflineSchema(env);
 
       const { siteName, lat, lng, radius, category } = await readBody(request);
 

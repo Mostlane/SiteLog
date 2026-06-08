@@ -972,6 +972,23 @@
   </div>
 </div>
 
+<div id="rateModal" class="modal" style="z-index:1200;">
+  <div class="modal-content" style="width:min(360px,100%);">
+    <div class="modal-header"><div class="modal-title">Set hourly rate</div><button class="btn-ghost btn-sm" onclick="closeRateModal()">Close</button></div>
+    <div class="modal-body">
+      <p style="margin:0 0 12px;">Hourly rate for <strong id="rateModalName"></strong></p>
+      <div class="field-stack"><span class="field-label">Rate (&pound; per hour)</span>
+        <input id="rateModalInput" type="number" step="0.01" min="0" placeholder="e.g. 25" onkeydown="if(event.key==='Enter')saveRateModal()">
+      </div>
+      <div id="rateModalError" style="display:none;color:#dc2626;font-size:12.5px;margin-top:8px;"></div>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn-ghost btn-sm" onclick="closeRateModal()">Cancel</button>
+        <button class="btn-primary btn-sm" id="rateModalSaveBtn" onclick="saveRateModal()">Save rate</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="addLogModal" class="modal">
   <div class="modal-content" style="width:min(460px,100%);">
     <div class="modal-header"><div><div class="modal-title">Add Log</div><div class="modal-subtitle">Manually record time for a person</div></div><button class="btn-ghost btn-sm" onclick="closeAddLogModal()">Close</button></div>
@@ -2344,7 +2361,7 @@ function renderJobCosting() {
     const people = Object.keys(sites[siteKey]).map(pKey => {
       const p = sites[siteKey][pKey];
       const eng = findEngineer(p.visits[0].person_id, p.name, p.company);
-      return Object.assign({ name: p.name, company: p.company }, costEngineerVisits(p.visits, eng));
+      return Object.assign({ name: p.name, company: p.company, engId: eng ? eng.id : "" }, costEngineerVisits(p.visits, eng));
     }).sort((a, b) => b.total - a.total);
     return {
       siteKey, people,
@@ -2388,7 +2405,11 @@ function renderJobCosting() {
         : '';
       return '<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 12px;border-top:1px solid var(--border,rgba(0,0,0,0.08));">' +
           '<div style="min-width:0;"><div style="font-weight:600;">' + escapeHtml(p.name) +
-            (p.rate === 0 && p.costedVisits > 0 ? ' <span style="color:#b45309;font-size:11px;">(no rate set)</span>' : '') + '</div>' +
+            (p.rate === 0 && p.costedVisits > 0
+              ? (p.engId
+                  ? ' <span onclick="openRateModal(\'' + jsAttr(p.engId) + '\',\'' + jsAttr(p.name) + '\')" style="color:#b45309;font-size:11px;cursor:pointer;text-decoration:underline;font-weight:600;">+ set rate</span>'
+                  : ' <span style="color:#b45309;font-size:11px;">(no rate set)</span>')
+              : '') + '</div>' +
             (p.company ? '<div style="font-size:11.5px;color:var(--label3);">' + escapeHtml(p.company) + '</div>' : '') + extra +
           '</div>' +
           '<div style="margin-left:auto;text-align:right;white-space:nowrap;">' +
@@ -2452,6 +2473,48 @@ function exportJobCostingPdf() {
   setTimeout(done, 60000);
   document.body.classList.add("printing-jobcosting");
   window.print();
+}
+// Inline rate editor reachable from the Job Costing "+ set rate" links, so a
+// missing rate can be fixed without leaving the costing view.
+let rateModalEngId = null;
+function openRateModal(engId, name) {
+  rateModalEngId = engId;
+  document.getElementById("rateModalName").textContent = name || "this engineer";
+  document.getElementById("rateModalInput").value = "";
+  document.getElementById("rateModalError").style.display = "none";
+  document.getElementById("rateModalSaveBtn").disabled = false;
+  document.getElementById("rateModal").style.display = "flex";
+  setTimeout(() => document.getElementById("rateModalInput").focus(), 50);
+}
+function closeRateModal() {
+  document.getElementById("rateModal").style.display = "none";
+  rateModalEngId = null;
+}
+async function saveRateModal() {
+  const err = document.getElementById("rateModalError");
+  const raw = (document.getElementById("rateModalInput").value || "").trim();
+  const rate = Number(raw);
+  if (raw === "" || !Number.isFinite(rate) || rate < 0) {
+    err.textContent = "Enter a valid hourly rate."; err.style.display = "block"; return;
+  }
+  if (!rateModalEngId) { err.textContent = "No engineer selected."; err.style.display = "block"; return; }
+  const btn = document.getElementById("rateModalSaveBtn");
+  btn.disabled = true;
+  try {
+    const r = await fetch(API_BASE + "/update-engineer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: rateModalEngId, hourlyRate: rate })
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || d.ok === false) throw new Error(d.error || "Save failed");
+  } catch (e) {
+    err.textContent = "Could not save: " + e.message; err.style.display = "block";
+    btn.disabled = false; return;
+  }
+  closeRateModal();
+  await fetchEngineers();   // refresh rates so findEngineer picks up the new value
+  renderJobCosting();       // recompute the affected site/engineer totals
 }
 
 /* ── ADD LOG (manual time entry) ── */

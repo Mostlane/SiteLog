@@ -2058,34 +2058,31 @@ function clearTimesheetFilters() {
   renderTimesheetsModal();
 }
 function exportTimesheetsPdf() {
-  const el = document.getElementById("timesheetsPdfRoot");
-  // Expand every collapsed engineer block so they're all included in the PDF
-  const accs = [...el.querySelectorAll(".ts-acc")];
-  const wasOpen = accs.map(a => a.classList.contains("open"));
-  accs.forEach(a => a.classList.add("open"));
-  const mh = el.style.maxHeight;
-  const mo = el.style.overflow;
-  el.style.maxHeight = "none";
-  el.style.overflow = "visible";
+  const src = document.getElementById("timesheetsBody");
+  if (!src || !src.querySelector(".tc-card")) { alert("No timesheets to export for the current filters."); return; }
 
-  // ts-exporting hides all the on-screen admin chrome so the PDF is just the
-  // clean weekly charts (portrait, one employee-week per block).
-  el.classList.add("ts-exporting");
+  // html2canvas is unreliable capturing the live modal (position:fixed +
+  // scroll + flex often render blank). Instead clone just the charts into a
+  // clean, normally-positioned container, strip the on-screen-only chrome, and
+  // render that.
+  const clone = src.cloneNode(true);
+  clone.querySelectorAll(".no-pdf").forEach(n => n.remove());
+  clone.querySelectorAll(".ts-acc").forEach(n => n.classList.add("open"));
+  clone.querySelectorAll(".ts-eng-body").forEach(n => { n.style.display = "block"; });
 
-  const restore = () => {
-    el.classList.remove("ts-exporting");
-    el.style.maxHeight = mh;
-    el.style.overflow = mo;
-    accs.forEach((a, i) => { if (!wasOpen[i]) a.classList.remove("open"); });
-  };
+  const root = document.createElement("div");
+  root.style.cssText = "position:absolute;left:-10000px;top:0;width:780px;background:#fff;padding:18px;";
+  root.appendChild(clone);
+  document.body.appendChild(root);
+  const cleanup = () => { if (root.parentNode) root.parentNode.removeChild(root); };
 
   html2pdf().set({
     margin: 0.3,
     filename: "SiteLog_Timesheets.pdf",
-    pagebreak: { mode: ["css", "legacy"] },
+    pagebreak: { mode: ["css", "legacy"], avoid: ".tc-card" },
     jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
-    html2canvas: { scale: 2, useCORS: true, scrollY: 0, windowWidth: el.scrollWidth }
-  }).from(el).save().then(restore).catch(restore);
+    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", windowWidth: 820 }
+  }).from(root).save().then(cleanup).catch(cleanup);
 }
 function toggleTsEng(id) {
   const el = document.getElementById(id);

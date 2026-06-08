@@ -373,15 +373,24 @@
     background:var(--border-heavy);
   }
   .modal-header{
-    flex-wrap:nowrap;
+    flex-wrap:wrap;
+    row-gap:8px;
     gap:10px;
     padding:14px 16px 12px;
     border-radius:18px 18px 0 0;
     flex-shrink:0;
   }
+  /* Keep multi-button header actions reachable: wrap to a second row and stay
+     right-aligned rather than overflowing off-screen. */
+  .modal-header > div:last-child{flex-wrap:wrap;justify-content:flex-end;}
   .modal-title{font-size:17px;font-weight:700;}
   .modal-subtitle{font-size:12.5px;}
-  .modal-body{padding:14px 14px 18px 14px;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  /* Scroll the body in BOTH directions so wide content (tables, grids) can be
+     reached horizontally instead of being clipped. */
+  .modal-body{padding:14px 14px 18px 14px;flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+  /* Wide timesheet cards clip their table (rounded corners); let each scroll
+     horizontally so the Hours/Pay columns are reachable on a phone. */
+  .modal-body .tc-card{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 
   /* Modal-actions becomes a sticky bottom bar - always reachable */
   .modal-actions{

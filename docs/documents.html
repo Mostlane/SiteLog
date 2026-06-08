@@ -622,7 +622,9 @@ async function onSiteChange() {
 
   if (currentSiteName) {
     try {
-      const res = await fetch(API + "/on-site?site=" + enc(currentSiteName));
+      // Everyone signed into this site now OR previously, so document name
+      // fields suggest the right people (currently-on-site listed first).
+      const res = await fetch(API + "/site-people?site=" + enc(currentSiteName));
       const data = await res.json();
       onSitePeople = data.people || [];
     } catch (e) {

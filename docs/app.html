@@ -300,6 +300,27 @@
 .dash-card-label { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
 .dash-card-sub { font-size: 12px; color: var(--muted); }
 
+.dash-docs-card { width: 100%; max-width: 520px; background: #fff; border-radius: 16px; padding: 14px 16px 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); margin-bottom: 14px; }
+.dash-docs-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.ddoc-item { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid var(--border); cursor: pointer; }
+.ddoc-item:first-of-type { border-top: none; }
+.ddoc-item:active { opacity: 0.6; }
+.ddoc-main { flex: 1; min-width: 0; }
+.ddoc-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.ddoc-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.ddoc-pill { flex-shrink: 0; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.4px; }
+.ddoc-pill.open { background: rgba(217,119,6,0.12); color: #b45309; }
+.ddoc-pill.closed { background: rgba(22,163,74,0.12); color: #15803d; }
+
+.docdetail-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); z-index: 30000; display: flex; align-items: flex-end; justify-content: center; padding: 0; }
+.docdetail-card { width: 100%; max-width: 520px; background: #fff; border-radius: 20px 20px 0 0; padding: 20px 18px calc(18px + env(safe-area-inset-bottom,0px)); max-height: 80vh; overflow-y: auto; }
+.docdetail-head { font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 12px; }
+.docdetail-row { display: flex; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 14px; }
+.docdetail-row:first-of-type { border-top: none; }
+.docdetail-row .ddk { flex-shrink: 0; width: 38%; color: var(--muted); }
+.docdetail-row .ddv { flex: 1; font-weight: 600; color: var(--text); }
+.docdetail-close { width: 100%; margin-top: 16px; padding: 14px; border: none; border-radius: 12px; background: var(--blue); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; }
+
 /* DETAIL VIEWS */
 .detail-header { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 520px; margin-bottom: 14px; padding-top: 4px; }
 .detail-back { background: rgba(255,255,255,0.85); border: none; padding: 8px 14px; border-radius: 10px; font-size: 14px; font-weight: 600; color: var(--blue); cursor: pointer; flex-shrink: 0; }
@@ -488,6 +509,10 @@ text-align: center;
         <div class="dash-card-label">Summary</div>
         <div class="dash-card-sub">By site &amp; period</div>
       </div>
+    </div>
+    <div class="dash-docs-card" id="dashDocsCard" style="display:none;">
+      <div class="dash-docs-title">&#128196; My Documents <span id="dashDocsSite" style="font-weight:500;color:var(--muted);font-size:12px;"></span></div>
+      <div id="dashDocsList"></div>
     </div>
     <div class="status-card" id="appCard" style="padding:0;overflow:hidden;">
       <div id="appMap" style="height:180px;border-radius:18px;"></div>
@@ -1762,6 +1787,7 @@ function dashSetState(state, siteName, visitId, checkInTime) {
     if (dashCheckInTime) startDurationTicker(dashCheckInTime);
     if (onSiteSub) onSiteSub.textContent = siteName || "View";
     loadOnSiteCount(siteName);
+    loadMyDocuments(siteName);
   } else if (state === "ready") {
     dot.classList.add("ready");
     label.textContent   = "Site found";
@@ -1771,6 +1797,7 @@ function dashSetState(state, siteName, visitId, checkInTime) {
     dashCurrentSite      = siteName;
     if (onSiteSub) onSiteSub.textContent = siteName || "View";
     loadOnSiteCount(siteName);
+    loadMyDocuments(siteName);
   } else {
     dot.classList.add("unknown");
     label.textContent = "Not on site";
@@ -1778,6 +1805,7 @@ function dashSetState(state, siteName, visitId, checkInTime) {
     dashCheckedIn     = false;
     dashCurrentSite   = null;
     if (onSiteSub) onSiteSub.textContent = "\u2014";
+    var _dc = document.getElementById("dashDocsCard"); if (_dc) _dc.style.display = "none";
     // Offer a manual check-in only if we actually have a location to record.
     if (btnUnmatched && lastLocation && lastLocation.lat != null) btnUnmatched.style.display = "block";
   }
@@ -1793,6 +1821,60 @@ async function loadOnSiteCount(siteName) {
     if (el) el.textContent = count + " person" + (count !== 1 ? "s" : "") + " on site";
   } catch(e) {}
 }
+
+// Documents at this site that the signed-in person is listed on.
+async function loadMyDocuments(siteName) {
+  var card = document.getElementById("dashDocsCard");
+  var list = document.getElementById("dashDocsList");
+  var siteEl = document.getElementById("dashDocsSite");
+  if (!card || !list) return;
+  if (!siteName || !deviceToken) { card.style.display = "none"; return; }
+  try {
+    var res  = await fetchWithTimeout(API + "/my-documents?deviceToken=" + encodeURIComponent(deviceToken) + "&site=" + encodeURIComponent(siteName));
+    var data = await res.json();
+    var docs = data.documents || [];
+    if (!docs.length) { card.style.display = "none"; return; }
+    if (siteEl) siteEl.textContent = "· " + siteName;
+    list.innerHTML = docs.map(dashDocItem).join("");
+    card.style.display = "block";
+  } catch(e) { card.style.display = "none"; }
+}
+function dashDocItem(d) {
+  var tl = { induction: "📋 Site Induction", hwp: "🔥 Hot Works Permit", tbt: "💬 Toolbox Talk" };
+  var date = (d.issued_at || "").slice(0, 10);
+  var pill = d.type === "hwp"
+    ? (d.status === "closed" ? '<span class="ddoc-pill closed">Closed</span>' : '<span class="ddoc-pill open">Open</span>')
+    : "";
+  var id = String(d.id || "").replace(/'/g, "\\'");
+  return '<div class="ddoc-item" onclick="dashViewDoc(\'' + id + '\')">' +
+    '<div class="ddoc-main"><div class="ddoc-title">' + (tl[d.type] || escapeHtml(d.type || "Document")) + '</div>' +
+    '<div class="ddoc-meta">' + (d.doc_number ? '<strong>' + escapeHtml(d.doc_number) + '</strong> &middot; ' : '') + escapeHtml(date) + '</div></div>' + pill + '</div>';
+}
+async function dashViewDoc(id) {
+  try {
+    var res = await fetchWithTimeout(API + "/documents/single?id=" + encodeURIComponent(id));
+    var data = await res.json();
+    if (data && data.document) showDocDetail(data.document);
+  } catch(e) {}
+}
+function showDocDetail(d) {
+  var fd = d.form_data || {};
+  var tl = { induction: "Site Induction", hwp: "Hot Works Permit", tbt: "Toolbox Talk" }[d.type] || d.type;
+  var atts = (d.attendees || []).map(function(a){ return a.person_name; }).filter(Boolean).join(", ");
+  var rows = [["Document", d.doc_number || "—"], ["Type", tl], ["Site", d.site_name || "—"], ["Date", (d.issued_at || "").slice(0, 10)]];
+  if (d.type === "hwp") { rows.push(["Permit No", fd.permit_no || d.permit_no || "—"]); rows.push(["Status", d.status === "closed" ? "Closed out" : "Open"]); }
+  if (d.type === "tbt" && fd.title) rows.push(["Talk", fd.title]);
+  if (fd.project) rows.push(["Project", fd.project]);
+  if (atts) rows.push(["On this document", atts]);
+  var body = rows.map(function(r){ return '<div class="docdetail-row"><span class="ddk">' + escapeHtml(r[0]) + '</span><span class="ddv">' + escapeHtml(String(r[1])) + '</span></div>'; }).join("");
+  var host = document.getElementById("docDetailHost") || document.createElement("div");
+  host.id = "docDetailHost";
+  host.innerHTML = '<div class="docdetail-backdrop" onclick="closeDocDetail()"><div class="docdetail-card" onclick="event.stopPropagation();">' +
+    '<div class="docdetail-head">' + escapeHtml(tl) + '</div>' + body +
+    '<button class="docdetail-close" onclick="closeDocDetail()">Close</button></div></div>';
+  document.body.appendChild(host);
+}
+function closeDocDetail() { var h = document.getElementById("docDetailHost"); if (h) h.remove(); }
 
 // DASHBOARD NAV
 function dashShowOnSite() {

@@ -1831,11 +1831,17 @@ async function loadMyDocuments(siteName) {
   if (!siteName || !deviceToken) { card.style.display = "none"; return; }
   try {
     var res  = await fetchWithTimeout(API + "/my-documents?deviceToken=" + encodeURIComponent(deviceToken) + "&site=" + encodeURIComponent(siteName));
+    // The dashboard may have moved on (e.g. to "Not on site") while this was in
+    // flight — don't resurrect the card for a site we're no longer at.
+    if (siteName !== dashCurrentSite) return;
+    if (!res.ok) { card.style.display = "none"; return; }
     var data = await res.json();
+    if (siteName !== dashCurrentSite) return;
     var docs = data.documents || [];
-    if (!docs.length) { card.style.display = "none"; return; }
     if (siteEl) siteEl.textContent = "· " + siteName;
-    list.innerHTML = docs.map(dashDocItem).join("");
+    list.innerHTML = docs.length
+      ? docs.map(dashDocItem).join("")
+      : '<div style="padding:10px 0;font-size:13px;color:var(--muted);">No documents linked to you at this site yet.</div>';
     card.style.display = "block";
   } catch(e) { card.style.display = "none"; }
 }

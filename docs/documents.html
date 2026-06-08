@@ -555,7 +555,7 @@
 
 <script>
 const API = "https://api.site-log.co.uk";
-(function(){ var of = window.fetch.bind(window); window.fetch = function(input, init){ var u = typeof input === "string" ? input : (input && input.url) || ""; if (u.indexOf(API) === 0) { init = Object.assign({}, init); init.credentials = "include"; } return of(input, init); }; })();
+(function(){ var of = window.fetch.bind(window); window.fetch = function(input, init){ var u = typeof input === "string" ? input : (input && input.url) || ""; if (u.indexOf(API) === 0) { init = Object.assign({}, init); init.credentials = "include"; var sec = null; try { sec = sessionStorage.getItem("ml_admin_secret") || localStorage.getItem("ml_admin_secret"); } catch (e) {} if (sec) { var h = new Headers(init.headers || {}); if (!h.has("x-admin-secret")) h.set("x-admin-secret", sec); init.headers = h; } } return of(input, init); }; })();
 
 // STATE
 let sitesData = [];
@@ -1185,6 +1185,7 @@ async function viewDoc(id) {
     document.getElementById("viewSub").textContent = (doc.doc_number ? doc.doc_number + " · " : "") + (doc.site_name || "") + " · " + (doc.issued_at || "").slice(0, 10);
     document.getElementById("viewBody").innerHTML = buildPreview(doc);
     document.getElementById("viewModal").classList.add("open");
+    prefetchDocImages(doc); // measure images now so Export can save synchronously (iOS)
     renderViewLinks(doc);
   } catch (e) {
     alert("Failed to load document.");
@@ -1393,18 +1394,29 @@ function measureImage(dataUrl) {
   });
 }
 
-async function exportPdf() {
+// Pre-measure the logo + every signature so the export can run synchronously.
+// iOS/Safari only allows a download in the same task as the user tap; awaiting
+// image loads inside the click handler loses that activation and the save is
+// blocked. We measure when the document is opened instead.
+async function prefetchDocImages(doc) {
+  await measureImage(logoDataUrl);
+  for (const a of (doc.attendees || [])) { if (a.signature) await measureImage(a.signature); }
+  if (doc.manager_signature) await measureImage(doc.manager_signature);
+}
+
+// Synchronous — must stay sync so pdf.save() fires within the Export click.
+function exportPdf() {
   if (!viewDocData) return;
   if (!(window.jspdf && window.jspdf.jsPDF)) { alert("PDF engine not loaded — please reload the page and try again."); return; }
   try {
-    const pdf = await generateDocPdf(viewDocData);
+    const pdf = generateDocPdf(viewDocData);
     pdf.save(docFileName(viewDocData) + ".pdf");
   } catch (e) {
     alert("Could not generate the PDF: " + (e && e.message ? e.message : e));
   }
 }
 
-async function generateDocPdf(doc) {
+function generateDocPdf(doc) {
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF({ unit: "mm", format: "a4", compress: true });
   const PW = 210, M = 12, CW = PW - 2 * M, PAD = 1.6, MINROW = 6.4, PH = 297;
@@ -1414,11 +1426,12 @@ async function generateDocPdf(doc) {
   const fd = doc.form_data || {};
   const atts = doc.attendees || [];
 
-  // Pre-measure every embedded image so signatures keep their aspect ratio.
-  const logoSize = await measureImage(logoDataUrl);
+  // Image sizes pre-measured by prefetchDocImages (on view). Use cache only so
+  // this stays synchronous; an unmeasured image simply renders without it.
+  const logoSize = logoDataUrl ? (_imgSizeCache[logoDataUrl] || null) : null;
   const sigSizes = {};
-  for (const a of atts) { if (a.signature) sigSizes[a.signature] = await measureImage(a.signature); }
-  if (doc.manager_signature) sigSizes[doc.manager_signature] = await measureImage(doc.manager_signature);
+  for (const a of atts) { if (a.signature) sigSizes[a.signature] = _imgSizeCache[a.signature] || null; }
+  if (doc.manager_signature) sigSizes[doc.manager_signature] = _imgSizeCache[doc.manager_signature] || null;
 
   function setText(size, bold, color) { pdf.setFont("helvetica", bold ? "bold" : "normal"); pdf.setFontSize(size); pdf.setTextColor(color ? color[0] : TX[0], color ? color[1] : TX[1], color ? color[2] : TX[2]); }
   function wrap(text, w, size, bold) { setText(size, bold); return pdf.splitTextToSize(String(text == null || text === "" ? "—" : text), Math.max(2, w - 2 * PAD)); }

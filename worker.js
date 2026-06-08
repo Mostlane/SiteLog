@@ -685,7 +685,9 @@ export default {
                COALESCE(hourly_rate,0) as hourly_rate,
                COALESCE(travel_status,'not_configured') as travel_status,
                travel_cap_type, travel_cap_value, fuel_rate,
-               COALESCE(is_main,0) as is_main
+               COALESCE(is_main,0) as is_main,
+               (SELECT COUNT(*) FROM visits WHERE visits.person_id = people.id) AS visit_count,
+               (SELECT COUNT(*) FROM devices WHERE devices.person_id = people.id) AS device_count
         FROM people
         ORDER BY first_name ASC, last_name ASC
       `).all();
@@ -875,6 +877,47 @@ export default {
         .bind(id).run();
 
       return json({ ok: true, message: "Engineer deleted." });
+    }
+
+    // POST /merge-people
+    // Merge one or more duplicate people into a single primary person: all their
+    // visits and devices are re-pointed to the primary, then the duplicate rows
+    // are deleted. Mirrors the device-transfer approval flow, generalised.
+    if (url.pathname === "/merge-people" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+
+      const body = await readBody(request);
+      const primaryId = body?.primaryId;
+      const mergeIds = Array.isArray(body?.mergeIds)
+        ? [...new Set(body.mergeIds.filter(x => x && x !== primaryId))]
+        : [];
+
+      if (!primaryId) return json({ ok: false, error: "Missing primaryId" }, 400);
+      if (!mergeIds.length) return json({ ok: false, error: "No people to merge" }, 400);
+
+      const primary = await env.DB.prepare("SELECT id FROM people WHERE id = ?").bind(primaryId).first();
+      if (!primary) return json({ ok: false, error: "Primary person not found" }, 404);
+
+      const placeholders = mergeIds.map(() => "?").join(",");
+
+      const moved = await env.DB.prepare(
+        `UPDATE visits SET person_id = ? WHERE person_id IN (${placeholders})`
+      ).bind(primaryId, ...mergeIds).run();
+
+      // Re-point the duplicates' devices to the primary so either phone keeps
+      // working under the one person going forward.
+      await env.DB.prepare(
+        `UPDATE devices SET person_id = ? WHERE person_id IN (${placeholders})`
+      ).bind(primaryId, ...mergeIds).run();
+
+      await env.DB.prepare(
+        `DELETE FROM people WHERE id IN (${placeholders})`
+      ).bind(...mergeIds).run();
+
+      const visitsMoved = (moved && moved.meta && moved.meta.changes) || 0;
+      return json({ ok: true, merged: mergeIds.length, visitsMoved });
     }
 
     // POST /reset-device

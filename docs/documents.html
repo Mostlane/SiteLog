@@ -353,6 +353,21 @@
       .doc-item-actions { width: 100%; }
       .doc-item-actions button { flex: 1; justify-content: center; }
     }
+
+    /* PDF export via the browser's native print engine (reliable vector output)
+       instead of an html2canvas screenshot, which rendered blank on iOS Safari.
+       A print-only #docPrintArea holds a clean clone of the document; @media
+       print reveals only it. The user picks "Save as PDF". */
+    #docPrintArea { display: none; }
+    @media print {
+      body.printing-doc { background: #fff !important; }
+      body.printing-doc * { visibility: hidden !important; }
+      body.printing-doc #docPrintArea,
+      body.printing-doc #docPrintArea * { visibility: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      body.printing-doc #docPrintArea { display: block !important; position: absolute; left: 0; top: 0; width: 100%; padding: 0; }
+      body.printing-doc #docPrintArea .doc-page { box-shadow: none !important; margin: 0 auto !important; break-inside: avoid; page-break-inside: avoid; }
+    }
+    @media print { @page { size: A4 portrait; margin: 12mm; } }
   </style>
 </head>
 <body>
@@ -1271,98 +1286,44 @@ function previewTBT(doc, fd, atts) {
   return '<div style="' + PF + 'font-size:11px;color:#1d1d1f;">' + pdfDocHeader("Toolbox Talk") + pdfSecHead("Session Details") + pdfGrid2([["Project", fd.project],["Site Address", fd.address || doc.site_address || ""],["Site Manager", fd.site_manager],["Date", fd.date],["Talk Title", fd.title],["Delivered By", fd.delivered_by],["Duration", fd.duration ? fd.duration + " mins" : ""],["",""]]) + pdfGap + pdfSecHead("Talk Content") + pdfGrid1([["Summary of Talk", fd.summary],["Key Points Raised", fd.key_points],["Site-Specific Hazards", fd.hazards]]) + pdfGap + pdfSecHead("Attendees") + attendeeRows + pdfGap + pdfSecHead("Delivered By — Manager Sign-Off") + pdfSigRow("Signature", fd.delivered_by, doc.manager_signature) + '</div>';
 }
 
-// ── FIXED exportPdf — iOS Safari compatible ──
-async function exportPdf() {
+// Export via the browser's native print engine. The old html2canvas/html2pdf
+// path rendered blank white on iOS Safari; this clones the document into a
+// print-only #docPrintArea that @media print reveals, then prints — the user
+// picks "Save as PDF". Reliable vector output, same approach as the timesheets.
+function exportPdf() {
   if (!viewDocData) return;
 
-  const fn = docFileName(viewDocData) + ".pdf";
+  const old = document.getElementById("docPrintArea");
+  if (old) old.remove();
 
-  // Clean up any leftover elements from a previous export
-  const oldHost = document.getElementById("pdfExportHost");
-  if (oldHost) oldHost.remove();
-  const oldCover = document.getElementById("pdfExportCover");
-  if (oldCover) oldCover.remove();
+  const area = document.createElement("div");
+  area.id = "docPrintArea";
+  area.innerHTML = buildPreview(viewDocData);
+  document.body.appendChild(area);
 
-  // 1. Full-screen white cover at z-index 99998
-  //    Hides the page behind the render target — no need to touch the modal
-  const cover = document.createElement("div");
-  cover.id = "pdfExportCover";
-  cover.style.cssText = "position:fixed;inset:0;background:#ffffff;z-index:99998;pointer-events:none;";
-  document.body.appendChild(cover);
+  const prevTitle = document.title;
+  const done = () => {
+    document.body.classList.remove("printing-doc");
+    document.title = prevTitle;
+    const a = document.getElementById("docPrintArea");
+    if (a) a.remove();
+    window.removeEventListener("afterprint", done);
+  };
+  window.addEventListener("afterprint", done);
+  setTimeout(done, 60000); // fallback cleanup if afterprint never fires (some mobile browsers)
 
-  // 2. Render target at z-index 99999 — position:fixed top:0 left:0
-  //    Must be visible (not off-screen) so iOS Safari actually paints it
-  const host = document.createElement("div");
-  host.id = "pdfExportHost";
-  host.style.cssText = [
-    "position:fixed",
-    "top:0",
-    "left:0",
-    "width:794px",
-    "background:#ffffff",
-    "padding:0",
-    "margin:0",
-    "z-index:99999",
-    "display:block",
-    "visibility:visible",
-    "opacity:1",
-    "pointer-events:none",
-    "transform:none",
-    "overflow:visible"
-  ].join(";");
-  host.innerHTML = buildPreview(viewDocData);
-  document.body.appendChild(host);
-
-  // 3. Wait 150ms — iOS Safari needs this to fully paint the render target
-  await new Promise(resolve => setTimeout(resolve, 150));
-
-  // 4. Wait for any signature / logo images to load
-  const images = Array.from(host.querySelectorAll("img"));
-  await Promise.all(
-    images.map(img => {
-      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-      return new Promise(resolve => {
-        img.onload = resolve;
-        img.onerror = resolve;
-        setTimeout(resolve, 3000); // safety timeout
-      });
-    })
-  );
-
-  // 5. Short extra pause after images settle
-  await new Promise(resolve => setTimeout(resolve, 80));
-
-  const captureHeight = Math.max(host.scrollHeight, host.offsetHeight, 1123);
-
-  try {
-    await html2pdf().set({
-      margin: [0.35, 0.35, 0.35, 0.35],
-      filename: fn,
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        windowWidth: 794,
-        windowHeight: captureHeight,
-        scrollX: 0,
-        scrollY: 0
-      },
-      jsPDF: {
-        unit: "in",
-        format: "a4",
-        orientation: "portrait"
-      },
-      pagebreak: {
-        mode: ["css", "legacy"]
-      }
-    }).from(host).save();
-  } finally {
-    // Always clean up regardless of success or error
-    host.remove();
-    cover.remove();
-  }
+  // Wait for signatures / logo images to load before printing.
+  const imgs = Array.from(area.querySelectorAll("img"));
+  Promise.all(imgs.map(img =>
+    (img.complete && img.naturalWidth > 0)
+      ? Promise.resolve()
+      : new Promise(res => { img.onload = res; img.onerror = res; setTimeout(res, 3000); })
+  )).then(() => {
+    // Browsers use document.title as the default "Save as PDF" filename.
+    document.title = docFileName(viewDocData);
+    document.body.classList.add("printing-doc");
+    window.print();
+  });
 }
 
 // HWP CLOSEOUT

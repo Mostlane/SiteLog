@@ -187,36 +187,41 @@
     .ts-eng-body{display:none;}
     .ts-acc.open .ts-eng-body{display:block;}
 
-    /* ── Weekly timesheet chart (clean, print-friendly) ── */
-    .tc-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:22px 24px 18px;margin:16px 0;color:#0f172a;}
-    .tc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:16px;}
-    .tc-title{font-size:25px;font-weight:800;letter-spacing:3px;color:#0f172a;line-height:1;}
-    .tc-sub{font-size:11.5px;color:#64748b;margin-top:5px;letter-spacing:0.5px;text-transform:uppercase;}
-    .tc-id{margin-top:13px;}
-    .tc-id-row{display:flex;gap:8px;font-size:13.5px;margin-bottom:3px;align-items:baseline;}
-    .tc-id-label{color:#64748b;min-width:84px;text-transform:uppercase;font-size:10.5px;letter-spacing:0.6px;}
-    .tc-id-val{font-weight:600;color:#0f172a;}
-    .tc-stats{display:flex;gap:10px;flex-wrap:wrap;}
-    .tc-stat{background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:11px 16px;text-align:center;min-width:84px;}
-    .tc-stat-val{font-size:21px;font-weight:800;color:#004a99;line-height:1;display:block;}
+    /* ── Weekly timesheet chart (branded to the portal) ── */
+    .tc-card{background:#fff;border:1px solid var(--border);border-radius:14px;overflow:hidden;margin:16px 0;color:#0f172a;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
+    .tc-head-band{background:linear-gradient(135deg,#004a99,#003a78);color:#fff;padding:18px 22px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;}
+    .tc-brand{display:flex;align-items:center;gap:14px;}
+    .tc-logo{height:40px;width:auto;border-radius:7px;background:#fff;padding:5px 7px;box-sizing:border-box;}
+    .tc-title{font-size:23px;font-weight:800;letter-spacing:3px;color:#fff;line-height:1;}
+    .tc-sub{font-size:10.5px;color:#bcd3ef;margin-top:5px;letter-spacing:0.5px;text-transform:uppercase;}
+    .tc-who{text-align:right;}
+    .tc-who-name{font-size:17px;font-weight:700;color:#fff;line-height:1.15;}
+    .tc-who-co{font-size:12px;color:#bcd3ef;margin-top:3px;}
+    .tc-stats{display:flex;gap:10px;flex-wrap:wrap;padding:16px 22px 6px;}
+    .tc-stat{background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:11px 16px;text-align:center;min-width:82px;}
+    .tc-stat-val{font-size:20px;font-weight:800;color:#004a99;line-height:1;display:block;}
     .tc-stat.tc-extra .tc-stat-val{color:#d97706;}
     .tc-stat.tc-total .tc-stat-val{color:#0f172a;}
     .tc-stat.tc-travel .tc-stat-val{color:#16a34a;}
+    .tc-stat.tc-pay{background:#004a99;border-color:#004a99;}
+    .tc-stat.tc-pay .tc-stat-val{color:#fff;}
+    .tc-stat.tc-pay .tc-stat-label{color:#bcd3ef;}
     .tc-stat-label{font-size:9.5px;color:#64748b;text-transform:uppercase;letter-spacing:0.6px;margin-top:6px;display:block;}
-    .tc-tbl{width:100%;border-collapse:collapse;font-size:13px;}
-    .tc-tbl th{background:#0f172a;color:#fff;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;padding:9px 12px;text-align:left;}
-    .tc-tbl th:last-child{text-align:right;}
-    .tc-tbl td{padding:9px 12px;border-bottom:1px solid #eef2f6;vertical-align:top;}
+    .tc-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px;}
+    .tc-tbl th{background:#0f172a;color:#fff;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;padding:9px 14px;text-align:left;}
+    .tc-tbl th.tc-r{text-align:right;}
+    .tc-tbl td{padding:9px 14px;border-bottom:1px solid #eef2f6;vertical-align:top;}
     .tc-row-weekend td{background:#fafbfc;}
-    .tc-day{white-space:nowrap;width:92px;}
+    .tc-day{white-space:nowrap;width:88px;}
     .tc-day-name{font-weight:800;color:#0f172a;display:block;font-size:13px;}
     .tc-day-date{font-size:11px;color:#94a3b8;}
     .tc-site{font-weight:600;color:#0f172a;}
     .tc-desc{color:#475569;font-size:12.5px;}
     .tc-flag{color:#dc2626;font-weight:600;}
-    .tc-hours{text-align:right;font-weight:700;color:#0f172a;white-space:nowrap;width:74px;}
+    .tc-hours{text-align:right;font-weight:700;color:#0f172a;white-space:nowrap;width:64px;}
+    .tc-pay-cell{text-align:right;font-weight:700;color:#004a99;white-space:nowrap;width:80px;}
     .tc-foot td{border-top:2px solid #0f172a;border-bottom:none;font-weight:800;padding-top:11px;}
-    .tc-foot .tc-hours{color:#004a99;}
+    .tc-foot .tc-pay-cell{font-size:14px;}
     .ts-detail-wrap{margin:6px 0 4px;}
     /* PDF export: show only the clean charts (+ company titles) */
     .ts-exporting .no-pdf{display:none !important;}
@@ -1822,6 +1827,8 @@ function onTravelStatusChange(id) {
 // grouped under each day; the detailed/editable table lives in buildWeekTable.
 function buildWeekChart(visits, name, company, weekKey, eng) {
   const hasTravelPay = eng && eng.travel_status === "paid";
+  const rate = (eng && eng.hourly_rate != null && Number(eng.hourly_rate) > 0) ? Number(eng.hourly_rate) : 0;
+  const money = n => "£" + (Number(n) || 0).toFixed(2);
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const byDay = {};
   visits.forEach(v => { const d = (v.check_in_at || "").slice(0, 10); (byDay[d] = byDay[d] || []).push(v); });
@@ -1838,7 +1845,7 @@ function buildWeekChart(visits, name, company, weekKey, eng) {
     const dvs = (byDay[key] || []).slice().sort((a, b) => (a.check_in_at || "").localeCompare(b.check_in_at || ""));
 
     if (!dvs.length) {
-      rows += "<tr" + weekendCls + '><td class="tc-day"><span class="tc-day-name">' + dayNames[i] + '</span><span class="tc-day-date">' + escapeHtml(dateLabel) + '</span></td><td></td><td class="tc-desc" style="color:#cbd5e1;">—</td><td class="tc-hours">—</td></tr>';
+      rows += "<tr" + weekendCls + '><td class="tc-day"><span class="tc-day-name">' + dayNames[i] + '</span><span class="tc-day-date">' + escapeHtml(dateLabel) + '</span></td><td></td><td class="tc-desc" style="color:#cbd5e1;">—</td><td class="tc-hours">—</td>' + (rate ? '<td class="tc-pay-cell" style="color:#cbd5e1;">—</td>' : "") + '</tr>';
       continue;
     }
 
@@ -1862,32 +1869,40 @@ function buildWeekChart(visits, name, company, weekKey, eng) {
       rows += "<tr" + weekendCls + ">" + dayCell +
         '<td class="tc-site">' + escapeHtml(v.site_code || "—") + "</td>" +
         '<td class="tc-desc">' + escapeHtml(times) + flag + (pin ? " &nbsp;" + pin : "") + "</td>" +
-        '<td class="tc-hours">' + h.toFixed(2) + "</td></tr>";
+        '<td class="tc-hours">' + h.toFixed(2) + "</td>" +
+        (rate ? '<td class="tc-pay-cell">' + money(h * rate) + "</td>" : "") +
+        "</tr>";
     });
   }
 
+  const travelPaidH = totTravelPaid / 60;
+  const totalPay = rate ? (totTotal + travelPaidH) * rate : 0;
   const travelStat = hasTravelPay
-    ? '<div class="tc-stat tc-travel"><span class="tc-stat-val">' + (totTravelPaid / 60).toFixed(2) + '</span><span class="tc-stat-label">Travel paid</span></div>'
+    ? '<div class="tc-stat tc-travel"><span class="tc-stat-val">' + travelPaidH.toFixed(2) + '</span><span class="tc-stat-label">Travel paid</span></div>'
     : "";
+  const payStat = rate
+    ? '<div class="tc-stat tc-pay"><span class="tc-stat-val">' + money(totalPay) + '</span><span class="tc-stat-label">Pay @ £' + rate.toFixed(2) + '/hr</span></div>'
+    : "";
+  const payTh = rate ? '<th class="tc-r">Pay</th>' : "";
+  const payFoot = rate ? '<td class="tc-pay-cell">' + money(totalPay) + "</td>" : "";
 
   return '<div class="tc-card">' +
-    '<div class="tc-top">' +
-      '<div><div class="tc-title">TIMESHEET</div><div class="tc-sub">Week commencing ' + escapeHtml(formatWeekCommencing(weekKey)) + '</div>' +
-        '<div class="tc-id">' +
-          '<div class="tc-id-row"><span class="tc-id-label">Employee</span><span class="tc-id-val">' + escapeHtml(name) + '</span></div>' +
-          '<div class="tc-id-row"><span class="tc-id-label">Company</span><span class="tc-id-val">' + escapeHtml(company || "—") + '</span></div>' +
-        '</div>' +
+    '<div class="tc-head-band">' +
+      '<div class="tc-brand">' +
+        '<img class="tc-logo" src="Mostlane Logo.jpg" alt="Mostlane" onerror="this.style.display=\'none\'">' +
+        '<div><div class="tc-title">TIMESHEET</div><div class="tc-sub">Week commencing ' + escapeHtml(formatWeekCommencing(weekKey)) + '</div></div>' +
       '</div>' +
-      '<div class="tc-stats">' +
-        '<div class="tc-stat"><span class="tc-stat-val">' + totStd.toFixed(2) + '</span><span class="tc-stat-label">Weekly hrs</span></div>' +
-        '<div class="tc-stat tc-extra"><span class="tc-stat-val">' + totOT.toFixed(2) + '</span><span class="tc-stat-label">Extra hrs</span></div>' +
-        '<div class="tc-stat tc-total"><span class="tc-stat-val">' + totTotal.toFixed(2) + '</span><span class="tc-stat-label">Total hrs</span></div>' +
-        travelStat +
-      '</div>' +
+      '<div class="tc-who"><div class="tc-who-name">' + escapeHtml(name) + '</div><div class="tc-who-co">' + escapeHtml(company || "—") + '</div></div>' +
     '</div>' +
-    '<table class="tc-tbl"><thead><tr><th>Day</th><th>Site</th><th>Description</th><th>Hours</th></tr></thead>' +
+    '<div class="tc-stats">' +
+      '<div class="tc-stat"><span class="tc-stat-val">' + totStd.toFixed(2) + '</span><span class="tc-stat-label">Weekly hrs</span></div>' +
+      '<div class="tc-stat tc-extra"><span class="tc-stat-val">' + totOT.toFixed(2) + '</span><span class="tc-stat-label">Extra hrs</span></div>' +
+      '<div class="tc-stat tc-total"><span class="tc-stat-val">' + totTotal.toFixed(2) + '</span><span class="tc-stat-label">Total hrs</span></div>' +
+      travelStat + payStat +
+    '</div>' +
+    '<table class="tc-tbl"><thead><tr><th>Day</th><th>Site</th><th>Description</th><th class="tc-r">Hours</th>' + payTh + '</tr></thead>' +
     '<tbody>' + rows + '</tbody>' +
-    '<tfoot><tr class="tc-foot"><td colspan="3">Weekly total' + (hasTravelPay ? ' &nbsp;·&nbsp; + ' + (totTravelPaid / 60).toFixed(2) + 'h paid travel' : "") + '</td><td class="tc-hours">' + totTotal.toFixed(2) + '</td></tr></tfoot>' +
+    '<tfoot><tr class="tc-foot"><td colspan="3">Weekly total' + (hasTravelPay ? ' &nbsp;·&nbsp; + ' + travelPaidH.toFixed(2) + 'h paid travel' : "") + '</td><td class="tc-hours">' + totTotal.toFixed(2) + '</td>' + payFoot + '</tr></tfoot>' +
     '</table>' +
     '</div>';
 }

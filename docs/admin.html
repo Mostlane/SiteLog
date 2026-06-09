@@ -1350,7 +1350,8 @@ function openManualCheckoutModal(id, name, checkIn) {
   manualCheckoutId = id;
   manualCheckoutCheckIn = checkIn;
   document.getElementById("manualCheckoutText").innerText = "Sign out " + name + " (checked in " + toLocal(checkIn) + ")";
-  document.getElementById("manualCheckoutTime").value = "";
+  const now = new Date();
+  document.getElementById("manualCheckoutTime").value = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
   document.getElementById("manualCheckoutModal").style.display = "flex";
 }
 function closeManualCheckoutModal() {
@@ -1366,16 +1367,18 @@ async function confirmManualCheckout() {
   }
   const ci = parseStoredTs(manualCheckoutCheckIn);
   if (!ci) { alert("Could not read the check-in time."); return; }
-  const yyyy = ci.getUTCFullYear();
-  const mm = String(ci.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(ci.getUTCDate()).padStart(2, "0");
-  const manualTime = yyyy + "-" + mm + "-" + dd + " " + tv + ":00";
+  // The entered time is LOCAL — pair it with the check-in's local date and
+  // convert to UTC for storage. (It was previously treated as UTC, which under
+  // BST read an hour ahead and falsely tripped the "future" guard.)
+  const dateStr = ci.getFullYear() + "-" + String(ci.getMonth() + 1).padStart(2, "0") + "-" + String(ci.getDate()).padStart(2, "0");
+  const manualTime = localToUtcSql(dateStr, tv);
+  if (!manualTime) { alert("Invalid time."); return; }
   const mo = parseStoredTs(manualTime);
-  if (mo <= ci) {
+  if (!mo || mo <= ci) {
     alert("Sign out time must be after check-in time.");
     return;
   }
-  if (mo > new Date()) {
+  if (mo.getTime() > Date.now() + 60000) {
     alert("Sign out time cannot be in the future.");
     return;
   }

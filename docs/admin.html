@@ -1218,7 +1218,7 @@ function parseStoredTs(ts) {
 function toLocal(ts) {
   if (!ts) return "-";
   const d = parseStoredTs(ts);
-  return d ? d.toLocaleString("en-GB") : ts;
+  return d ? (formatDMY(d) + ", " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })) : ts;
 }
 function formatTimeOnly(ts) {
   if (!ts) return "-";
@@ -1243,6 +1243,16 @@ function nameOf(v) {
 function fmtDay(d) {
   if (!d || d.length < 10) return d || "-";
   return d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(2, 4);
+}
+// DD/MM/YY for any date input (YYYY-MM-DD, ISO, stored UTC string, or Date).
+function formatDMY(v) {
+  if (!v) return "";
+  if (v instanceof Date) return isNaN(v.getTime()) ? "" : String(v.getDate()).padStart(2, "0") + "/" + String(v.getMonth() + 1).padStart(2, "0") + "/" + String(v.getFullYear()).slice(2);
+  const s = String(v);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[3] + "/" + m[2] + "/" + m[1].slice(2);
+  const d = (typeof parseStoredTs === "function") ? parseStoredTs(s) : new Date(s);
+  return (d && !isNaN(d.getTime())) ? formatDMY(d) : s;
 }
 // ── London-day helpers for the timesheet ──
 // Stored visit times are UTC. A "day" on the timesheet means the calendar day
@@ -1274,20 +1284,17 @@ function startOfWeekMonday(dayStr) {
   return ymdKey(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
 }
 function formatDayLabel(dayKey) {
-  return dayKeyToUtcNoon(dayKey).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
+  return formatDMY(dayKey);
 }
 function formatTSDate(dayStr) {
   if (!dayStr) return "-";
   const d = dayKeyToUtcNoon(dayStr);
   if (isNaN(d.getTime())) return dayStr;
   const wd = d.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" });
-  const mo = d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" });
-  const n = d.getUTCDate();
-  const sf = (n % 10 === 1 && n % 100 !== 11) ? "st" : (n % 10 === 2 && n % 100 !== 12) ? "nd" : (n % 10 === 3 && n % 100 !== 13) ? "rd" : "th";
-  return wd + " " + n + sf + " " + mo + " " + d.getUTCFullYear().toString().slice(2);
+  return wd + " " + formatDMY(dayStr);
 }
 function formatWeekCommencing(dayStr) {
-  return dayKeyToUtcNoon(dayStr).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+  return formatDMY(dayStr);
 }
 function escapeHtml(str) {
   return String(str)
@@ -2631,7 +2638,7 @@ function jobCostingData() {
     const people = Object.keys(sites[siteKey]).map(pKey => { const p = sites[siteKey][pKey]; const eng = findEngineer(p.visits[0].person_id, p.name, p.company); return Object.assign({ name: p.name, company: p.company }, costEngineerVisits(p.visits, eng)); }).sort((a, b) => b.total - a.total);
     return { siteKey, people, total: people.reduce((s, p) => s + p.total, 0), workH: people.reduce((s, p) => s + p.workH, 0), visits: people.reduce((s, p) => s + p.costedVisits, 0), open: people.reduce((s, p) => s + p.openCount, 0), auto: people.reduce((s, p) => s + p.autoCount, 0) };
   }).sort((a, b) => b.total - a.total);
-  const range = (fr || to) ? ((fr || "earliest") + " to " + (to || "today")) : "All time";
+  const range = (fr || to) ? ((fr ? formatDMY(fr) : "earliest") + " to " + (to ? formatDMY(to) : "today")) : "All time";
   return { cards, range };
 }
 

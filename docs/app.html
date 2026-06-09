@@ -1869,7 +1869,7 @@ async function loadMyDocuments(siteName) {
 }
 function dashDocItem(d) {
   var tl = { induction: "📋 Site Induction", hwp: "🔥 Hot Works Permit", tbt: "💬 Toolbox Talk" };
-  var date = (d.issued_at || "").slice(0, 10);
+  var date = formatDMY(d.issued_at);
   var pill = d.type === "hwp"
     ? (d.status === "closed" ? '<span class="ddoc-pill closed">Closed</span>' : '<span class="ddoc-pill open">Open</span>')
     : "";
@@ -2113,14 +2113,23 @@ function histFmtTime(ts) {
     return d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
   } catch(e) { return "\u2014"; }
 }
+// DD/MM/YY for display (stored/key dates stay YYYY-MM-DD).
+function formatDMY(v) {
+  if (!v) return "";
+  if (v instanceof Date) return isNaN(v.getTime()) ? "" : String(v.getDate()).padStart(2,"0")+"/"+String(v.getMonth()+1).padStart(2,"0")+"/"+String(v.getFullYear()).slice(2);
+  var s = String(v);
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[3]+"/"+m[2]+"/"+m[1].slice(2);
+  var d = new Date(s.replace(" ","T")+"Z");
+  return isNaN(d.getTime()) ? s : formatDMY(d);
+}
 function histFmtDay(dateStr) {
   if (!dateStr) return "\u2014";
   try {
     var d = new Date(dateStr + "T00:00:00");
     if (isNaN(d.getTime())) return dateStr;
-    var days   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    return days[d.getDay()] + " " + d.getDate() + " " + months[d.getMonth()] + " " + String(d.getFullYear()).slice(2);
+    var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    return days[d.getDay()] + " " + formatDMY(dateStr);
   } catch(e) { return dateStr; }
 }
 function histDur(mins) { var h = Math.floor(mins/60), m = mins%60; return h > 0 ? h+"h "+m+"m" : m+"m"; }

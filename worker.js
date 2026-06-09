@@ -1261,21 +1261,67 @@ export default {
 
       const newVisitId = crypto.randomUUID();
 
+      // Moved sites without signing out? Auto-close the still-open visit at the
+      // time they LEFT it (this arrival − the A→B drive time), and attribute the
+      // A→B journey to this new visit's inbound travel (paid). The gap between
+      // the two visits is the drive.
+      let transferTravel = null;
+      let transferredFrom = null;
+      const nowMs = Date.now();
+      const nowSql = toSqlUtc(nowMs);
+      try {
+        const openA = await env.DB.prepare(`
+          SELECT id, site_code, check_in_at FROM visits
+          WHERE person_id = ? AND check_out_at IS NULL AND site_code != ?
+          ORDER BY check_in_at DESC LIMIT 1
+        `).bind(device.person_id, site).first();
+
+        if (openA) {
+          transferredFrom = openA.site_code;
+          const pTravel = await env.DB.prepare(
+            "SELECT travel_status FROM people WHERE id = ?"
+          ).bind(device.person_id).first();
+
+          if (pTravel && pTravel.travel_status === "paid" && siteRow) {
+            const aSite = await env.DB.prepare(
+              "SELECT lat, lng FROM sites WHERE site_name = ?"
+            ).bind(openA.site_code).first();
+            if (aSite) {
+              transferTravel = await getTravelData(env, aSite.lat, aSite.lng, siteRow.lat, siteRow.lng);
+            }
+          }
+
+          const leftSql = transferTravel ? toSqlUtc(nowMs - transferTravel.mins * 60000) : nowSql;
+          // MAX(check_in_at, ...) so the sign-out can never precede the check-in.
+          await env.DB.prepare(`
+            UPDATE visits SET check_out_at = MAX(check_in_at, ?), auto_checkout = 1, sign_out_confirmed = 0
+            WHERE id = ? AND check_out_at IS NULL
+          `).bind(leftSql, openA.id).run();
+        }
+      } catch (e) {}
+
       await env.DB.prepare(`
         INSERT INTO visits
-          (id, person_id, site_code, lat, lng, accuracy, hs_ack, auto_checkout, sign_in_confirmed, sign_out_confirmed)
-        VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, 0)
+          (id, person_id, site_code, lat, lng, accuracy, hs_ack, auto_checkout, sign_in_confirmed, sign_out_confirmed, check_in_at, travel_in_miles, travel_in_mins)
+        VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, 0, ?, ?, ?)
       `).bind(
         newVisitId,
         device.person_id,
         site,
         lat ?? null,
         lng ?? null,
-        accuracy ?? null
+        accuracy ?? null,
+        nowSql,
+        transferTravel ? transferTravel.miles : null,
+        transferTravel ? transferTravel.mins : null
       ).run();
 
       try {
-        if (siteRow) {
+        // When the journey here was a site transfer, that IS the inbound travel.
+        // Otherwise fall back to office→site (first visit of the day).
+        if (transferTravel) {
+          travelIn = transferTravel;
+        } else if (siteRow) {
           travelIn = await handleTravelIn(
             env,
             newVisitId,
@@ -1292,7 +1338,8 @@ export default {
         site,
         firstName: person?.first_name || null,
         company: person?.company || null,
-        travel: travelIn
+        travel: travelIn,
+        transferFrom: transferredFrom
       });
     }
 

@@ -1240,6 +1240,9 @@ function fmtDuration(mins) {
 function nameOf(v) {
   return ((v.first_name || "") + " " + (v.last_name || "")).trim();
 }
+// A rate is "set" when it isn't null/blank. 0 is a valid rate (£0 subcontractor);
+// only an unset rate is treated as missing.
+function rateIsSet(v) { return v != null && String(v).trim() !== ""; }
 function fmtDay(d) {
   if (!d || d.length < 10) return d || "-";
   return d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(2, 4);
@@ -2416,7 +2419,8 @@ function toggleAllJobSites(expand) {
 // forgotten check-out can't inflate a job total. Mirrors the timesheet math:
 // (work hours + paid travel hours) × rate + paid miles × fuel rate.
 function costEngineerVisits(visits, eng) {
-  const rate = (eng && eng.hourly_rate != null && Number(eng.hourly_rate) > 0) ? Number(eng.hourly_rate) : 0;
+  const hasRate = !!(eng && rateIsSet(eng.hourly_rate));
+  const rate = hasRate ? Number(eng.hourly_rate) : 0;
   const paid = !!(eng && eng.travel_status === "paid");
   const fuelRate = (paid && eng && eng.fuel_rate != null && Number(eng.fuel_rate) > 0) ? Number(eng.fuel_rate) : 0;
   let workMins = 0, travelMins = 0, miles = 0, openCount = 0, costedVisits = 0, autoCount = 0;
@@ -2434,7 +2438,7 @@ function costEngineerVisits(visits, eng) {
   });
   const workH = workMins / 60, travelH = travelMins / 60;
   const labour = workH * rate, travelCost = travelH * rate, fuelCost = miles * fuelRate;
-  return { rate, workH, travelH, miles, openCount, costedVisits, autoCount, labour, travelCost, fuelCost, total: labour + travelCost + fuelCost };
+  return { rate, hasRate, workH, travelH, miles, openCount, costedVisits, autoCount, labour, travelCost, fuelCost, total: labour + travelCost + fuelCost };
 }
 function renderJobCosting() {
   const body = document.getElementById("jobCostingBody");
@@ -2475,7 +2479,7 @@ function renderJobCosting() {
       visits: people.reduce((s, p) => s + p.costedVisits, 0),
       open: people.reduce((s, p) => s + p.openCount, 0),
       auto: people.reduce((s, p) => s + p.autoCount, 0),
-      noRate: people.some(p => p.rate === 0 && p.costedVisits > 0)
+      noRate: people.some(p => !p.hasRate && p.costedVisits > 0)
     };
   }).sort((a, b) => b.total - a.total);
 
@@ -2510,7 +2514,7 @@ function renderJobCosting() {
         : '';
       return '<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 12px;border-top:1px solid var(--border,rgba(0,0,0,0.08));">' +
           '<div style="min-width:0;"><div style="font-weight:600;">' + escapeHtml(p.name) +
-            (p.rate === 0 && p.costedVisits > 0
+            (!p.hasRate && p.costedVisits > 0
               ? (p.engId
                   ? ' <span onclick="openRateModal(\'' + jsAttr(p.engId) + '\',\'' + jsAttr(p.name) + '\')" style="color:#b45309;font-size:11px;cursor:pointer;text-decoration:underline;font-weight:600;">+ set rate</span>'
                   : ' <span style="color:#b45309;font-size:11px;">(no rate set)</span>')
@@ -2677,7 +2681,7 @@ async function exportSiteJobPdf(siteKey) {
     { label: "Labour", w: 0.14, align: "right" }, { label: "Travel", w: 0.12, align: "right" }, { label: "Fuel", w: 0.12, align: "right" }, { label: "Total", w: 0.14, align: "right" }
   ];
   const rows = card.people.map(p => [
-    p.name + (p.company ? "  (" + p.company + ")" : "") + (p.rate === 0 && p.costedVisits > 0 ? "  [no rate]" : "") + (p.autoCount ? "  [auto x" + p.autoCount + "]" : ""),
+    p.name + (p.company ? "  (" + p.company + ")" : "") + (!p.hasRate && p.costedVisits > 0 ? "  [no rate]" : "") + (p.autoCount ? "  [auto x" + p.autoCount + "]" : ""),
     String(p.costedVisits), p.workH.toFixed(1), pdfMoney(p.labour), p.travelCost > 0 ? pdfMoney(p.travelCost) : "—", p.fuelCost > 0 ? pdfMoney(p.fuelCost) : "—", pdfMoney(p.total)
   ]);
   const sL = card.people.reduce((s, p) => s + p.labour, 0), sT = card.people.reduce((s, p) => s + p.travelCost, 0), sF = card.people.reduce((s, p) => s + p.fuelCost, 0);
@@ -3309,6 +3313,55 @@ function closeEngineersModal() {
 
 /* ── MERGE DUPLICATE PEOPLE ── */
 let mergePrimary = {}; // groupIndex -> chosen primary person id
+let manualKeepId = "";       // manual merge: person to keep
+let manualMergeIds = [];     // manual merge: people to merge into the kept one
+// Build the "merge manually" panel — pick any people regardless of name, e.g.
+// "Chris Freeman" + "Christopher Freeman".
+function renderManualMerge() {
+  const people = engineersAll.slice().sort((a, b) => (nameOf(a) || "").localeCompare(nameOf(b) || ""));
+  const lbl = p => escapeHtml(nameOf(p) || "Unnamed") + (p.company ? " — " + escapeHtml(p.company) : "") +
+    (rateIsSet(p.hourly_rate) ? "  (£" + Number(p.hourly_rate).toFixed(2) + ")" : "") + "  · " + (p.visit_count || 0) + " logs";
+  const keepOpts = '<option value="">Select who to keep…</option>' +
+    people.map(p => '<option value="' + escapeHtml(p.id) + '"' + (p.id === manualKeepId ? " selected" : "") + '>' + lbl(p) + '</option>').join("");
+  const addOpts = '<option value="">Add a person to merge in…</option>' +
+    people.filter(p => p.id !== manualKeepId && !manualMergeIds.includes(p.id)).map(p => '<option value="' + escapeHtml(p.id) + '">' + lbl(p) + '</option>').join("");
+  const chips = manualMergeIds.map(id => {
+    const p = engineersAll.find(e => e.id === id);
+    return '<span style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:13px;margin:0 6px 6px 0;">' +
+      escapeHtml(p ? (nameOf(p) || "Unnamed") : id) + ' <span style="cursor:pointer;color:#dc2626;font-weight:800;" onclick="manualRemoveMerge(\'' + jsAttr(id) + '\')">&times;</span></span>';
+  }).join("");
+  const ready = manualKeepId && manualMergeIds.length;
+  const ss = 'width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;margin-top:4px;';
+  return '<div style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px;background:var(--surface2);">' +
+      '<div style="font-weight:700;margin-bottom:8px;">Merge manually <span style="font-weight:400;color:var(--label3);font-size:11px;">— pick any two people, even with different names</span></div>' +
+      '<label style="font-size:12px;color:var(--label3);">Keep this person</label>' +
+      '<select onchange="manualSetKeep(this.value)" style="' + ss + '">' + keepOpts + '</select>' +
+      '<label style="font-size:12px;color:var(--label3);display:block;margin-top:10px;">Merge these into them</label>' +
+      '<select onchange="manualAddMerge(this.value)" style="' + ss + '">' + addOpts + '</select>' +
+      (chips ? '<div style="margin-top:10px;">' + chips + '</div>' : '') +
+      '<button class="btn-primary btn-sm" ' + (ready ? "" : "disabled") + ' onclick="doManualMerge()" style="margin-top:12px;' + (ready ? "" : "opacity:0.5;") + '">Merge ' + (manualMergeIds.length || "") + ' into kept person</button>' +
+    '</div>';
+}
+function manualSetKeep(id) { manualKeepId = id; manualMergeIds = manualMergeIds.filter(x => x !== id); renderMergeModal(); }
+function manualAddMerge(id) { if (id && id !== manualKeepId && !manualMergeIds.includes(id)) manualMergeIds.push(id); renderMergeModal(); }
+function manualRemoveMerge(id) { manualMergeIds = manualMergeIds.filter(x => x !== id); renderMergeModal(); }
+async function doManualMerge() {
+  if (!manualKeepId || !manualMergeIds.length) return;
+  const primary = engineersAll.find(e => e.id === manualKeepId);
+  const movingLogs = manualMergeIds.reduce((s, id) => { const p = engineersAll.find(e => e.id === id); return s + Number(p ? p.visit_count || 0 : 0); }, 0);
+  if (!confirm("Merge " + manualMergeIds.length + " record" + (manualMergeIds.length === 1 ? "" : "s") + " into " + (nameOf(primary) || "the kept person") +
+      "?\n\n" + movingLogs + " log" + (movingLogs === 1 ? "" : "s") + " will move across and the duplicate records will be deleted. This cannot be undone.")) return;
+  try {
+    const r = await fetch(API_BASE + "/merge-people", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ primaryId: manualKeepId, mergeIds: manualMergeIds }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || "Merge failed");
+  } catch (e) { alert("Could not merge: " + e.message); return; }
+  manualKeepId = ""; manualMergeIds = [];
+  await fetchEngineers();
+  renderMergeModal();
+  renderEngineersTable();
+  loadData();
+}
 function mergeNormName(p) {
   return ((p.first_name || "") + " " + (p.last_name || "")).trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -3340,7 +3393,7 @@ function lastSeenLabel(ts) {
 // lost), then the most recently active device, then Main, then the most logs.
 function mergeSuggestPrimary(group) {
   return group.slice().sort((a, b) => {
-    const ar = Number(a.hourly_rate) > 0 ? 1 : 0, br = Number(b.hourly_rate) > 0 ? 1 : 0;
+    const ar = rateIsSet(a.hourly_rate) ? 1 : 0, br = rateIsSet(b.hourly_rate) ? 1 : 0;
     if (ar !== br) return br - ar;
     const al = a.device_last_seen || "", bl = b.device_last_seen || "";
     if (al !== bl) return al > bl ? -1 : 1; // most recently active first
@@ -3352,6 +3405,7 @@ function mergeSuggestPrimary(group) {
 async function openMergeModal() {
   await fetchEngineers();
   mergePrimary = {};
+  manualKeepId = ""; manualMergeIds = [];
   document.getElementById("mergeModal").style.display = "flex";
   renderMergeModal();
 }
@@ -3365,16 +3419,17 @@ function setMergePrimary(gi, id) {
 function renderMergeModal() {
   const wrap = document.getElementById("mergeModalBody");
   const groups = mergeDuplicateGroups();
+  const manual = renderManualMerge();
   if (!groups.length) {
-    wrap.innerHTML = '<p style="color:var(--label3);padding:8px 2px;">No likely duplicates found &mdash; everyone has a distinct name.</p>';
+    wrap.innerHTML = manual + '<p style="color:var(--label3);padding:8px 2px;">No likely duplicates auto-detected &mdash; everyone has a distinct name. Use the manual merge above for differently-spelled names.</p>';
     return;
   }
-  wrap.innerHTML = groups.map((group, gi) => {
+  wrap.innerHTML = manual + '<div style="font-weight:700;font-size:13px;color:var(--label3);margin:4px 2px;">Suggested duplicates (same name)</div>' + groups.map((group, gi) => {
     if (!mergePrimary[gi]) mergePrimary[gi] = mergeSuggestPrimary(group);
     const primaryId = mergePrimary[gi];
     const rows = group.map(p => {
       const isPrimary = p.id === primaryId;
-      const rate = Number(p.hourly_rate) > 0 ? '&pound;' + Number(p.hourly_rate).toFixed(2) + '/hr' : '<span style="color:#b45309;">no rate</span>';
+      const rate = rateIsSet(p.hourly_rate) ? '&pound;' + Number(p.hourly_rate).toFixed(2) + '/hr' : '<span style="color:#b45309;">no rate</span>';
       const seen = Number(p.device_count || 0)
         ? '<span style="color:' + (p.device_last_seen ? "var(--label3)" : "#b45309") + ';">' + lastSeenLabel(p.device_last_seen) + '</span>'
         : "no device";
@@ -3473,7 +3528,7 @@ function renderEngineersTable() {
     const id = escapeHtml(p.id);
     const fullName = escapeHtml(nameOf(p) || "Unnamed");
     const company = escapeHtml(p.company || "No company");
-    const rate = (p.hourly_rate != null && String(p.hourly_rate) !== "" && Number(p.hourly_rate) > 0)
+    const rate = rateIsSet(p.hourly_rate)
       ? '&pound;' + Number(p.hourly_rate).toFixed(2) + '/hr' : null;
 
     return '<div class="site-item' + (isArch ? ' archived' : '') + '" id="eng-item-' + id + '">' +

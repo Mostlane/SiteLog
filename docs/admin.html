@@ -1820,7 +1820,7 @@ function openExportModal() {
   document.getElementById("exportPreviewPeople").textContent = new Set(visits.map(v => nameOf(v))).size;
   document.getElementById("exportPreviewSites").textContent = new Set(visits.map(v => v.site_code).filter(Boolean)).size;
   document.getElementById("exportPreviewAvg").textContent = avg ? fmtDuration(avg) : "-";
-  document.getElementById("exportPreviewMissed").textContent = visits.filter(v => Number(v.auto_checkout || 0) === 1).length;
+  document.getElementById("exportPreviewMissed").textContent = visits.filter(v => Number(v.auto_checkout || 0) === 1 && !v.transferred_to).length;
   document.getElementById("exportPreviewHours").textContent = (durs.reduce((a, b) => a + b, 0) / 60).toFixed(1) + "h";
   document.getElementById("exportModal").style.display = "flex";
 }
@@ -1843,7 +1843,7 @@ function generatePDF() {
 
   const rows = visits.slice().sort((a, b) => (b.check_in_at || "").localeCompare(a.check_in_at || "")).map((v, i) => {
     const dur = v.check_out_at ? fmtDuration(minutesBetween(v.check_in_at, v.check_out_at)) : "-";
-    const st = !v.check_out_at ? "Live" : Number(v.auto_checkout || 0) === 1 ? "No sign-out" : "Signed out";
+    const st = !v.check_out_at ? "Live" : v.transferred_to ? "Moved to " + v.transferred_to : Number(v.auto_checkout || 0) === 1 ? "No sign-out" : "Signed out";
     return '<tr style="background:' + (i % 2 === 0 ? "#fff" : "#f9f9fb") + ';">' +
       '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">' + st + '</td>' +
       '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;font-weight:600;">' + escapeHtml(nameOf(v)) + '</td>' +
@@ -1864,7 +1864,7 @@ function generatePDF() {
     sc("Total Sessions", visits.length) +
     sc("Total Hours", totalHrs.toFixed(1) + "h") +
     sc("People", new Set(visits.map(v => nameOf(v))).size) +
-    sc("Missed Sign-outs", visits.filter(v => Number(v.auto_checkout || 0) === 1).length) +
+    sc("Missed Sign-outs", visits.filter(v => Number(v.auto_checkout || 0) === 1 && !v.transferred_to).length) +
     '</div>' +
     '<div style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;"><div style="padding:14px 18px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;"><div style="font-size:13px;font-weight:600;color:#1d1d1f;">Visit Log</div><div style="font-size:11px;color:#aeaeb2;">' + visits.length + ' entries</div></div>' +
     '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#f9f9fb;">' +
@@ -2129,7 +2129,9 @@ function buildWeekChart(visits, name, company, weekKey, eng) {
     dvs.forEach((v, idx) => {
       const h = minutesBetween(v.check_in_at, v.check_out_at) / 60;
       const times = formatTimeOnly(v.check_in_at) + " – " + (v.check_out_at ? formatTimeOnly(v.check_out_at) : "—");
-      const flag = !v.check_out_at ? ' <span class="tc-flag">(no sign-out)</span>' : (Number(v.auto_checkout || 0) === 1 ? ' <span class="tc-flag">&#9888; (auto sign-out)</span>' : "");
+      const flag = !v.check_out_at ? ' <span class="tc-flag">(no sign-out)</span>'
+        : (v.transferred_to ? ' <span class="tc-flag" style="color:#2563eb;">&#10142; moved to ' + escapeHtml(v.transferred_to) + '</span>'
+        : (Number(v.auto_checkout || 0) === 1 ? ' <span class="tc-flag">&#9888; (auto sign-out)</span>' : ""));
       const manualTag = Number(v.manual_entry || 0) === 1 ? ' <span style="color:#64748b;">(manual)</span>' : "";
       const pin = mapPinHtml(v);
       if (hasTravelPay) {
@@ -2213,7 +2215,7 @@ function buildWeekTable(visits, name, company, weekKey, eng) {
     totStd += stdH;
     totOT += otH;
 
-    const noteText = !v.check_out_at ? "No check out" : (Number(v.auto_checkout || 0) === 1 ? "Soft/auto sign out" : "-");
+    const noteText = !v.check_out_at ? "No check out" : (v.transferred_to ? "Moved to " + v.transferred_to : (Number(v.auto_checkout || 0) === 1 ? "Soft/auto sign out" : "-"));
     const noteHtml = noteText === "-" ? '<span style="color:var(--label4);">-</span>' : '<span class="ts-note-bad">' + escapeHtml(noteText) + '</span>';
     const hasDevice = !!v.device_token;
     const hasGps = (v.lat != null && v.lng != null);
@@ -2316,7 +2318,7 @@ function renderTimesheetsModal() {
       const durs = closedV.map(v => minutesBetween(v.check_in_at, v.check_out_at)).filter(m => m > 0);
       const totalHrs = durs.reduce((a, b) => a + b, 0) / 60;
       const avg = durs.length ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length) : 0;
-      const missed = allV.filter(v => Number(v.auto_checkout || 0) === 1).length;
+      const missed = allV.filter(v => Number(v.auto_checkout || 0) === 1 && !v.transferred_to).length;
       const longest = durs.length ? Math.max(...durs) : 0;
       const days = new Set(allV.map(v => londonDayKey(v.check_in_at))).size;
 
@@ -2431,7 +2433,7 @@ function costEngineerVisits(visits, eng) {
     if (!v.check_out_at) { openCount++; return; }
     workMins += minutesBetween(v.check_in_at, v.check_out_at);
     costedVisits++;
-    if (Number(v.auto_checkout || 0) === 1) autoCount++;
+    if (Number(v.auto_checkout || 0) === 1 && !v.transferred_to) autoCount++;
     if (paid) {
       if (v.travel_in_mins != null) travelMins += calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng);
       if (v.travel_out_mins != null) travelMins += calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng);
@@ -2816,7 +2818,7 @@ function timesheetCard(A, visits, name, company, weekKey, eng) {
     dvs.forEach((v, idx) => {
       const h = minutesBetween(v.check_in_at, v.check_out_at) / 60;
       const times = formatTimeOnly(v.check_in_at) + " – " + (v.check_out_at ? formatTimeOnly(v.check_out_at) : "—");
-      const flag = !v.check_out_at ? "  (no sign-out)" : (Number(v.auto_checkout || 0) === 1 ? "  (auto sign-out)" : "");
+      const flag = !v.check_out_at ? "  (no sign-out)" : (v.transferred_to ? "  (moved to " + v.transferred_to + ")" : (Number(v.auto_checkout || 0) === 1 ? "  (auto sign-out)" : ""));
       const manual = Number(v.manual_entry || 0) === 1 ? "  (manual)" : "";
       if (hasTravelPay) {
         if (v.travel_in_mins != null) totTravelPaid += calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng);

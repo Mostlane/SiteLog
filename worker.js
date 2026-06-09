@@ -724,8 +724,10 @@ export default {
       const company = ((body.company ?? "").toString().trim().slice(0, 120)) || null;
       const purpose = ((body.purpose ?? "").toString().trim().slice(0, 60)) || null;
       const rateIn = body.hourlyRate ?? body.hourly_rate;
+      // No rate given => null (unset). An explicit 0 is a valid £0 rate (e.g. a
+      // bona fide subcontractor with no labour charge).
       const hourlyRate =
-        rateIn === "" || rateIn == null || Number.isNaN(Number(rateIn)) ? 0 : Number(rateIn);
+        rateIn === "" || rateIn == null || Number.isNaN(Number(rateIn)) ? null : Number(rateIn);
       const isMain = (body.isMain ?? body.is_main) ? 1 : 0;
 
       if (!firstName && !lastName) return json({ ok: false, error: "Enter a name" }, 400);

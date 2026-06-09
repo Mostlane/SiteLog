@@ -1,6 +1,6 @@
 /* Shared document rendering + PDF — used by documents.html (admin) and app.html
    (end user) so both show and export the identical form. Generated from the
-   documents.html implementation; keep changes here, not duplicated inline. */
+   documents.html implementation; keep changes there and regenerate. */
 (function () {
 "use strict";
 let logoDataUrl = null;
@@ -36,6 +36,15 @@ const INDUCTION_BRIEFING = [
 const HWP_PREC = ["Area inspected and deemed safe","Combustibles removed (10m where possible)","Combustibles protected with fire blankets","Openings / voids sealed or protected","Minimum 2 fire extinguishers present","Fire alarm isolation agreed (if required)","Fire watch appointed during works","Gas cylinders secured & flashback arrestors fitted","Adequate ventilation confirmed"];
 const HWP_FW = ["Continuous fire watch during works","Fire watch to remain minimum 60 minutes after completion","Area re-inspected after 1 hour"];
 
+function formatDMY(v) {
+  if (!v) return "";
+  if (v instanceof Date) return isNaN(v.getTime()) ? "" : String(v.getDate()).padStart(2, "0") + "/" + String(v.getMonth() + 1).padStart(2, "0") + "/" + String(v.getFullYear()).slice(2);
+  var s = String(v);
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[3] + "/" + m[2] + "/" + m[1].slice(2);
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? s : formatDMY(d);
+}
 function escHtml(s) {
   return String(s == null ? "" : s)
     .replace(/&/g, "&amp;")
@@ -103,10 +112,10 @@ function pdfCheckboxes2Col(labels, checked) {
 }
 function previewInduction(doc, fd, atts) {
   const contractorRows = atts.map((a, i) => {
-    return '<div style="margin-bottom:6px;"><div style="' + PF + 'font-size:10px;font-weight:700;background:#dde5f0;padding:3px 8px;border:' + PBD + ';border-bottom:none;letter-spacing:0.3px;">CONTRACTOR ' + (i+1) + ': ' + escHtml((a.person_name || "").toUpperCase()) + '</div>' + pdfGrid2([["Full Name", a.person_name],["Company", a.company],["Trade / Role", a.trade],["Contact Number", a.contact_number],["CSCS No.", a.cscs_number],["Date", (doc.issued_at || "").slice(0,10)]]) + '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr><td style="' + PF + 'padding:3px 7px;border:' + PBD + ';background:' + PLB + ';font-size:10px;font-weight:700;width:26%;">Contractor Signature</td><td style="border:' + PBD + ';height:48px;background:#fff;padding:4px;">' + (a.signature ? '<img src="' + a.signature + '" style="max-height:40px;max-width:220px;display:block;">' : "&nbsp;") + '</td></tr></table></div>';
+    return '<div style="margin-bottom:6px;"><div style="' + PF + 'font-size:10px;font-weight:700;background:#dde5f0;padding:3px 8px;border:' + PBD + ';border-bottom:none;letter-spacing:0.3px;">CONTRACTOR ' + (i+1) + ': ' + escHtml((a.person_name || "").toUpperCase()) + '</div>' + pdfGrid2([["Full Name", a.person_name],["Company", a.company],["Trade / Role", a.trade],["Contact Number", a.contact_number],["CSCS No.", a.cscs_number],["Date", formatDMY(doc.issued_at)]]) + '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr><td style="' + PF + 'padding:3px 7px;border:' + PBD + ';background:' + PLB + ';font-size:10px;font-weight:700;width:26%;">Contractor Signature</td><td style="border:' + PBD + ';height:48px;background:#fff;padding:4px;">' + (a.signature ? '<img src="' + a.signature + '" style="max-height:40px;max-width:220px;display:block;">' : "&nbsp;") + '</td></tr></table></div>';
   }).join("");
 
-  return '<div style="' + PF + 'font-size:11px;color:#1d1d1f;">' + pdfDocHeader("Contractor Site Induction Form") + pdfSecHead("Site Details") + pdfGrid2([["Project", fd.project],["Site Address", fd.address || doc.site_address || ""],["Site Manager", fd.site_manager],["Start Date", fd.date]]) + pdfGap + pdfSecHead("Site Induction Briefing Includes") + pdfBullets2Col(["Site rules and expected conduct","PPE requirements (hi-vis, boots, gloves, etc.)","Welfare arrangements (toilets, mess area)","Emergency procedures and muster point","Location of fire extinguishers and first aid kit","Site hazards (asbestos, live services, etc.)","Requirement to follow RAMS and safe systems of work","Permit-to-work systems (hot works, roof access, confined space)","Working at height procedures","Housekeeping and material storage","Accident / near miss reporting procedure"]) + pdfGap + pdfSecHead("Contractor Details") + contractorRows + pdfGap + pdfSecHead("Induction Given By") + pdfSigRow("Signature", fd.giver_name, doc.manager_signature) + '</div>';
+  return '<div style="' + PF + 'font-size:11px;color:#1d1d1f;">' + pdfDocHeader("Contractor Site Induction Form") + pdfSecHead("Site Details") + pdfGrid2([["Project", fd.project],["Site Address", fd.address || doc.site_address || ""],["Site Manager", fd.site_manager],["Start Date", formatDMY(fd.date)]]) + pdfGap + pdfSecHead("Site Induction Briefing Includes") + pdfBullets2Col(["Site rules and expected conduct","PPE requirements (hi-vis, boots, gloves, etc.)","Welfare arrangements (toilets, mess area)","Emergency procedures and muster point","Location of fire extinguishers and first aid kit","Site hazards (asbestos, live services, etc.)","Requirement to follow RAMS and safe systems of work","Permit-to-work systems (hot works, roof access, confined space)","Working at height procedures","Housekeeping and material storage","Accident / near miss reporting procedure"]) + pdfGap + pdfSecHead("Contractor Details") + contractorRows + pdfGap + pdfSecHead("Induction Given By") + pdfSigRow("Signature", fd.giver_name, doc.manager_signature) + '</div>';
 }
 function previewHWP(doc, fd, atts) {
   const precLabels = ["Area inspected and deemed safe","Combustibles removed (10m where possible)","Combustibles protected with fire blankets","Openings / voids sealed or protected","Minimum 2 fire extinguishers present","Fire alarm isolation agreed (if required)","Fire watch appointed during works","Gas cylinders secured & flashback arrestors fitted","Adequate ventilation confirmed"];
@@ -120,14 +129,14 @@ function previewHWP(doc, fd, atts) {
     ? pdfGap + pdfSecHead("Close Out") + pdfGrid2([["Completion Time", doc.completion_time],["Final Area", doc.final_area_safe === 1 ? "Area declared SAFE" : "Area declared NOT SAFE"]]) + '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr><td style="' + PF + 'padding:3px 7px;border:' + PBD + ';background:' + PLB + ';font-size:10px;font-weight:700;width:26%;">Manager Signature</td><td style="border:' + PBD + ';height:48px;background:#fff;padding:4px;">' + (doc.manager_signature ? '<img src="' + doc.manager_signature + '" style="max-height:40px;max-width:220px;display:block;">' : "&nbsp;") + '</td></tr></table>'
     : pdfGap + '<div style="' + PF + 'padding:5px 8px;background:#fffbeb;border:1px solid #f0d060;border-radius:2px;font-size:11px;color:#7a5800;"><strong>Open Permit</strong> &mdash; Close out required after works complete.</div>';
 
-  return '<div style="' + PF + 'font-size:11px;color:#1d1d1f;">' + pdfDocHeader("Hot Works Permit", "Permit No: " + escHtml(fd.permit_no || doc.permit_no || "")) + pdfSecHead("Project Details") + pdfGrid2([["Project", fd.project],["Site", fd.site || doc.site_name],["Client / PC", fd.client],["Date", fd.date],["Issued By", fd.issued_by],["Valid From", fd.valid_from]]) + pdfGap + pdfSecHead("1. Description of Hot Works") + pdfGrid1([["Location", fd.location],["Nature of Works", (fd.nature || []).join(", ")],["Equipment", fd.equipment]]) + pdfGap + pdfSecHead("2. Fire & Safety Precautions") + pdfCheckboxes2Col(precLabels, fd.precautions || []) + pdfGap + pdfSecHead("3. Fire Watch Requirements") + pdfCheckboxes2Col(fwLabels, fd.fire_watch || []) + '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr><td style="' + PF + 'padding:3px 7px;border:' + PBD + ';background:' + PLB + ';font-size:10px;font-weight:700;width:26%;">Fire Watch Name</td><td style="' + PF + 'padding:3px 7px;border:' + PBD + ';font-size:11px;">' + escHtml(fd.fire_watch_name || "") + '&nbsp;</td></tr></table>' + pdfGap + pdfSecHead("4. Operatives") + operativeRows + pdfGap + pdfSecHead("5. Permit Issued By") + pdfSigRow("Signature", fd.issued_by, doc.manager_signature) + closeoutSection + '<div style="margin-top:10px;border-top:1px solid #ccc;padding-top:5px;' + PF + 'font-size:9px;color:#888;line-height:1.4;">Permit valid for one shift only. Must be displayed at work location. Void if works stop for more than 2 hours. All works must comply with CDM Regulations and approved RAMS.</div></div>';
+  return '<div style="' + PF + 'font-size:11px;color:#1d1d1f;">' + pdfDocHeader("Hot Works Permit", "Permit No: " + escHtml(fd.permit_no || doc.permit_no || "")) + pdfSecHead("Project Details") + pdfGrid2([["Project", fd.project],["Site", fd.site || doc.site_name],["Client / PC", fd.client],["Date", formatDMY(fd.date)],["Issued By", fd.issued_by],["Valid From", fd.valid_from]]) + pdfGap + pdfSecHead("1. Description of Hot Works") + pdfGrid1([["Location", fd.location],["Nature of Works", (fd.nature || []).join(", ")],["Equipment", fd.equipment]]) + pdfGap + pdfSecHead("2. Fire & Safety Precautions") + pdfCheckboxes2Col(precLabels, fd.precautions || []) + pdfGap + pdfSecHead("3. Fire Watch Requirements") + pdfCheckboxes2Col(fwLabels, fd.fire_watch || []) + '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr><td style="' + PF + 'padding:3px 7px;border:' + PBD + ';background:' + PLB + ';font-size:10px;font-weight:700;width:26%;">Fire Watch Name</td><td style="' + PF + 'padding:3px 7px;border:' + PBD + ';font-size:11px;">' + escHtml(fd.fire_watch_name || "") + '&nbsp;</td></tr></table>' + pdfGap + pdfSecHead("4. Operatives") + operativeRows + pdfGap + pdfSecHead("5. Permit Issued By") + pdfSigRow("Signature", fd.issued_by, doc.manager_signature) + closeoutSection + '<div style="margin-top:10px;border-top:1px solid #ccc;padding-top:5px;' + PF + 'font-size:9px;color:#888;line-height:1.4;">Permit valid for one shift only. Must be displayed at work location. Void if works stop for more than 2 hours. All works must comply with CDM Regulations and approved RAMS.</div></div>';
 }
 function previewTBT(doc, fd, atts) {
   const attendeeRows = atts.map((a, i) => {
     return '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:5px;"><tr><td style="' + PF + 'padding:3px 7px;border:' + PBD + ';background:#dde5f0;font-size:10px;font-weight:700;width:17%;">Attendee ' + (i+1) + '</td><td style="' + PF + 'padding:3px 7px;border:' + PBD + ';font-size:11px;width:33%;">' + escHtml(a.person_name || "") + '</td><td style="' + PF + 'padding:3px 7px;border:' + PBD + ';background:' + PLB + ';font-size:10px;font-weight:700;width:17%;">Company</td><td style="' + PF + 'padding:3px 7px;border:' + PBD + ';font-size:11px;width:33%;">' + escHtml(a.company || "") + '</td></tr><tr><td style="' + PF + 'padding:3px 7px;border:' + PBD + ';background:' + PLB + ';font-size:10px;font-weight:700;">Signature</td><td colspan="3" style="border:' + PBD + ';height:48px;background:#fff;padding:4px;">' + (a.signature ? '<img src="' + a.signature + '" style="max-height:40px;max-width:280px;display:block;">' : "&nbsp;") + '</td></tr></table>';
   }).join("");
 
-  return '<div style="' + PF + 'font-size:11px;color:#1d1d1f;">' + pdfDocHeader("Toolbox Talk") + pdfSecHead("Session Details") + pdfGrid2([["Project", fd.project],["Site Address", fd.address || doc.site_address || ""],["Site Manager", fd.site_manager],["Date", fd.date],["Talk Title", fd.title],["Delivered By", fd.delivered_by],["Duration", fd.duration ? fd.duration + " mins" : ""],["",""]]) + pdfGap + pdfSecHead("Talk Content") + pdfGrid1([["Summary of Talk", fd.summary],["Key Points Raised", fd.key_points],["Site-Specific Hazards", fd.hazards]]) + pdfGap + pdfSecHead("Attendees") + attendeeRows + pdfGap + pdfSecHead("Delivered By — Manager Sign-Off") + pdfSigRow("Signature", fd.delivered_by, doc.manager_signature) + '</div>';
+  return '<div style="' + PF + 'font-size:11px;color:#1d1d1f;">' + pdfDocHeader("Toolbox Talk") + pdfSecHead("Session Details") + pdfGrid2([["Project", fd.project],["Site Address", fd.address || doc.site_address || ""],["Site Manager", fd.site_manager],["Date", formatDMY(fd.date)],["Talk Title", fd.title],["Delivered By", fd.delivered_by],["Duration", fd.duration ? fd.duration + " mins" : ""],["",""]]) + pdfGap + pdfSecHead("Talk Content") + pdfGrid1([["Summary of Talk", fd.summary],["Key Points Raised", fd.key_points],["Site-Specific Hazards", fd.hazards]]) + pdfGap + pdfSecHead("Attendees") + attendeeRows + pdfGap + pdfSecHead("Delivered By — Manager Sign-Off") + pdfSigRow("Signature", fd.delivered_by, doc.manager_signature) + '</div>';
 }
 function buildPreview(doc) {
   const fd = doc.form_data || {};
@@ -277,10 +286,10 @@ function generateDocPdf(doc) {
   if (doc.type === "induction") {
     header("Contractor Site Induction Form", doc.doc_number ? "Document No: " + doc.doc_number : "");
     section("Site Details");
-    grid2([["Project", fd.project], ["Site Address", fd.address || doc.site_address || ""], ["Site Manager", fd.site_manager], ["Start Date", fd.date]]);
+    grid2([["Project", fd.project], ["Site Address", fd.address || doc.site_address || ""], ["Site Manager", fd.site_manager], ["Start Date", formatDMY(fd.date)]]);
     gap(); section("Site Induction Briefing Includes"); listBox(INDUCTION_BRIEFING);
     gap(); section("Contractor Details");
-    const dt = (doc.issued_at || "").slice(0, 10);
+    const dt = formatDMY(doc.issued_at);
     atts.forEach((a, i) => {
       headerBar("CONTRACTOR " + (i + 1) + ": " + String(a.person_name || "").toUpperCase());
       grid2([["Full Name", a.person_name], ["Company", a.company], ["Trade / Role", a.trade], ["Contact Number", a.contact_number], ["CSCS No.", a.cscs_number], ["Date", dt]]);
@@ -290,7 +299,7 @@ function generateDocPdf(doc) {
   } else if (doc.type === "hwp") {
     header("Hot Works Permit", (doc.doc_number ? doc.doc_number + "  ·  " : "") + "Permit No: " + (fd.permit_no || doc.permit_no || ""));
     section("Project Details");
-    grid2([["Project", fd.project], ["Site", fd.site || doc.site_name], ["Client / PC", fd.client], ["Date", fd.date], ["Issued By", fd.issued_by], ["Valid From", fd.valid_from]]);
+    grid2([["Project", fd.project], ["Site", fd.site || doc.site_name], ["Client / PC", fd.client], ["Date", formatDMY(fd.date)], ["Issued By", fd.issued_by], ["Valid From", fd.valid_from]]);
     gap(); section("1. Description of Hot Works");
     grid1([["Location", fd.location], ["Nature of Works", (fd.nature || []).join(", ")], ["Equipment", fd.equipment]]);
     gap(); section("2. Fire & Safety Precautions"); listBox(HWP_PREC, fd.precautions || []);
@@ -308,7 +317,7 @@ function generateDocPdf(doc) {
   } else if (doc.type === "tbt") {
     header("Toolbox Talk", doc.doc_number ? "Document No: " + doc.doc_number : "");
     section("Session Details");
-    grid2([["Project", fd.project], ["Site Address", fd.address || doc.site_address || ""], ["Site Manager", fd.site_manager], ["Date", fd.date], ["Talk Title", fd.title], ["Delivered By", fd.delivered_by], ["Duration", fd.duration ? fd.duration + " mins" : ""], ["", ""]]);
+    grid2([["Project", fd.project], ["Site Address", fd.address || doc.site_address || ""], ["Site Manager", fd.site_manager], ["Date", formatDMY(fd.date)], ["Talk Title", fd.title], ["Delivered By", fd.delivered_by], ["Duration", fd.duration ? fd.duration + " mins" : ""], ["", ""]]);
     gap(); section("Talk Content");
     grid1([["Summary of Talk", fd.summary], ["Key Points Raised", fd.key_points], ["Site-Specific Hazards", fd.hazards]]);
     gap(); section("Attendees");
@@ -333,5 +342,5 @@ async function prefetchDocImages(doc) {
   if (doc.manager_signature) await measureImage(doc.manager_signature);
 }
 
-window.DocRender = { buildPreview: buildPreview, generateDocPdf: generateDocPdf, prefetchDocImages: prefetchDocImages, docFileName: docFileName, ensureLogo: ensureLogo, escHtml: escHtml };
+window.DocRender = { buildPreview: buildPreview, generateDocPdf: generateDocPdf, prefetchDocImages: prefetchDocImages, docFileName: docFileName, ensureLogo: ensureLogo, escHtml: escHtml, formatDMY: formatDMY };
 })();

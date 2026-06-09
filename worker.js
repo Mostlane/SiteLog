@@ -46,6 +46,7 @@ async function ensureOfflineSchema(env) {
   try { await env.DB.prepare("ALTER TABLE documents ADD COLUMN doc_number TEXT").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE documents ADD COLUMN doc_seq INTEGER").run(); } catch (e) {}
   try { await env.DB.prepare("CREATE TABLE IF NOT EXISTS document_links (id TEXT PRIMARY KEY, document_id TEXT, person_id TEXT, person_name TEXT, linked_at TEXT)").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN transferred_to TEXT").run(); } catch (e) {}
   try {
     await env.DB.prepare(
       "CREATE TABLE IF NOT EXISTS pending_events (id TEXT PRIMARY KEY, device_token TEXT, lat REAL, lng REAL, accuracy REAL, site_code TEXT, intent TEXT, occurred_at TEXT, synced_at TEXT, resolved INTEGER DEFAULT 0)"
@@ -1293,10 +1294,11 @@ export default {
 
           const leftSql = transferTravel ? toSqlUtc(nowMs - transferTravel.mins * 60000) : nowSql;
           // MAX(check_in_at, ...) so the sign-out can never precede the check-in.
+          // transferred_to records that they moved straight on to another site.
           await env.DB.prepare(`
-            UPDATE visits SET check_out_at = MAX(check_in_at, ?), auto_checkout = 1, sign_out_confirmed = 0
+            UPDATE visits SET check_out_at = MAX(check_in_at, ?), auto_checkout = 1, sign_out_confirmed = 0, transferred_to = ?
             WHERE id = ? AND check_out_at IS NULL
-          `).bind(leftSql, openA.id).run();
+          `).bind(leftSql, site, openA.id).run();
         }
       } catch (e) {}
 
@@ -1978,6 +1980,7 @@ export default {
                COALESCE(v.sign_out_confirmed,0) AS sign_out_confirmed,
                v.travel_in_miles, v.travel_in_mins,
                v.travel_out_miles, v.travel_out_mins,
+               v.transferred_to,
                COALESCE(v.is_first_of_day,0) AS is_first_of_day,
                COALESCE(v.offline_synced,0) AS offline_synced,
                COALESCE(v.unmatched_site,0) AS unmatched_site,

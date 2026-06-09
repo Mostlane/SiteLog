@@ -1145,7 +1145,7 @@ function showMap(lat, lng) {
 }
 
 // SUCCESS OVERLAY
-function showSuccess(type, siteName, firstName, duration, travel) {
+function showSuccess(type, siteName, firstName, duration, travel, transferFrom) {
   var overlay = document.getElementById("appSuccessOverlay");
   var icon    = document.getElementById("appSuccessIcon");
   var title   = document.getElementById("appSuccessTitle");
@@ -1154,7 +1154,9 @@ function showSuccess(type, siteName, firstName, duration, travel) {
   if (type === "in") {
     icon.innerHTML  = "&#x2705;";
     title.textContent = firstName ? "Welcome " + firstName : "Checked In";
-    sub.textContent   = siteName  ? "Signed in at " + siteName : "You are now on site";
+    sub.textContent   = transferFrom
+      ? "Signed out of " + transferFrom + " — now signed in at " + (siteName || "site")
+      : (siteName ? "Signed in at " + siteName : "You are now on site");
   } else if (type === "out") {
     icon.innerHTML  = "&#x1F44B;";
     title.textContent = firstName ? "Goodbye " + firstName : "Checked Out";
@@ -1375,7 +1377,7 @@ async function appConfirmSignInYes() {
   dashSetState("in", siteName, null, checkinTime);
   if (firstName) updateDashInfoStrip(firstName, "", company);
   recordLastEvent("Checked in at " + (siteName || "site"));
-  showSuccess("in", siteName, firstName, null, data.travel || null);
+  showSuccess("in", siteName, firstName, null, data.travel || null, data.transferFrom || null);
 }
 function appConfirmSignInNo() { closeSignInModal(); }
 

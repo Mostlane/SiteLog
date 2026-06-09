@@ -1540,10 +1540,36 @@ export default {
         "SELECT id FROM visits WHERE person_id = ? AND site_code = ? AND check_in_at = ? LIMIT 1"
       ).bind(device.person_id, siteCode, occurredSql).first();
       if (dupIn) return json({ ok: true, status: "duplicate_ignored", site: siteCode, offline: true });
+
+      // Moved sites without signing out (offline) — same handling as the online
+      // /confirm-checkin flow: close the still-open site at the time they left
+      // (this arrival minus the A->B drive) and attribute that drive to this
+      // visit's inbound paid travel. Uses the device-clock time for the maths.
+      let offTravel = null, offTransferFrom = null;
+      const openOther = await env.DB.prepare(
+        "SELECT id, site_code FROM visits WHERE person_id = ? AND check_out_at IS NULL AND site_code != ? ORDER BY check_in_at DESC LIMIT 1"
+      ).bind(device.person_id, siteCode).first();
+      if (openOther) {
+        offTransferFrom = openOther.site_code;
+        const pTravel = await env.DB.prepare(
+          "SELECT travel_status FROM people WHERE id = ?"
+        ).bind(device.person_id).first();
+        if (pTravel && pTravel.travel_status === "paid") {
+          const aSite = await env.DB.prepare(
+            "SELECT lat, lng FROM sites WHERE site_name = ?"
+          ).bind(openOther.site_code).first();
+          if (aSite) offTravel = await getTravelData(env, aSite.lat, aSite.lng, matchedSite.lat, matchedSite.lng);
+        }
+        const leftSql = offTravel ? toSqlUtc(occurredMs - offTravel.mins * 60000) : occurredSql;
+        await env.DB.prepare(
+          "UPDATE visits SET check_out_at = MAX(check_in_at, ?), auto_checkout = 1, sign_out_confirmed = 0, transferred_to = ? WHERE id = ? AND check_out_at IS NULL"
+        ).bind(leftSql, siteCode, openOther.id).run();
+      }
+
       await env.DB.prepare(
-        "INSERT INTO visits (id, person_id, site_code, lat, lng, accuracy, hs_ack, auto_checkout, sign_in_confirmed, sign_out_confirmed, offline_synced, check_in_at) VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, 0, 1, ?)"
-      ).bind(crypto.randomUUID(), device.person_id, siteCode, latVal, lngVal, accuracy, occurredSql).run();
-      return json({ ok: true, status: "checked_in", site: siteCode, offline: true });
+        "INSERT INTO visits (id, person_id, site_code, lat, lng, accuracy, hs_ack, auto_checkout, sign_in_confirmed, sign_out_confirmed, offline_synced, check_in_at, travel_in_miles, travel_in_mins) VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, 0, 1, ?, ?, ?)"
+      ).bind(crypto.randomUUID(), device.person_id, siteCode, latVal, lngVal, accuracy, occurredSql, offTravel ? offTravel.miles : null, offTravel ? offTravel.mins : null).run();
+      return json({ ok: true, status: "checked_in", site: siteCode, offline: true, transferFrom: offTransferFrom });
     }
 
     // GET /pending-events  (offline events the server could not attribute)

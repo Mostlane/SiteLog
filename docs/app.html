@@ -15,6 +15,8 @@
   <link rel="icon" type="image/png" sizes="32x32" href="Mostlane%20Icon%2032.png" />
   <link rel="icon" type="image/x-icon" href="favicon.ico" />
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyANo2Q7OehYzHTTgMTxRr5ISamf5IradcM"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="document-render.js"></script>
   <style>
     :root {
       --blue:     #004a99;
@@ -320,6 +322,13 @@
 .docdetail-row .ddk { flex-shrink: 0; width: 38%; color: var(--muted); }
 .docdetail-row .ddv { flex: 1; font-weight: 600; color: var(--text); }
 .docdetail-close { width: 100%; margin-top: 16px; padding: 14px; border: none; border-radius: 12px; background: var(--blue); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; }
+
+.docview-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); z-index: 30000; display: flex; align-items: flex-end; justify-content: center; }
+.docview-card { width: 100%; max-width: 600px; background: #fff; border-radius: 18px 18px 0 0; max-height: 94vh; display: flex; flex-direction: column; }
+.docview-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 16px calc(13px); border-bottom: 1px solid var(--border); font-weight: 700; font-size: 15px; flex-shrink: 0; }
+.docview-body { overflow: auto; -webkit-overflow-scrolling: touch; padding: 14px 14px calc(14px + env(safe-area-inset-bottom,0px)); flex: 1; min-height: 0; background: #f2f2f7; }
+.docview-pdf { background: var(--blue); color: #fff; border: none; border-radius: 10px; padding: 8px 12px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.docview-close { background: #eef0f3; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 14px; cursor: pointer; line-height: 1; }
 
 /* DETAIL VIEWS */
 .detail-header { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 520px; margin-bottom: 14px; padding-top: 4px; }
@@ -1876,24 +1885,34 @@ async function dashViewDoc(id) {
     if (data && data.document) showDocDetail(data.document);
   } catch(e) {}
 }
+var appViewedDoc = null;
 function showDocDetail(d) {
-  var fd = d.form_data || {};
+  appViewedDoc = d;
   var tl = { induction: "Site Induction", hwp: "Hot Works Permit", tbt: "Toolbox Talk" }[d.type] || d.type;
-  var atts = (d.attendees || []).map(function(a){ return a.person_name; }).filter(Boolean).join(", ");
-  var rows = [["Document", d.doc_number || "—"], ["Type", tl], ["Site", d.site_name || "—"], ["Date", (d.issued_at || "").slice(0, 10)]];
-  if (d.type === "hwp") { rows.push(["Permit No", fd.permit_no || d.permit_no || "—"]); rows.push(["Status", d.status === "closed" ? "Closed out" : "Open"]); }
-  if (d.type === "tbt" && fd.title) rows.push(["Talk", fd.title]);
-  if (fd.project) rows.push(["Project", fd.project]);
-  if (atts) rows.push(["On this document", atts]);
-  var body = rows.map(function(r){ return '<div class="docdetail-row"><span class="ddk">' + escapeHtml(r[0]) + '</span><span class="ddv">' + escapeHtml(String(r[1])) + '</span></div>'; }).join("");
+  // Render the exact same form admin sees.
+  var formHtml = (window.DocRender && DocRender.buildPreview) ? DocRender.buildPreview(d) : '<p style="padding:16px;">Unable to display this document.</p>';
+  var canPdf = !!(window.DocRender && window.jspdf && window.jspdf.jsPDF);
+  var pdfBtn = canPdf ? '<button class="docview-pdf" onclick="downloadViewedDocPdf()" title="Download PDF">&#11015; PDF</button>' : '';
   var host = document.getElementById("docDetailHost") || document.createElement("div");
   host.id = "docDetailHost";
-  host.innerHTML = '<div class="docdetail-backdrop" onclick="closeDocDetail()"><div class="docdetail-card" onclick="event.stopPropagation();">' +
-    '<div class="docdetail-head">' + escapeHtml(tl) + '</div>' + body +
-    '<button class="docdetail-close" onclick="closeDocDetail()">Close</button></div></div>';
+  host.innerHTML =
+    '<div class="docview-backdrop" onclick="closeDocDetail()"><div class="docview-card" onclick="event.stopPropagation();">' +
+      '<div class="docview-head"><span>' + escapeHtml(tl) + (d.doc_number ? ' &middot; ' + escapeHtml(d.doc_number) : '') + '</span>' +
+        '<span style="display:flex;gap:8px;align-items:center;">' + pdfBtn + '<button class="docview-close" onclick="closeDocDetail()">&#10005;</button></span></div>' +
+      '<div class="docview-body">' + formHtml + '</div>' +
+    '</div></div>';
   document.body.appendChild(host);
+  // Measure images now so the PDF can be saved synchronously from the tap (iOS).
+  if (window.DocRender && DocRender.prefetchDocImages) { try { DocRender.prefetchDocImages(d); } catch(e) {} }
 }
-function closeDocDetail() { var h = document.getElementById("docDetailHost"); if (h) h.remove(); }
+function downloadViewedDocPdf() {
+  if (!appViewedDoc || !(window.DocRender && window.jspdf && window.jspdf.jsPDF)) { alert("PDF not available — please reload the app."); return; }
+  try {
+    var pdf = DocRender.generateDocPdf(appViewedDoc);
+    pdf.save(DocRender.docFileName(appViewedDoc) + ".pdf");
+  } catch (e) { alert("Could not generate the PDF: " + (e && e.message ? e.message : e)); }
+}
+function closeDocDetail() { var h = document.getElementById("docDetailHost"); if (h) h.remove(); appViewedDoc = null; }
 
 // DASHBOARD NAV
 function dashShowOnSite() {

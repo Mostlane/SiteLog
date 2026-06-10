@@ -41,6 +41,17 @@ async function ensureOfflineSchema(env) {
   try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN manual_entry INTEGER DEFAULT 0").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE people ADD COLUMN fuel_rate REAL").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE people ADD COLUMN is_main INTEGER DEFAULT 0").run(); } catch (e) {}
+  // Fuel and travel-time pay are independent toggles. Columns are left nullable
+  // so the one-time backfill below can seed them from the old single
+  // travel_status ('paid' -> both on) without clobbering later edits: it only
+  // touches rows that haven't been backfilled yet (fuel_paid IS NULL).
+  try { await env.DB.prepare("ALTER TABLE people ADD COLUMN fuel_paid INTEGER").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE people ADD COLUMN travel_time_paid INTEGER").run(); } catch (e) {}
+  try {
+    await env.DB.prepare(
+      "UPDATE people SET fuel_paid = CASE WHEN travel_status = 'paid' THEN 1 ELSE 0 END, travel_time_paid = CASE WHEN travel_status = 'paid' THEN 1 ELSE 0 END WHERE fuel_paid IS NULL"
+    ).run();
+  } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE sites ADD COLUMN category TEXT DEFAULT 'Projects'").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE devices ADD COLUMN last_seen TEXT").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE documents ADD COLUMN doc_number TEXT").run(); } catch (e) {}
@@ -144,13 +155,23 @@ async function getGeocode(env, address) {
   }
 }
 
+// Either travel allowance (fuel or travel time) is switched on for this person.
+// Falls back to the legacy single travel_status if the flags aren't backfilled.
+function travelAllowanceOn(person) {
+  if (!person) return false;
+  const fuel = person.fuel_paid != null ? Number(person.fuel_paid) : (person.travel_status === "paid" ? 1 : 0);
+  const time = person.travel_time_paid != null ? Number(person.travel_time_paid) : (person.travel_status === "paid" ? 1 : 0);
+  return fuel === 1 || time === 1;
+}
+
 async function handleTravelIn(env, visitId, personId, siteLat, siteLng) {
   try {
     const person = await env.DB.prepare(
-      "SELECT travel_status FROM people WHERE id = ?"
+      "SELECT travel_status, fuel_paid, travel_time_paid FROM people WHERE id = ?"
     ).bind(personId).first();
 
-    if (!person || person.travel_status !== "paid") return null;
+    // Record the home->first-site commute only if either allowance applies.
+    if (!person || !travelAllowanceOn(person)) return null;
 
     const today = new Date().toISOString().slice(0, 10);
 
@@ -176,10 +197,11 @@ async function handleTravelIn(env, visitId, personId, siteLat, siteLng) {
 async function handleTravelOut(env, visitId, personId, siteLat, siteLng) {
   try {
     const person = await env.DB.prepare(
-      "SELECT travel_status FROM people WHERE id = ?"
+      "SELECT travel_status, fuel_paid, travel_time_paid FROM people WHERE id = ?"
     ).bind(personId).first();
 
-    if (!person || person.travel_status !== "paid") return null;
+    // Record the last-site->home commute only if either allowance applies.
+    if (!person || !travelAllowanceOn(person)) return null;
 
     const travel = await getTravelData(env, siteLat, siteLng, OFFICE_LAT, OFFICE_LNG);
     if (!travel) return null;
@@ -717,6 +739,8 @@ export default {
                COALESCE(archived,0) as archived,
                COALESCE(hourly_rate,0) as hourly_rate,
                COALESCE(travel_status,'not_configured') as travel_status,
+               COALESCE(fuel_paid, CASE WHEN travel_status='paid' THEN 1 ELSE 0 END) as fuel_paid,
+               COALESCE(travel_time_paid, CASE WHEN travel_status='paid' THEN 1 ELSE 0 END) as travel_time_paid,
                travel_cap_type, travel_cap_value, fuel_rate,
                COALESCE(is_main,0) as is_main,
                (SELECT COUNT(*) FROM visits WHERE visits.person_id = people.id) AS visit_count,
@@ -782,6 +806,12 @@ export default {
           ? null
           : Number(rateIn);
 
+      // Fuel and travel time are independent now. Accept the two flags; older
+      // callers that still send travelStatus map onto both (paid -> both on).
+      const fuelPaidIn = body.fuelPaid;
+      const travelTimePaidIn = body.travelTimePaid;
+      const hasNewTravelFlags = fuelPaidIn !== undefined || travelTimePaidIn !== undefined;
+
       const travelStatus = body.travelStatus ?? null;
       const travelCapType = body.travelCapType ?? null;
       const travelCapValue =
@@ -825,7 +855,28 @@ export default {
         binds.push(hourlyRate ?? 0);
       }
 
-      if (travelStatus !== null) {
+      if (hasNewTravelFlags) {
+        const fuelPaid = fuelPaidIn ? 1 : 0;
+        const travelTimePaid = travelTimePaidIn ? 1 : 0;
+        sets.push("fuel_paid = ?");
+        binds.push(fuelPaid);
+        sets.push("travel_time_paid = ?");
+        binds.push(travelTimePaid);
+        // Keep the legacy single status in sync so any code still reading it
+        // ('paid' when either allowance is on) behaves sensibly.
+        sets.push("travel_status = ?");
+        binds.push(fuelPaid || travelTimePaid ? "paid" : "not_configured");
+
+        sets.push("travel_cap_type = ?");
+        binds.push(travelCapType);
+        sets.push("travel_cap_value = ?");
+        binds.push(Number.isFinite(travelCapValue) ? travelCapValue : null);
+      } else if (travelStatus !== null) {
+        const on = travelStatus === "paid" ? 1 : 0;
+        sets.push("fuel_paid = ?");
+        binds.push(on);
+        sets.push("travel_time_paid = ?");
+        binds.push(on);
         sets.push("travel_status = ?");
         binds.push(travelStatus);
 
@@ -1297,11 +1348,11 @@ export default {
 
         if (openA) {
           transferredFrom = openA.site_code;
-          const pTravel = await env.DB.prepare(
-            "SELECT travel_status FROM people WHERE id = ?"
-          ).bind(device.person_id).first();
 
-          if (pTravel && pTravel.travel_status === "paid" && siteRow) {
+          // Inter-site (mid-day) travel time is paid to EVERYONE, so always
+          // measure the A->B drive regardless of the person's allowance — it
+          // also drives the accurate back-dating of A's checkout below.
+          if (siteRow) {
             // Prefer the GPS captured when they checked into A (robust to A being
             // renamed/archived/moved); fall back to A's configured site coords.
             let aLat = isFiniteNumber(openA.lat) ? Number(openA.lat) : null;
@@ -1605,10 +1656,9 @@ export default {
       ).bind(device.person_id, siteCode, occurredSql).first();
       if (openOther) {
         offTransferFrom = openOther.site_code;
-        const pTravel = await env.DB.prepare(
-          "SELECT travel_status FROM people WHERE id = ?"
-        ).bind(device.person_id).first();
-        if (pTravel && pTravel.travel_status === "paid") {
+        // Inter-site travel time is paid to everyone — always measure the drive
+        // (also used to back-date the site they left).
+        {
           let aLat = isFiniteNumber(openOther.lat) ? Number(openOther.lat) : null;
           let aLng = isFiniteNumber(openOther.lng) ? Number(openOther.lng) : null;
           if (aLat === null || aLng === null) {

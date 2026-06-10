@@ -1882,7 +1882,7 @@ function dashDocItem(d) {
 }
 async function dashViewDoc(id) {
   try {
-    var res = await fetchWithTimeout(API + "/documents/single?id=" + encodeURIComponent(id));
+    var res = await fetchWithTimeout(API + "/documents/single?id=" + encodeURIComponent(id) + "&deviceToken=" + encodeURIComponent(deviceToken || ""));
     var data = await res.json();
     if (data && data.document) showDocDetail(data.document);
   } catch(e) {}

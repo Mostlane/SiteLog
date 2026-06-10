@@ -1570,10 +1570,21 @@ export default {
         ).bind(leftSql, siteCode, openOther.id).run();
       }
 
+      // Already superseded by a later visit? Then the engineer has since moved
+      // on — record this replayed event as a CLOSED historical visit (ending
+      // when the next visit began), not another live one, so it isn't left open
+      // alongside the current visit.
+      const nextVisit = await env.DB.prepare(
+        "SELECT site_code, check_in_at FROM visits WHERE person_id = ? AND check_in_at > ? ORDER BY check_in_at ASC LIMIT 1"
+      ).bind(device.person_id, occurredSql).first();
+      const bOut = nextVisit ? nextVisit.check_in_at : null;
+      const bAuto = nextVisit ? 1 : 0;
+      const bTransferTo = nextVisit ? nextVisit.site_code : null;
+
       await env.DB.prepare(
-        "INSERT INTO visits (id, person_id, site_code, lat, lng, accuracy, hs_ack, auto_checkout, sign_in_confirmed, sign_out_confirmed, offline_synced, check_in_at, travel_in_miles, travel_in_mins) VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, 0, 1, ?, ?, ?)"
-      ).bind(crypto.randomUUID(), device.person_id, siteCode, latVal, lngVal, accuracy, occurredSql, offTravel ? offTravel.miles : null, offTravel ? offTravel.mins : null).run();
-      return json({ ok: true, status: "checked_in", site: siteCode, offline: true, transferFrom: offTransferFrom });
+        "INSERT INTO visits (id, person_id, site_code, lat, lng, accuracy, hs_ack, auto_checkout, sign_in_confirmed, sign_out_confirmed, offline_synced, check_in_at, travel_in_miles, travel_in_mins, check_out_at, transferred_to) VALUES (?, ?, ?, ?, ?, ?, 1, ?, 1, 0, 1, ?, ?, ?, ?, ?)"
+      ).bind(crypto.randomUUID(), device.person_id, siteCode, latVal, lngVal, accuracy, bAuto, occurredSql, offTravel ? offTravel.miles : null, offTravel ? offTravel.mins : null, bOut, bTransferTo).run();
+      return json({ ok: true, status: nextVisit ? "synced_historical" : "checked_in", site: siteCode, offline: true, transferFrom: offTransferFrom });
     }
 
     // GET /pending-events  (offline events the server could not attribute)

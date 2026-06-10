@@ -1175,9 +1175,32 @@ function escSel(value) {
   return String(value).replace(/["\\]/g, "\\$&");
 }
 
-/* ── TRAVEL CALC ── */
-function calcPaidMins(actualMins, actualMiles, eng) {
-  if (!eng || eng.travel_status !== "paid") return 0;
+/* ── TRAVEL CALC ──
+   Fuel and travel time are independent per-engineer allowances. Travel time for
+   the first/last commute is paid only if "pay travel time" is on; for mid-day
+   inter-site hops it is paid to EVERYONE. Fuel follows the "pay fuel" flag for
+   all legs. The unpaid-commute cap applies only to the first/last commute —
+   inter-site business travel is paid in full.
+   legType: "first" (home->first site), "out" (last site->home), "inter" (transfer). */
+function engFuelPaid(eng) {
+  if (!eng) return false;
+  if (eng.fuel_paid != null) return Number(eng.fuel_paid) === 1;
+  return eng.travel_status === "paid"; // legacy fallback
+}
+function engTimePaid(eng) {
+  if (!eng) return false;
+  if (eng.travel_time_paid != null) return Number(eng.travel_time_paid) === 1;
+  return eng.travel_status === "paid"; // legacy fallback
+}
+// Any travel pay at all (used to decide whether to show travel columns / fuel).
+function engTravelPaid(eng) { return engFuelPaid(eng) || engTimePaid(eng); }
+
+function calcPaidMins(actualMins, actualMiles, eng, legType) {
+  if (!eng || !(actualMins > 0)) return 0;
+  // Inter-site time: always paid in full, no commute cap.
+  if (legType === "inter") return actualMins;
+  // First/last commute: only if travel-time pay is on.
+  if (!engTimePaid(eng)) return 0;
   const capType = eng.travel_cap_type;
   const capVal = parseFloat(eng.travel_cap_value) || 0;
   if (!capType || capType === "none") return actualMins;
@@ -1188,15 +1211,18 @@ function calcPaidMins(actualMins, actualMiles, eng) {
   }
   return 0;
 }
-// Reimbursable miles for fuel: respects a distance cap (first capVal miles are
-// the unpaid commute), mirroring calcPaidMins. Per leg, like the time version.
-function calcPaidMiles(actualMiles, eng) {
-  if (!eng || eng.travel_status !== "paid" || !(actualMiles > 0)) return 0;
+// Reimbursable miles for fuel: follows the fuel flag for every leg. The distance
+// cap (first capVal miles unpaid commute) applies only to first/last legs.
+function calcPaidMiles(actualMiles, eng, legType) {
+  if (!eng || !engFuelPaid(eng) || !(actualMiles > 0)) return 0;
+  if (legType === "inter") return actualMiles;
   const capType = eng.travel_cap_type;
   const capVal = parseFloat(eng.travel_cap_value) || 0;
   if (capType === "distance") return Math.max(0, actualMiles - capVal);
   return actualMiles;
 }
+// Leg type for a visit's inbound travel: first-of-day commute vs inter-site hop.
+function inLegType(v) { return Number(v.is_first_of_day || 0) === 1 ? "first" : "inter"; }
 
 /* ── HELPERS ── */
 // Stored timestamps are UTC, normally "YYYY-MM-DD HH:MM:SS". Some legacy rows
@@ -2047,18 +2073,17 @@ function buildEngineerAdminPanel(eng, name, company, id) {
   const capType = r.travel_cap_type || "";
   const capVal = r.travel_cap_value != null ? r.travel_cap_value : "";
   const fuelRate = r.fuel_rate != null ? r.fuel_rate : "";
+  const fuelOn = r.fuel_paid != null ? Number(r.fuel_paid) === 1 : travelStatus === "paid";
+  const timeOn = r.travel_time_paid != null ? Number(r.travel_time_paid) === 1 : travelStatus === "paid";
+  const anyOn = fuelOn || timeOn;
   const travelHtml =
     '<div class="travel-section">' +
-      '<div class="travel-section-label">Travel Allowance</div>' +
+      '<div class="travel-section-label">Travel Allowance <span style="font-weight:400;color:var(--label3);">(inter-site time is always paid to everyone)</span></div>' +
       '<div class="travel-fields">' +
-        '<div class="field-stack"><span class="field-label">Status</span>' +
-          '<select data-ts-eng-travel-status="' + escapeHtml(eid) + '" onchange="onTravelStatusChange(\'' + escapeHtml(eid) + '\')">' +
-            '<option value="not_configured"' + (travelStatus === "not_configured" ? " selected" : "") + '>Not configured</option>' +
-            '<option value="no_allowance"' + (travelStatus === "no_allowance" ? " selected" : "") + '>No allowance</option>' +
-            '<option value="paid"' + (travelStatus === "paid" ? " selected" : "") + '>Paid travel</option>' +
-          '</select></div>' +
-        '<div class="field-stack" id="travelCapGroup-' + escapeHtml(eid) + '" style="display:' + (travelStatus === "paid" ? "flex" : "none") + ';gap:8px;">' +
-          '<span class="field-label">Cap type</span>' +
+        '<label class="field-stack" style="flex-direction:row;align-items:center;gap:7px;cursor:pointer;"><input type="checkbox" data-ts-eng-timeon="' + escapeHtml(eid) + '"' + (timeOn ? " checked" : "") + ' onchange="onTravelStatusChange(\'' + escapeHtml(eid) + '\')"> <span class="field-label" style="margin:0;">Pay travel time (first/last trip)</span></label>' +
+        '<label class="field-stack" style="flex-direction:row;align-items:center;gap:7px;cursor:pointer;"><input type="checkbox" data-ts-eng-fuelon="' + escapeHtml(eid) + '"' + (fuelOn ? " checked" : "") + ' onchange="onTravelStatusChange(\'' + escapeHtml(eid) + '\')"> <span class="field-label" style="margin:0;">Pay fuel / mileage</span></label>' +
+        '<div class="field-stack" id="travelCapGroup-' + escapeHtml(eid) + '" style="display:' + (anyOn ? "flex" : "none") + ';gap:8px;">' +
+          '<span class="field-label">Commute cap (first/last only)</span>' +
           '<select data-ts-eng-cap-type="' + escapeHtml(eid) + '">' +
             '<option value="none"' + ((capType === "none" || capType === "") ? " selected" : "") + '>No cap (all paid)</option>' +
             '<option value="time"' + (capType === "time" ? " selected" : "") + '>Time (mins)</option>' +
@@ -2066,7 +2091,7 @@ function buildEngineerAdminPanel(eng, name, company, id) {
           '</select>' +
           '<input type="number" data-ts-eng-cap-val="' + escapeHtml(eid) + '" value="' + escapeHtml(String(capVal)) + '" placeholder="e.g. 30" style="width:80px;" min="0" step="1">' +
         '</div>' +
-        '<div class="field-stack" id="fuelGroup-' + escapeHtml(eid) + '" style="display:' + (travelStatus === "paid" ? "flex" : "none") + ';">' +
+        '<div class="field-stack" id="fuelGroup-' + escapeHtml(eid) + '" style="display:' + (fuelOn ? "flex" : "none") + ';">' +
           '<span class="field-label">Fuel (£/mile)</span>' +
           '<input type="number" data-ts-eng-fuel="' + escapeHtml(eid) + '" value="' + escapeHtml(String(fuelRate)) + '" placeholder="e.g. 0.25" style="width:90px;" min="0" step="0.01">' +
         '</div></div></div>';
@@ -2088,20 +2113,20 @@ function buildEngineerAdminPanel(eng, name, company, id) {
 }
 
 function onTravelStatusChange(id) {
-  const sel = document.querySelector('[data-ts-eng-travel-status="' + escSel(id) + '"]');
-  const show = sel && sel.value === "paid" ? "flex" : "none";
+  const timeOn = !!document.querySelector('[data-ts-eng-timeon="' + escSel(id) + '"]')?.checked;
+  const fuelOn = !!document.querySelector('[data-ts-eng-fuelon="' + escSel(id) + '"]')?.checked;
   const grp = document.getElementById("travelCapGroup-" + id);
-  if (grp) grp.style.display = show;
+  if (grp) grp.style.display = (timeOn || fuelOn) ? "flex" : "none";
   const fuel = document.getElementById("fuelGroup-" + id);
-  if (fuel) fuel.style.display = show;
+  if (fuel) fuel.style.display = fuelOn ? "flex" : "none";
 }
 
 // Clean weekly chart (Mon–Sun) for a single employee+week. One row per visit,
 // grouped under each day; the detailed/editable table lives in buildWeekTable.
 function buildWeekChart(visits, name, company, weekKey, eng) {
-  const hasTravelPay = eng && eng.travel_status === "paid";
+  const hasTravelPay = engTravelPaid(eng);
   const rate = (eng && eng.hourly_rate != null && Number(eng.hourly_rate) > 0) ? Number(eng.hourly_rate) : 0;
-  const fuelRate = (hasTravelPay && eng.fuel_rate != null && Number(eng.fuel_rate) > 0) ? Number(eng.fuel_rate) : 0;
+  const fuelRate = (engFuelPaid(eng) && eng.fuel_rate != null && Number(eng.fuel_rate) > 0) ? Number(eng.fuel_rate) : 0;
   const money = n => "£" + (Number(n) || 0).toFixed(2);
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const byDay = {};
@@ -2134,12 +2159,12 @@ function buildWeekChart(visits, name, company, weekKey, eng) {
         : (Number(v.auto_checkout || 0) === 1 ? ' <span class="tc-flag">&#9888; (auto sign-out)</span>' : ""));
       const manualTag = Number(v.manual_entry || 0) === 1 ? ' <span style="color:#64748b;">(manual)</span>' : "";
       const pin = mapPinHtml(v);
-      if (hasTravelPay) {
-        if (v.travel_in_mins != null) totTravelPaid += calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng);
-        if (v.travel_out_mins != null) totTravelPaid += calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng);
-        if (v.travel_in_miles != null) totMiles += calcPaidMiles(v.travel_in_miles, eng);
-        if (v.travel_out_miles != null) totMiles += calcPaidMiles(v.travel_out_miles, eng);
-      }
+      // Inter-site time is paid to everyone, so always tally (calc functions
+      // apply the per-leg fuel/time rules and caps internally).
+      if (v.travel_in_mins != null) totTravelPaid += calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng, inLegType(v));
+      if (v.travel_out_mins != null) totTravelPaid += calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng, "out");
+      if (v.travel_in_miles != null) totMiles += calcPaidMiles(v.travel_in_miles, eng, inLegType(v));
+      if (v.travel_out_miles != null) totMiles += calcPaidMiles(v.travel_out_miles, eng, "out");
       const dayCell = idx === 0
         ? '<td class="tc-day"><span class="tc-day-name">' + dayNames[i] + '</span><span class="tc-day-date">' + escapeHtml(dateLabel) + '</span></td>'
         : '<td class="tc-day"></td>';
@@ -2155,7 +2180,7 @@ function buildWeekChart(visits, name, company, weekKey, eng) {
   const travelPaidH = totTravelPaid / 60;
   const totalPay = rate ? (totTotal + travelPaidH) * rate : 0;
   const fuelTotal = fuelRate ? totMiles * fuelRate : 0;
-  const travelStat = hasTravelPay
+  const travelStat = (hasTravelPay || totTravelPaid > 0)
     ? '<div class="tc-stat tc-travel"><span class="tc-stat-val">' + travelPaidH.toFixed(2) + '</span><span class="tc-stat-label">Travel paid</span></div>'
     : "";
   const payStat = rate
@@ -2201,7 +2226,10 @@ function toggleDetail(btn) {
 }
 
 function buildWeekTable(visits, name, company, weekKey, eng) {
-  const hasTravelPay = eng && eng.travel_status === "paid";
+  // Show travel columns when the engineer has any travel allowance, or when any
+  // visit carries an inter-site hop (paid to everyone).
+  const hasTravelPay = engTravelPaid(eng) ||
+    visits.some(v => Number(v.is_first_of_day || 0) !== 1 && v.travel_in_mins != null);
   const sorted = visits.slice().sort((a, b) => (a.check_in_at || "").localeCompare(b.check_in_at || ""));
   let totTotal = 0, totStd = 0, totOT = 0, totTIPaid = 0, totTOPaid = 0;
 
@@ -2223,14 +2251,15 @@ function buildWeekTable(visits, name, company, weekKey, eng) {
     let tiHtml = "", toHtml = "";
     if (hasTravelPay) {
       if (v.travel_in_mins != null) {
-        const p = calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng);
+        const p = calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng, inLegType(v));
         totTIPaid += p;
-        tiHtml = '<span class="ts-travel-cell">' + v.travel_in_mins + 'm' + (v.travel_in_miles != null ? ' (' + v.travel_in_miles + 'mi)' : '') + '<br><span class="ts-travel-paid">Paid: ' + p + 'm</span></span>';
+        const tag = inLegType(v) === "inter" ? ' <span class="ts-travel-paid">&#10142;</span>' : '';
+        tiHtml = '<span class="ts-travel-cell">' + v.travel_in_mins + 'm' + (v.travel_in_miles != null ? ' (' + v.travel_in_miles + 'mi)' : '') + tag + '<br><span class="ts-travel-paid">Paid: ' + p + 'm</span></span>';
       } else {
         tiHtml = '<span style="color:var(--label4);">-</span>';
       }
       if (v.travel_out_mins != null) {
-        const p = calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng);
+        const p = calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng, "out");
         totTOPaid += p;
         toHtml = '<span class="ts-travel-cell">' + v.travel_out_mins + 'm' + (v.travel_out_miles != null ? ' (' + v.travel_out_miles + 'mi)' : '') + '<br><span class="ts-travel-paid">Paid: ' + p + 'm</span></span>';
       } else {
@@ -2426,20 +2455,18 @@ function toggleAllJobSites(expand) {
 function costEngineerVisits(visits, eng) {
   const hasRate = !!(eng && rateIsSet(eng.hourly_rate));
   const rate = hasRate ? Number(eng.hourly_rate) : 0;
-  const paid = !!(eng && eng.travel_status === "paid");
-  const fuelRate = (paid && eng && eng.fuel_rate != null && Number(eng.fuel_rate) > 0) ? Number(eng.fuel_rate) : 0;
+  const fuelRate = (engFuelPaid(eng) && eng && eng.fuel_rate != null && Number(eng.fuel_rate) > 0) ? Number(eng.fuel_rate) : 0;
   let workMins = 0, travelMins = 0, miles = 0, openCount = 0, costedVisits = 0, autoCount = 0;
   visits.forEach(v => {
     if (!v.check_out_at) { openCount++; return; }
     workMins += minutesBetween(v.check_in_at, v.check_out_at);
     costedVisits++;
     if (Number(v.auto_checkout || 0) === 1 && !v.transferred_to) autoCount++;
-    if (paid) {
-      if (v.travel_in_mins != null) travelMins += calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng);
-      if (v.travel_out_mins != null) travelMins += calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng);
-      if (v.travel_in_miles != null) miles += calcPaidMiles(v.travel_in_miles, eng);
-      if (v.travel_out_miles != null) miles += calcPaidMiles(v.travel_out_miles, eng);
-    }
+    // Per-leg rules (incl. always-paid inter-site time) live in the calc fns.
+    if (v.travel_in_mins != null) travelMins += calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng, inLegType(v));
+    if (v.travel_out_mins != null) travelMins += calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng, "out");
+    if (v.travel_in_miles != null) miles += calcPaidMiles(v.travel_in_miles, eng, inLegType(v));
+    if (v.travel_out_miles != null) miles += calcPaidMiles(v.travel_out_miles, eng, "out");
   });
   const workH = workMins / 60, travelH = travelMins / 60;
   const labour = workH * rate, travelCost = travelH * rate, fuelCost = miles * fuelRate;
@@ -2802,9 +2829,9 @@ function clearTimesheetFilters() {
 }
 // One A4 timesheet per engineer-week (mirrors the on-screen buildWeekChart math).
 function timesheetCard(A, visits, name, company, weekKey, eng) {
-  const hasTravelPay = eng && eng.travel_status === "paid";
+  const hasTravelPay = engTravelPaid(eng);
   const rate = (eng && eng.hourly_rate != null && Number(eng.hourly_rate) > 0) ? Number(eng.hourly_rate) : 0;
-  const fuelRate = (hasTravelPay && eng && eng.fuel_rate != null && Number(eng.fuel_rate) > 0) ? Number(eng.fuel_rate) : 0;
+  const fuelRate = (engFuelPaid(eng) && eng && eng.fuel_rate != null && Number(eng.fuel_rate) > 0) ? Number(eng.fuel_rate) : 0;
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const byDay = {}; visits.forEach(v => { const d = londonDayKey(v.check_in_at); (byDay[d] = byDay[d] || []).push(v); });
   let totTotal = 0, totStd = 0, totOT = 0, totTravelPaid = 0, totMiles = 0;
@@ -2820,12 +2847,12 @@ function timesheetCard(A, visits, name, company, weekKey, eng) {
       const times = formatTimeOnly(v.check_in_at) + " – " + (v.check_out_at ? formatTimeOnly(v.check_out_at) : "—");
       const flag = !v.check_out_at ? "  (no sign-out)" : (v.transferred_to ? "  (moved to " + v.transferred_to + ")" : (Number(v.auto_checkout || 0) === 1 ? "  (auto sign-out)" : ""));
       const manual = Number(v.manual_entry || 0) === 1 ? "  (manual)" : "";
-      if (hasTravelPay) {
-        if (v.travel_in_mins != null) totTravelPaid += calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng);
-        if (v.travel_out_mins != null) totTravelPaid += calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng);
-        if (v.travel_in_miles != null) totMiles += calcPaidMiles(v.travel_in_miles, eng);
-        if (v.travel_out_miles != null) totMiles += calcPaidMiles(v.travel_out_miles, eng);
-      }
+      // Inter-site time is paid to everyone, so always tally (calc functions
+      // apply the per-leg fuel/time rules and caps internally).
+      if (v.travel_in_mins != null) totTravelPaid += calcPaidMins(v.travel_in_mins, v.travel_in_miles, eng, inLegType(v));
+      if (v.travel_out_mins != null) totTravelPaid += calcPaidMins(v.travel_out_mins, v.travel_out_miles, eng, "out");
+      if (v.travel_in_miles != null) totMiles += calcPaidMiles(v.travel_in_miles, eng, inLegType(v));
+      if (v.travel_out_miles != null) totMiles += calcPaidMiles(v.travel_out_miles, eng, "out");
       const r = [idx === 0 ? dayName : "", v.site_code || "—", times + flag + manual, h.toFixed(2)];
       if (rate) r.push(pdfMoney(h * rate));
       tableRows.push(r);
@@ -2835,7 +2862,7 @@ function timesheetCard(A, visits, name, company, weekKey, eng) {
 
   A.titleBar("TIMESHEET", "Week commencing " + formatWeekCommencing(weekKey), name, company || "—");
   const stats = [["Weekly hrs", totStd.toFixed(2)], ["Extra hrs", totOT.toFixed(2)], ["Total hrs", totTotal.toFixed(2)]];
-  if (hasTravelPay) stats.push(["Travel paid", travelPaidH.toFixed(2) + "h"]);
+  if (hasTravelPay || totTravelPaid > 0) stats.push(["Travel paid", travelPaidH.toFixed(2) + "h"]);
   if (rate) stats.push(["Pay @ £" + rate.toFixed(2), pdfMoney(totalPay)]);
   if (fuelRate) stats.push(["Fuel", pdfMoney(fuelTotal)]);
   A.gap(1.5); A.statStrip(stats); A.gap(1.5);
@@ -2892,7 +2919,8 @@ async function saveTimesheetEngineer(id) {
   const purpose = (document.querySelector('[data-ts-eng-purpose="' + escSel(id) + '"]')?.value || "").trim();
   const rateRaw = (document.querySelector('[data-ts-eng-rate="' + escSel(id) + '"]')?.value || "").trim();
   const hourlyRate = rateRaw === "" ? null : Number(rateRaw);
-  const travelStatus = (document.querySelector('[data-ts-eng-travel-status="' + escSel(id) + '"]')?.value || "not_configured");
+  const travelTimePaid = !!document.querySelector('[data-ts-eng-timeon="' + escSel(id) + '"]')?.checked;
+  const fuelPaid = !!document.querySelector('[data-ts-eng-fuelon="' + escSel(id) + '"]')?.checked;
   const travelCapType = (document.querySelector('[data-ts-eng-cap-type="' + escSel(id) + '"]')?.value || null);
   const capValRaw = (document.querySelector('[data-ts-eng-cap-val="' + escSel(id) + '"]')?.value || "").trim();
   const travelCapValue = capValRaw === "" ? null : Number(capValRaw);
@@ -2908,7 +2936,7 @@ async function saveTimesheetEngineer(id) {
   const r = await fetch(API_BASE + "/update-engineer", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, travelStatus, travelCapType: travelCapType || null, travelCapValue, fuelRate, isMain })
+    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, fuelPaid, travelTimePaid, travelCapType: travelCapType || null, travelCapValue, fuelRate, isMain })
   });
   const d = await r.json();
 
@@ -3530,6 +3558,10 @@ function renderEngineersTable() {
     const ts = p.travel_status || "not_configured";
     const ct = p.travel_cap_type || "";
     const cv = p.travel_cap_value != null ? p.travel_cap_value : "";
+    const fuelOn = p.fuel_paid != null ? Number(p.fuel_paid) === 1 : ts === "paid";
+    const timeOn = p.travel_time_paid != null ? Number(p.travel_time_paid) === 1 : ts === "paid";
+    const anyOn = fuelOn || timeOn;
+    const fr = p.fuel_rate != null ? p.fuel_rate : "";
     const id = escapeHtml(p.id);
     const fullName = escapeHtml(nameOf(p) || "Unnamed");
     const company = escapeHtml(p.company || "No company");
@@ -3544,7 +3576,7 @@ function renderEngineersTable() {
               (Number(p.is_main || 0) === 1 ? '<span class="site-item-fact" style="background:var(--blue-soft);color:var(--blue);font-weight:600;">Main</span>' : '') +
               '<span class="site-item-fact">' + company + '</span>' +
               (rate ? '<span class="site-item-fact">' + rate + '</span>' : '') +
-              (ts === "paid" ? '<span class="site-item-fact">Travel paid</span>' : '') +
+              (anyOn ? '<span class="site-item-fact">' + (timeOn && fuelOn ? "Travel + fuel" : timeOn ? "Travel time" : "Fuel only") + '</span>' : '') +
             '</div>' +
           '</div>' +
           '<span class="site-item-chev">&#8250;</span>' +
@@ -3559,20 +3591,22 @@ function renderEngineersTable() {
             '<label style="grid-column:1 / -1;display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--label2);cursor:pointer;"><input type="checkbox" data-eng-main="' + id + '"' + (Number(p.is_main || 0) === 1 ? " checked" : "") + '> Main (Mostlane) &mdash; shown by default</label>' +
           '</div>' +
           '<div class="travel-section">' +
-            '<div class="travel-section-label">Travel allowance</div>' +
+            '<div class="travel-section-label">Travel allowance <span style="font-weight:400;color:var(--label3);">(inter-site time is always paid to everyone)</span></div>' +
             '<div class="travel-fields">' +
-              '<select data-eng-travel-status="' + id + '" onchange="onEngTravelChange(\'' + id + '\')">' +
-                '<option value="not_configured"' + (ts === "not_configured" ? " selected" : "") + '>Not configured</option>' +
-                '<option value="no_allowance"' + (ts === "no_allowance" ? " selected" : "") + '>No allowance</option>' +
-                '<option value="paid"' + (ts === "paid" ? " selected" : "") + '>Paid</option>' +
-              '</select>' +
-              '<div id="engCapGroup-' + id + '" style="display:' + (ts === "paid" ? "flex" : "none") + ';gap:6px;flex-wrap:wrap;">' +
+              '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13.5px;"><input type="checkbox" data-eng-timeon="' + id + '"' + (timeOn ? " checked" : "") + ' onchange="onEngTravelChange(\'' + id + '\')"> Pay travel time (first/last trip)</label>' +
+              '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13.5px;"><input type="checkbox" data-eng-fuelon="' + id + '"' + (fuelOn ? " checked" : "") + ' onchange="onEngTravelChange(\'' + id + '\')"> Pay fuel / mileage</label>' +
+              '<div id="engCapGroup-' + id + '" style="display:' + (anyOn ? "flex" : "none") + ';gap:6px;flex-wrap:wrap;align-items:center;">' +
+                '<span class="field-label" style="margin:0;">Commute cap (first/last):</span>' +
                 '<select data-eng-cap-type="' + id + '">' +
                   '<option value="none"' + ((ct === "none" || ct === "") ? " selected" : "") + '>No cap</option>' +
                   '<option value="time"' + (ct === "time" ? " selected" : "") + '>Time (mins)</option>' +
                   '<option value="distance"' + (ct === "distance" ? " selected" : "") + '>Distance (mi)</option>' +
                 '</select>' +
-                '<input type="number" data-eng-cap-val="' + id + '" value="' + escapeHtml(String(cv)) + '" placeholder="e.g. 30" min="0" step="1">' +
+                '<input type="number" data-eng-cap-val="' + id + '" value="' + escapeHtml(String(cv)) + '" placeholder="e.g. 30" min="0" step="1" style="width:80px;">' +
+              '</div>' +
+              '<div id="engFuelGroup-' + id + '" style="display:' + (fuelOn ? "flex" : "none") + ';gap:6px;align-items:center;">' +
+                '<span class="field-label" style="margin:0;">Fuel (£/mile):</span>' +
+                '<input type="number" data-eng-fuel="' + id + '" value="' + escapeHtml(String(fr)) + '" placeholder="e.g. 0.25" min="0" step="0.01" style="width:90px;">' +
               '</div>' +
             '</div>' +
           '</div>' +
@@ -3591,9 +3625,12 @@ function toggleEngItem(id) {
   if (el) el.classList.toggle("open");
 }
 function onEngTravelChange(id) {
-  const sel = document.querySelector('[data-eng-travel-status="' + escSel(id) + '"]');
+  const timeOn = !!document.querySelector('[data-eng-timeon="' + escSel(id) + '"]')?.checked;
+  const fuelOn = !!document.querySelector('[data-eng-fuelon="' + escSel(id) + '"]')?.checked;
   const grp = document.getElementById("engCapGroup-" + id);
-  if (grp) grp.style.display = sel && sel.value === "paid" ? "flex" : "none";
+  if (grp) grp.style.display = (timeOn || fuelOn) ? "flex" : "none";
+  const fuel = document.getElementById("engFuelGroup-" + id);
+  if (fuel) fuel.style.display = fuelOn ? "flex" : "none";
 }
 async function saveEngineer(id) {
   const firstName = (document.querySelector('[data-eng-first="' + escSel(id) + '"]')?.value || "").trim();
@@ -3602,10 +3639,13 @@ async function saveEngineer(id) {
   const purpose = (document.querySelector('[data-eng-purpose="' + escSel(id) + '"]')?.value || "").trim();
   const rateRaw = (document.querySelector('[data-eng-rate="' + escSel(id) + '"]')?.value || "").trim();
   const hourlyRate = rateRaw === "" ? null : Number(rateRaw);
-  const travelStatus = (document.querySelector('[data-eng-travel-status="' + escSel(id) + '"]')?.value || "not_configured");
+  const travelTimePaid = !!document.querySelector('[data-eng-timeon="' + escSel(id) + '"]')?.checked;
+  const fuelPaid = !!document.querySelector('[data-eng-fuelon="' + escSel(id) + '"]')?.checked;
   const travelCapType = (document.querySelector('[data-eng-cap-type="' + escSel(id) + '"]')?.value || null);
   const capValRaw = (document.querySelector('[data-eng-cap-val="' + escSel(id) + '"]')?.value || "").trim();
   const travelCapValue = capValRaw === "" ? null : Number(capValRaw);
+  const fuelRaw = (document.querySelector('[data-eng-fuel="' + escSel(id) + '"]')?.value || "").trim();
+  const fuelRate = fuelRaw === "" ? null : Number(fuelRaw);
   const isMain = !!document.querySelector('[data-eng-main="' + escSel(id) + '"]')?.checked;
 
   if (!firstName && !lastName) {
@@ -3616,7 +3656,7 @@ async function saveEngineer(id) {
   const r = await fetch(API_BASE + "/update-engineer", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, travelStatus, travelCapType: travelCapType || null, travelCapValue, isMain })
+    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, fuelPaid, travelTimePaid, travelCapType: travelCapType || null, travelCapValue, fuelRate, isMain })
   });
   const d = await r.json();
 

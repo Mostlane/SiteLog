@@ -25,6 +25,7 @@ export default {
       if (path.startsWith('/o/')) return handleOfficeUserView(path, env);
       if (path === '/admin') return html(adminPage());
       if (path === '/stats') return html(statsPage());
+      if (path === '/accounts') return html(accountsPage());
 
       if (path === '/api/config' && method === 'GET') return json(await getConfig(env.DB));
       if (path === '/api/config' && method === 'POST') return json(await updateConfig(env.DB, await request.json()));
@@ -37,6 +38,8 @@ export default {
       if (path === '/api/suppliers' && method === 'GET') return json(await getSuppliers(env.DB));
       if (path === '/api/suppliers' && method === 'POST') return json(await addSupplier(env.DB, await request.json()));
       if (path.startsWith('/api/suppliers/') && method === 'DELETE') return json(await deleteSupplier(env.DB, path.split('/').pop()));
+      if (path.startsWith('/api/suppliers/') && method === 'PATCH') return json(await updateSupplier(env.DB, path.split('/').pop(), await request.json()));
+      if (path === '/api/accounts' && method === 'GET') return json(await getAccounts(env.DB));
       if (path === '/api/sites' && method === 'GET') return json(await getSites(env.DB));
       if (path === '/api/sites' && method === 'POST') return json(await addSite(env.DB, await request.json()));
       if (path.startsWith('/api/sites/') && method === 'DELETE') return json(await deleteSite(env.DB, path.split('/').pop()));
@@ -101,6 +104,17 @@ async function ensureSchema(db) {
       } catch (e) {
         console.error(`Migration failed for po_log.${column}:`, e.message);
       }
+    }
+  }
+
+  // Supplier account terms: 30 = due end of the month after the spend month,
+  // 60 = end of the second month after.
+  const supplierInfo = await db.prepare(`PRAGMA table_info(suppliers)`).all();
+  if (!supplierInfo.results.some(r => r.name === 'terms_days')) {
+    try {
+      await db.exec(`ALTER TABLE suppliers ADD COLUMN terms_days INTEGER DEFAULT 30`);
+    } catch (e) {
+      console.error('Migration failed for suppliers.terms_days:', e.message);
     }
   }
 
@@ -243,6 +257,27 @@ async function addSupplier(db, body) {
   return { success: true };
 }
 async function deleteSupplier(db, id) { await db.prepare(`UPDATE suppliers SET active = 0 WHERE id = ?`).bind(id).run(); return { success: true }; }
+async function updateSupplier(db, id, body) {
+  if (body.terms_days !== undefined) {
+    const days = Number(body.terms_days) === 60 ? 60 : 30;
+    await db.prepare(`UPDATE suppliers SET terms_days = ? WHERE id = ?`).bind(days, id).run();
+  }
+  return { success: true };
+}
+
+// Per-supplier, per-spend-month outstanding amounts for the accounts view.
+// "Outstanding" = costed POs not marked complete, inc VAT (what is actually
+// owed). The client buckets months and applies each supplier's terms.
+async function getAccounts(db) {
+  const [suppliers, months] = await db.batch([
+    db.prepare(`SELECT * FROM suppliers WHERE active = 1 ORDER BY name`),
+    db.prepare(`SELECT supplier, substr(issued_at, 1, 7) as ym,
+      SUM(CASE WHEN cost_ex_vat IS NOT NULL AND COALESCE(status, 'open') != 'complete' THEN cost_ex_vat * (1 + COALESCE(vat_rate, 20) / 100) ELSE 0 END) as unpaid_inc_vat,
+      SUM(CASE WHEN cost_ex_vat IS NULL AND COALESCE(status, 'open') != 'complete' THEN 1 ELSE 0 END) as uncosted_open
+      FROM po_log WHERE deleted = 0 AND supplier IS NOT NULL GROUP BY supplier, ym`)
+  ]);
+  return { suppliers: suppliers.results, months: months.results };
+}
 async function getSites(db) { return (await db.prepare(`SELECT * FROM sites WHERE active = 1 ORDER BY name`).all()).results; }
 async function addSite(db, body) {
   await db.prepare(`INSERT INTO sites (name) VALUES (?) ON CONFLICT(name) DO UPDATE SET active = 1`).bind(body.name).run();
@@ -339,7 +374,7 @@ async function getStats(db, params) {
 
   // All eleven aggregates are independent, so run them in one batched round
   // trip instead of sequentially.
-  const [total, bySupplier, byEngineer, byOfficeUser, bySite, bySource, byDay, needsReview, byStatus, totalSpend, uncosted] = await db.batch([
+  const [total, bySupplier, byEngineer, byOfficeUser, bySite, bySource, byDay, byMonth, needsReview, byStatus, totalSpend, uncosted] = await db.batch([
     db.prepare(`SELECT COUNT(*) as c FROM po_log ${where}`).bind(...binds),
     db.prepare(`SELECT COALESCE(supplier, '(none)') as supplier, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY supplier ORDER BY count DESC`).bind(...binds),
     db.prepare(`SELECT COALESCE(engineer_name, '(none)') as engineer, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY engineer_name ORDER BY count DESC`).bind(...binds),
@@ -347,6 +382,7 @@ async function getStats(db, params) {
     db.prepare(`SELECT COALESCE(site, '(none)') as site, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY site ORDER BY total_ex_vat DESC`).bind(...binds),
     db.prepare(`SELECT source, COUNT(*) as count FROM po_log ${where} GROUP BY source ORDER BY count DESC`).bind(...binds),
     db.prepare(`SELECT substr(issued_at, 1, 10) as day, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY day ORDER BY day DESC LIMIT 60`).bind(...binds),
+    db.prepare(`SELECT substr(issued_at, 1, 7) as month, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY month ORDER BY month DESC LIMIT 24`).bind(...binds),
     db.prepare(`SELECT COUNT(*) as c FROM po_log ${where} AND needs_review = 1`).bind(...binds),
     db.prepare(`SELECT COALESCE(status, 'open') as status, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY status`).bind(...binds),
     db.prepare(`SELECT COALESCE(SUM(cost_ex_vat), 0) as total FROM po_log ${where}`).bind(...binds),
@@ -364,8 +400,17 @@ async function getStats(db, params) {
     by_site: bySite.results,
     by_source: bySource.results,
     by_day: byDay.results,
+    by_month: byMonth.results,
     by_status: byStatus.results
   };
+}
+
+// DD-MM-YY HH:MM in UK time, for CSV export
+function fmtDateTimeUK(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleString('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).replace(/\//g, '-').replace(',', '');
 }
 
 async function csvExport(db, params) {
@@ -384,10 +429,10 @@ async function csvExport(db, params) {
     const vatRate = r.vat_rate != null ? r.vat_rate : 20;
     const costInc = r.cost_ex_vat != null ? (r.cost_ex_vat * (1 + vatRate / 100)).toFixed(2) : '';
     csv.push([
-      r.po_number, r.issued_at, r.source, r.office_user_name || '', r.engineer_name || '', r.site || '', r.supplier || '', r.description || '',
+      r.po_number, fmtDateTimeUK(r.issued_at), r.source, r.office_user_name || '', r.engineer_name || '', r.site || '', r.supplier || '', r.description || '',
       r.status || 'open', r.cost_ex_vat != null ? r.cost_ex_vat : '', r.cost_ex_vat != null ? vatRate : '', costInc,
-      r.flag_reason || '', r.credit_note || '', r.needs_review ? 'Yes' : 'No', r.cost_entered_at || '',
-      r.last_edited_by_name || '', r.last_edited_at || ''
+      r.flag_reason || '', r.credit_note || '', r.needs_review ? 'Yes' : 'No', fmtDateTimeUK(r.cost_entered_at),
+      r.last_edited_by_name || '', fmtDateTimeUK(r.last_edited_at)
     ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
   }
   return new Response(csv.join('\n'), { headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="mostlane-po-log-${new Date().toISOString().split('T')[0]}.csv"` } });
@@ -539,7 +584,7 @@ function topbar(active) {
   const link = (href, label, key) => `<a href="${href}"${active === key ? ' class="active"' : ''}>${label}</a>`;
   return `<div class="topbar">
     <div class="brand"><img src="/logo.jpg" alt="Mostlane"> PO System</div>
-    <nav>${link('/office', 'Office', 'office')}${link('/stats', 'Stats', 'stats')}${link('/admin', 'Admin', 'admin')}</nav>
+    <nav>${link('/office', 'Office', 'office')}${link('/accounts', 'Accounts', 'accounts')}${link('/stats', 'Stats', 'stats')}${link('/admin', 'Admin', 'admin')}</nav>
   </div>`;
 }
 
@@ -701,8 +746,7 @@ async function loadMyPOs(officeHours) {
     if (!card || !list) return;
     card.style.display = 'block';
     list.innerHTML = pos.slice(0, 20).map(p => {
-      const d = p.issued_at ? new Date(p.issued_at) : null;
-      const dStr = d ? d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      const dStr = fmtDateTime(p.issued_at);
       return '<div class="my-po"><div class="my-po-num">'+p.po_number+'</div><div class="my-po-detail"><div><strong>'+escapeHtml(p.supplier || '—')+'</strong> · <span class="muted">'+escapeHtml(p.site || '—')+'</span></div><div class="muted" style="font-size:12px;margin-top:2px">'+dStr+'</div></div></div>';
     }).join('');
     if (officeHours) {
@@ -744,6 +788,22 @@ async function submitPO(btn) {
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function escapeAttr(s) { return String(s).replace(/"/g, '&quot;'); }
 function escapeJsAttr(s) { return String(s).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'"); }
+function fmtDate(v) {
+  if (!v) return '';
+  const s = String(v);
+  if (s.length === 10 && s.charAt(4) === '-') return s.slice(8,10) + '-' + s.slice(5,7) + '-' + s.slice(2,4);
+  const d = new Date(v);
+  if (isNaN(d)) return s;
+  const p = n => (n < 10 ? '0' : '') + n;
+  return p(d.getDate()) + '-' + p(d.getMonth() + 1) + '-' + String(d.getFullYear()).slice(2);
+}
+function fmtDateTime(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d)) return String(v);
+  const p = n => (n < 10 ? '0' : '') + n;
+  return fmtDate(d) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
 init();
 </script></body></html>`;
 }
@@ -754,7 +814,7 @@ function officePage(user) {
     <div class="brand"><img src="/logo.jpg" alt="Mostlane"> PO / Office</div>
     <div style="display:flex;align-items:center;gap:12px">
       <div style="font-size:13px;font-weight:500">👤 ${escapeHtmlServer(user.name)}</div>
-      <nav><a href="/stats">Stats</a><a href="/admin">Admin</a></nav>
+      <nav><a href="/accounts">Accounts</a><a href="/stats">Stats</a><a href="/admin">Admin</a></nav>
     </div>
   </div>
   <div class="wrap">
@@ -906,8 +966,7 @@ function renderPOs(pos) {
   if (!pos.length) { tbody.innerHTML = '<tr><td colspan="9"><div class="empty">No POs match your filters.</div></td></tr>'; return; }
   const siteNames = new Set(allSites.map(s => s.name));
   tbody.innerHTML = pos.map(p => {
-    const d = p.issued_at ? new Date(p.issued_at) : null;
-    const dStr = d ? d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    const dStr = fmtDateTime(p.issued_at);
     const cost = p.cost_ex_vat != null ? formatMoney(p.cost_ex_vat) : '<span class="muted">—</span>';
     const siteUnmatched = p.site && !siteNames.has(p.site);
     const siteCell = (p.site ? escapeHtml(p.site) : '—') + (siteUnmatched ? ' <span title="Site not in master list" style="color:#b58a00">⚠️</span>' : '');
@@ -1031,8 +1090,7 @@ function openEdit(poNumber) {
   if (p.office_user_name) auditBits.push('Issued by <strong>' + escapeHtml(p.office_user_name) + '</strong>');
   else if (p.source === 'engineer') auditBits.push('Issued by engineer (' + escapeHtml(p.engineer_name || '—') + ')');
   if (p.last_edited_by_name && p.last_edited_at) {
-    const d = new Date(p.last_edited_at);
-    auditBits.push('Last edited by <strong>' + escapeHtml(p.last_edited_by_name) + '</strong> on ' + d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }));
+    auditBits.push('Last edited by <strong>' + escapeHtml(p.last_edited_by_name) + '</strong> on ' + fmtDateTime(p.last_edited_at));
   }
   const auditHtml = auditBits.length ? '<div class="muted" style="font-size:12px;margin-bottom:12px;line-height:1.5">' + auditBits.join('<br>') + '</div>' : '';
   document.getElementById('modal-body').innerHTML = auditHtml + \`
@@ -1193,7 +1251,152 @@ function exportCSV() {
 function closeModal() { document.getElementById('modal').classList.remove('show'); }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function escapeAttr(s) { return String(s).replace(/"/g, '&quot;'); }
+function fmtDate(v) {
+  if (!v) return '';
+  const s = String(v);
+  if (s.length === 10 && s.charAt(4) === '-') return s.slice(8,10) + '-' + s.slice(5,7) + '-' + s.slice(2,4);
+  const d = new Date(v);
+  if (isNaN(d)) return s;
+  const p = n => (n < 10 ? '0' : '') + n;
+  return p(d.getDate()) + '-' + p(d.getMonth() + 1) + '-' + String(d.getFullYear()).slice(2);
+}
+function fmtDateTime(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d)) return String(v);
+  const p = n => (n < 10 ? '0' : '') + n;
+  return fmtDate(d) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
 document.getElementById('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
+init();
+</script></body></html>`;
+}
+
+function accountsPage() {
+  return `${pageHead('Accounts — PO System')}${topbar('accounts')}
+  <div class="wrap">
+    <h1>Supplier Accounts</h1>
+    <div class="card">
+      <p class="muted" style="margin-bottom:10px">Outstanding amounts per supplier by spend month, <strong>inc VAT</strong>. POs marked <strong>✓ Complete</strong> count as paid. Terms: <strong>30 days</strong> = due end of the month after the spend month; <strong>60 days</strong> = end of the second month after. Overdue amounts show in red.</p>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:8px;margin:0;color:#1a1a1a;font-weight:500;font-size:14px;cursor:pointer">
+          <input type="checkbox" id="filter-due" style="width:auto;margin:0" onchange="render()"> Only suppliers with a balance due now
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;margin:0;color:#1a1a1a;font-weight:500;font-size:14px;cursor:pointer">
+          <input type="checkbox" id="filter-balance" style="width:auto;margin:0" onchange="render()"> Hide suppliers with no balance
+        </label>
+      </div>
+    </div>
+    <div class="stat-grid" id="totals"></div>
+    <div class="card" style="padding:0">
+      <div class="table-scroll">
+        <table>
+          <thead id="acc-thead"></thead>
+          <tbody id="acc-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+<script>
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let DATA = null;
+function formatMoney(n) { return '£' + Number(n).toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ','); }
+function ymKey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function monthLabel(ym) { return MONTH_NAMES[Number(ym.slice(5, 7)) - 1] + ' ' + ym.slice(2, 4); }
+// Due date = last day of the month 1 (30 days) or 2 (60 days) months after
+// the spend month, so the exact day count flexes with month lengths.
+function dueDate(ym, termsDays) {
+  const y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7));
+  const monthsAfter = Number(termsDays) === 60 ? 2 : 1;
+  return new Date(y, m + monthsAfter, 0, 23, 59, 59);
+}
+// Past 3 months plus the current month, oldest first
+function windowMonths() {
+  const out = [];
+  const now = new Date();
+  for (let i = 3; i >= 0; i--) out.push(ymKey(new Date(now.getFullYear(), now.getMonth() - i, 1)));
+  return out;
+}
+async function init() {
+  DATA = await fetch('/api/accounts').then(r => r.json());
+  render();
+}
+function render() {
+  const months = windowMonths();
+  const onlyDue = document.getElementById('filter-due').checked;
+  const onlyBalance = document.getElementById('filter-balance').checked;
+  const now = new Date();
+  const bySupplier = {};
+  for (const row of DATA.months) {
+    (bySupplier[row.supplier] = bySupplier[row.supplier] || []).push(row);
+  }
+  const supplierMeta = {};
+  for (const s of DATA.suppliers) supplierMeta[s.name] = s;
+  // Every active supplier, plus any free-text supplier with outstanding POs
+  const names = new Set(DATA.suppliers.map(s => s.name));
+  for (const n of Object.keys(bySupplier)) names.add(n);
+  const rows = [];
+  for (const name of [...names].sort((a, b) => a.localeCompare(b))) {
+    const meta = supplierMeta[name];
+    const terms = meta && meta.terms_days ? Number(meta.terms_days) : 30;
+    const cells = {};
+    let older = 0, balance = 0, dueNow = 0, uncosted = 0;
+    for (const r of (bySupplier[name] || [])) {
+      uncosted += Number(r.uncosted_open || 0);
+      const amt = Number(r.unpaid_inc_vat || 0);
+      if (!amt) continue;
+      balance += amt;
+      if (months.includes(r.ym)) cells[r.ym] = (cells[r.ym] || 0) + amt;
+      else if (r.ym < months[0]) older += amt;
+      if (dueDate(r.ym, terms) < now) dueNow += amt;
+    }
+    rows.push({ name, meta, terms, cells, older, balance, dueNow, uncosted });
+  }
+  let visible = rows;
+  if (onlyDue) visible = visible.filter(r => r.dueNow > 0);
+  if (onlyBalance) visible = visible.filter(r => r.balance > 0 || r.uncosted > 0);
+  document.getElementById('acc-thead').innerHTML = '<tr><th>Supplier</th><th>Terms</th><th>Older</th>' +
+    months.map((m, i) => '<th>' + monthLabel(m) + (i === months.length - 1 ? ' (current)' : '') + '</th>').join('') +
+    '<th>Balance</th><th>Due now</th></tr>';
+  const tBal = visible.reduce((s, r) => s + r.balance, 0);
+  const tDue = visible.reduce((s, r) => s + r.dueNow, 0);
+  const tUncosted = visible.reduce((s, r) => s + r.uncosted, 0);
+  document.getElementById('totals').innerHTML =
+    '<div class="stat"><div class="v">' + formatMoney(tBal) + '</div><div class="l">Total outstanding inc VAT</div></div>' +
+    '<div class="stat"><div class="v" style="color:' + (tDue ? '#c0392b' : '#003366') + '">' + formatMoney(tDue) + '</div><div class="l">Due now</div></div>' +
+    '<div class="stat"><div class="v">' + visible.filter(r => r.balance > 0).length + '</div><div class="l">Suppliers with balance</div></div>' +
+    '<div class="stat"><div class="v" style="color:' + (tUncosted ? '#b58a00' : '#003366') + '">' + tUncosted + '</div><div class="l">Uncosted open POs</div></div>';
+  const tbody = document.getElementById('acc-tbody');
+  if (!visible.length) { tbody.innerHTML = '<tr><td colspan="' + (5 + months.length) + '"><div class="empty">Nothing outstanding.</div></td></tr>'; return; }
+  tbody.innerHTML = visible.map(r => {
+    const warn = r.uncosted ? ' <span title="' + r.uncosted + ' open PO(s) with no cost entered yet — balance is incomplete" style="color:#b58a00">⚠️' + r.uncosted + '</span>' : '';
+    const termsCell = r.meta
+      ? '<select style="width:auto;padding:6px 8px;font-size:13px" onchange="setTerms(' + r.meta.id + ', this.value)"><option value="30"' + (r.terms === 30 ? ' selected' : '') + '>30 days</option><option value="60"' + (r.terms === 60 ? ' selected' : '') + '>60 days</option></select>'
+      : '<span class="muted" title="Not in supplier list — assumed 30 days">30 days*</span>';
+    const monthCells = months.map(m => {
+      const amt = r.cells[m] || 0;
+      if (!amt) return '<td class="muted">—</td>';
+      const overdue = dueDate(m, r.terms) < now;
+      return '<td' + (overdue ? ' style="color:#c0392b;font-weight:600" title="Past due date (' + fmtDate(dueDate(m, r.terms)) + ')"' : ' title="Due ' + fmtDate(dueDate(m, r.terms)) + '"') + '>' + formatMoney(amt) + '</td>';
+    }).join('');
+    return '<tr><td><strong>' + escapeHtml(r.name) + '</strong>' + warn + '</td><td>' + termsCell + '</td>' +
+      '<td' + (r.older ? ' style="color:#c0392b;font-weight:600" title="Unpaid spend older than shown months — past due"' : ' class="muted"') + '>' + (r.older ? formatMoney(r.older) : '—') + '</td>' +
+      monthCells +
+      '<td><strong>' + (r.balance ? formatMoney(r.balance) : '—') + '</strong></td>' +
+      '<td' + (r.dueNow ? ' style="color:#c0392b;font-weight:700"' : ' class="muted"') + '>' + (r.dueNow ? formatMoney(r.dueNow) : '—') + '</td></tr>';
+  }).join('');
+}
+async function setTerms(id, value) {
+  await fetch('/api/suppliers/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ terms_days: Number(value) }) });
+  const s = DATA.suppliers.find(x => x.id === id);
+  if (s) s.terms_days = Number(value);
+  render();
+}
+function fmtDate(d) {
+  const p = n => (n < 10 ? '0' : '') + n;
+  return p(d.getDate()) + '-' + p(d.getMonth() + 1) + '-' + String(d.getFullYear()).slice(2);
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 init();
 </script></body></html>`;
 }
@@ -1231,6 +1434,7 @@ function statsPage() {
     <div class="card"><h2>By Office User</h2><div id="by-office-user" class="bar-chart"></div></div>
     <div class="card"><h2>By Site</h2><div id="by-site" class="bar-chart"></div></div>
     <div class="card"><h2>By Source</h2><div id="by-source" class="bar-chart"></div></div>
+    <div class="card"><h2>By Month</h2><div id="by-month" class="bar-chart"></div></div>
     <div class="card"><h2>Recent Days</h2><div id="by-day" class="bar-chart"></div></div>
   </div>
 <script>
@@ -1277,7 +1481,19 @@ async function load() {
   renderBars('by-office-user', s.by_office_user || [], 'office_user', 15);
   renderBars('by-site', s.by_site || [], 'site', 15);
   renderBars('by-source', s.by_source.map(x => ({ name: x.source === 'engineer' ? 'Engineer (OOH)' : 'Office', count: x.count, total_ex_vat: 0 })), 'name', 10);
-  renderBars('by-day', s.by_day.map(x => ({ name: x.day, count: x.count, total_ex_vat: x.total_ex_vat || 0 })), 'name', 30);
+  renderBars('by-month', (s.by_month || []).map(x => ({ name: fmtMonth(x.month), count: x.count, total_ex_vat: x.total_ex_vat || 0 })), 'name', 12);
+  renderBars('by-day', s.by_day.map(x => ({ name: fmtDate(x.day), count: x.count, total_ex_vat: x.total_ex_vat || 0 })), 'name', 30);
+}
+function fmtDate(s) {
+  s = String(s || '');
+  if (s.length === 10 && s.charAt(4) === '-') return s.slice(8,10) + '-' + s.slice(5,7) + '-' + s.slice(2,4);
+  return s;
+}
+function fmtMonth(ym) {
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const s = String(ym || '');
+  if (s.length === 7 && s.charAt(4) === '-') return MONTHS[Number(s.slice(5,7)) - 1] + ' ' + s.slice(2,4);
+  return s;
 }
 function renderBars(containerId, items, nameKey, limit) {
   const container = document.getElementById(containerId);
@@ -1516,7 +1732,7 @@ async function removeSite(id) { await fetch('/api/sites/' + id, { method: 'DELET
 async function loadClosures() {
   const cls = await fetch('/api/closures').then(r => r.json());
   if (!cls.length) { document.getElementById('clo-tbody').innerHTML = '<tr><td colspan="3"><div class="empty">No closures added</div></td></tr>'; return; }
-  document.getElementById('clo-tbody').innerHTML = cls.map(c => \`<tr><td>\${c.date}</td><td>\${escapeHtml(c.reason || '')}</td><td><button class="danger small" onclick='removeClosure("\${c.date}")'>Remove</button></td></tr>\`).join('');
+  document.getElementById('clo-tbody').innerHTML = cls.map(c => \`<tr><td>\${fmtDate(c.date)}</td><td>\${escapeHtml(c.reason || '')}</td><td><button class="danger small" onclick='removeClosure("\${c.date}")'>Remove</button></td></tr>\`).join('');
 }
 async function addClosure() {
   const date = document.getElementById('new-clo-date').value;
@@ -1528,6 +1744,11 @@ async function addClosure() {
 async function removeClosure(date) { await fetch('/api/closures/' + encodeURIComponent(date), { method: 'DELETE' }); loadClosures(); }
 function copyLink(url) { navigator.clipboard.writeText(url).then(() => alert('Copied: ' + url)); }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtDate(s) {
+  s = String(s || '');
+  if (s.length === 10 && s.charAt(4) === '-') return s.slice(8,10) + '-' + s.slice(5,7) + '-' + s.slice(2,4);
+  return s;
+}
 init();
 </script></body></html>`;
 }

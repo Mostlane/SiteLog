@@ -51,6 +51,7 @@ export default {
       if (path === '/api/pos' && method === 'POST') return json(await issuePO(env.DB, await request.json()));
       if (path.startsWith('/api/pos/') && method === 'PATCH') return json(await updatePO(env.DB, path.split('/').pop(), await request.json()));
       if (path === '/api/status' && method === 'GET') return json(await getSystemStatus(env.DB));
+      if (path === '/api/dashboard' && method === 'GET') return json(await getDashboard(env.DB));
       if (path === '/api/stats' && method === 'GET') return json(await getStats(env.DB, url.searchParams));
       if (path === '/api/export' && method === 'GET') return csvExport(env.DB, url.searchParams);
       if (path === '/logo.jpg' || path === '/logo.svg') return logoResponse();
@@ -364,6 +365,31 @@ async function updatePO(db, poNumber, body) {
   return { success: true };
 }
 
+// Global "needs attention" counts for the office dashboard. These are not
+// affected by the log's current filters — they always show the full backlog.
+async function getDashboard(db) {
+  // UK 'today' for the raised-today count (issued_at is stored UTC; this keeps
+  // the same UK-local convention used elsewhere in the worker).
+  const ukTime = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));
+  const todayDate = ukTime.toISOString().split('T')[0];
+  const [uncosted, review, flagged, creditDue, unmatched, today] = await db.batch([
+    db.prepare(`SELECT COUNT(*) c FROM po_log WHERE deleted = 0 AND cost_ex_vat IS NULL AND COALESCE(status, 'open') != 'complete'`),
+    db.prepare(`SELECT COUNT(*) c FROM po_log WHERE deleted = 0 AND needs_review = 1`),
+    db.prepare(`SELECT COUNT(*) c FROM po_log WHERE deleted = 0 AND COALESCE(status, 'open') = 'flagged'`),
+    db.prepare(`SELECT COUNT(*) c FROM po_log WHERE deleted = 0 AND COALESCE(status, 'open') = 'credit_due'`),
+    db.prepare(`SELECT COUNT(*) c FROM po_log WHERE deleted = 0 AND site IS NOT NULL AND site NOT IN (SELECT name FROM sites WHERE active = 1)`),
+    db.prepare(`SELECT COUNT(*) c FROM po_log WHERE deleted = 0 AND substr(issued_at, 1, 10) = ?`).bind(todayDate)
+  ]);
+  return {
+    uncosted: uncosted.results[0].c,
+    needs_review: review.results[0].c,
+    flagged: flagged.results[0].c,
+    credit_due: creditDue.results[0].c,
+    unmatched_site: unmatched.results[0].c,
+    today: today.results[0].c
+  };
+}
+
 async function getStats(db, params) {
   let where = `WHERE deleted = 0`;
   const binds = [];
@@ -540,6 +566,14 @@ tr:hover td { background: #f8fafd; }
 .stat { background: #fff; border: 1px solid #e3e7ee; padding: 14px; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,30,80,0.04); }
 .stat .v { font-size: 26px; font-weight: 700; color: #003366; line-height: 1.1; }
 .stat .l { font-size: 12px; color: #5a6677; margin-top: 4px; font-weight: 500; }
+.attention-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+@media (min-width: 700px) { .attention-grid { grid-template-columns: repeat(6, 1fr); } }
+.att { background: #fff; border: 1px solid #e3e7ee; border-radius: 12px; padding: 12px 14px; cursor: pointer; text-align: left; transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s; }
+.att:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,30,80,0.12); border-color: #c9d2dd; }
+.att .v { font-size: 24px; font-weight: 700; line-height: 1; }
+.att .l { font-size: 11px; color: #5a6677; margin-top: 5px; font-weight: 600; }
+.att.zero { opacity: 0.5; }
+.att.zero:hover { opacity: 0.8; }
 .alert { padding: 14px; border-radius: 10px; margin-bottom: 14px; border-left: 4px solid #003366; background: #f0f5fc; font-size: 14px; color: #1a1a1a; }
 .alert.warn { border-color: #c0392b; background: #fdeeec; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -835,6 +869,10 @@ function officePage(user) {
         <button class="small" onclick="openNewPO()">+ New PO</button>
       </div>
     </div>
+    <div class="card" id="attention-card" style="display:none;padding:16px">
+      <h2 style="margin-bottom:10px">Needs attention</h2>
+      <div class="attention-grid" id="attention"></div>
+    </div>
     <div class="stat-grid" id="stats"></div>
 
     <div class="tab-bar" id="status-tabs">
@@ -900,14 +938,47 @@ async function init() {
   document.getElementById('filter-office-user').innerHTML = '<option value="">All office users</option>' + officeUsers.filter(u => u.active).map(u => '<option value="' + u.slug + '">' + escapeHtml(u.name) + '</option>').join('');
   ['filter-engineer','filter-supplier','filter-from','filter-to','filter-office-user'].forEach(id => { document.getElementById(id).onchange = loadPOs; });
   document.querySelectorAll('#status-tabs .tab').forEach(t => {
-    t.addEventListener('click', () => {
-      document.querySelectorAll('#status-tabs .tab').forEach(x => x.classList.remove('active'));
-      t.classList.add('active');
-      currentStatus = t.dataset.status || '';
-      loadPOs();
-    });
+    t.addEventListener('click', () => { setStatusTab(t.dataset.status || ''); loadPOs(); });
   });
   loadPOs();
+  loadDashboard();
+}
+function setStatusTab(status) {
+  document.querySelectorAll('#status-tabs .tab').forEach(x => x.classList.toggle('active', (x.dataset.status || '') === status));
+  currentStatus = status;
+}
+async function loadDashboard() {
+  let d;
+  try { d = await fetch('/api/dashboard').then(r => r.json()); } catch (e) { return; }
+  const cards = [
+    ['uncosted', 'Uncosted', d.uncosted, '#003366'],
+    ['review', 'Awaiting review', d.needs_review, '#b58a00'],
+    ['flagged', 'Flagged', d.flagged, '#c0392b'],
+    ['credit_due', 'Credit due', d.credit_due, '#b58a00'],
+    ['unmatched_site', 'Site not in list', d.unmatched_site, '#b58a00'],
+    ['today', 'Raised today', d.today, '#003366']
+  ];
+  document.getElementById('attention-card').style.display = 'block';
+  document.getElementById('attention').innerHTML = cards.map(([kind, label, v, color]) =>
+    '<div class="att ' + (v ? '' : 'zero') + '" onclick="applyAttention(\\'' + kind + '\\')"><div class="v" style="color:' + (v ? color : '#003366') + '">' + v + '</div><div class="l">' + label + '</div></div>'
+  ).join('');
+}
+// Clicking an attention card resets filters and isolates that backlog.
+function applyAttention(kind) {
+  resetFilterInputs();
+  if (kind === 'uncosted') document.getElementById('filter-uncosted').checked = true;
+  else if (kind === 'review') document.getElementById('filter-review').checked = true;
+  else if (kind === 'unmatched_site') document.getElementById('filter-unmatched-site').checked = true;
+  else if (kind === 'flagged') setStatusTab('flagged');
+  else if (kind === 'credit_due') setStatusTab('credit_due');
+  else if (kind === 'today') {
+    const t = new Date().toISOString().split('T')[0];
+    document.getElementById('filter-from').value = t;
+    document.getElementById('filter-to').value = t;
+  }
+  loadPOs();
+  const tbl = document.querySelector('.table-scroll');
+  if (tbl) tbl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function formatMoney(n) { return '£' + Number(n).toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ','); }
 function renderStats() {
@@ -951,13 +1022,14 @@ async function loadPOs() {
   allPOs = await fetch('/api/pos?' + params).then(r => r.json());
   renderStats(); renderPOs(allPOs);
 }
-function clearFilters() {
+function resetFilterInputs() {
   ['filter-engineer','filter-office-user','filter-supplier','filter-from','filter-to','search-input'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('filter-review').checked = false;
   document.getElementById('filter-uncosted').checked = false;
   document.getElementById('filter-unmatched-site').checked = false;
-  loadPOs();
+  setStatusTab('');
 }
+function clearFilters() { resetFilterInputs(); loadPOs(); }
 function statusBadge(p) {
   const s = p.status || 'open';
   const map = {
@@ -1081,7 +1153,7 @@ async function submitNewPO(btn) {
         office_user_slug: OFFICE_USER.slug, office_user_name: OFFICE_USER.name }) }).then(r => r.json());
     if (res.error) { alert(res.error); return; }
     alert('PO ' + res.po_number + ' issued');
-    closeModal(); loadPOs();
+    closeModal(); loadPOs(); loadDashboard();
   } catch (e) {
     alert('Error: ' + e.message);
   } finally {
@@ -1238,13 +1310,13 @@ async function saveEdit(poNumber) {
       edited_by_slug: OFFICE_USER.slug,
       edited_by_name: OFFICE_USER.name
     }) });
-  closeModal(); loadPOs();
+  closeModal(); loadPOs(); loadDashboard();
 }
-async function markReviewed(n) { await fetch('/api/pos/' + n, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ needs_review: 0, edited_by_slug: OFFICE_USER.slug, edited_by_name: OFFICE_USER.name }) }); closeModal(); loadPOs(); }
+async function markReviewed(n) { await fetch('/api/pos/' + n, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ needs_review: 0, edited_by_slug: OFFICE_USER.slug, edited_by_name: OFFICE_USER.name }) }); closeModal(); loadPOs(); loadDashboard(); }
 async function deletePO(n) {
   if (!confirm('Delete PO ' + n + '? Hides from log but the number stays used.')) return;
   await fetch('/api/pos/' + n, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deleted: 1, edited_by_slug: OFFICE_USER.slug, edited_by_name: OFFICE_USER.name }) });
-  closeModal(); loadPOs();
+  closeModal(); loadPOs(); loadDashboard();
 }
 function exportCSV() {
   const params = new URLSearchParams();

@@ -1272,7 +1272,7 @@ export default {
       const nowSql = toSqlUtc(nowMs);
       try {
         const openA = await env.DB.prepare(`
-          SELECT id, site_code, check_in_at FROM visits
+          SELECT id, site_code, check_in_at, lat, lng FROM visits
           WHERE person_id = ? AND check_out_at IS NULL AND site_code != ?
           ORDER BY check_in_at DESC LIMIT 1
         `).bind(device.person_id, site).first();
@@ -1284,17 +1284,32 @@ export default {
           ).bind(device.person_id).first();
 
           if (pTravel && pTravel.travel_status === "paid" && siteRow) {
-            const aSite = await env.DB.prepare(
-              "SELECT lat, lng FROM sites WHERE site_name = ?"
-            ).bind(openA.site_code).first();
-            if (aSite) {
-              transferTravel = await getTravelData(env, aSite.lat, aSite.lng, siteRow.lat, siteRow.lng);
+            // Prefer the GPS captured when they checked into A (robust to A being
+            // renamed/archived/moved); fall back to A's configured site coords.
+            let aLat = isFiniteNumber(openA.lat) ? Number(openA.lat) : null;
+            let aLng = isFiniteNumber(openA.lng) ? Number(openA.lng) : null;
+            if (aLat === null || aLng === null) {
+              const aSite = await env.DB.prepare(
+                "SELECT lat, lng FROM sites WHERE site_name = ?"
+              ).bind(openA.site_code).first();
+              if (aSite) { aLat = aSite.lat; aLng = aSite.lng; }
+            }
+            if (aLat !== null && aLng !== null) {
+              transferTravel = await getTravelData(env, aLat, aLng, siteRow.lat, siteRow.lng);
             }
           }
 
-          const leftSql = transferTravel ? toSqlUtc(nowMs - transferTravel.mins * 60000) : nowSql;
-          // MAX(check_in_at, ...) so the sign-out can never precede the check-in.
-          // transferred_to records that they moved straight on to another site.
+          // Only back-date A and credit the drive when it fits between A's
+          // check-in and this arrival; otherwise the hop was too short for a real
+          // drive — close A at the arrival time and credit no travel (avoids a
+          // zero-duration A and phantom travel pay). transferred_to records the move.
+          const aInMs = Date.parse(String(openA.check_in_at).replace(" ", "T") + "Z");
+          let leftSql = nowSql;
+          if (transferTravel && Number.isFinite(aInMs) && transferTravel.mins * 60000 < (nowMs - aInMs)) {
+            leftSql = toSqlUtc(nowMs - transferTravel.mins * 60000);
+          } else {
+            transferTravel = null;
+          }
           await env.DB.prepare(`
             UPDATE visits SET check_out_at = MAX(check_in_at, ?), auto_checkout = 1, sign_out_confirmed = 0, transferred_to = ?
             WHERE id = ? AND check_out_at IS NULL
@@ -1551,7 +1566,7 @@ export default {
       // an old queued check-in could wrongly close a LATER (current) visit at a
       // different site and mark it transferred.
       const openOther = await env.DB.prepare(
-        "SELECT id, site_code FROM visits WHERE person_id = ? AND check_out_at IS NULL AND site_code != ? AND check_in_at < ? ORDER BY check_in_at DESC LIMIT 1"
+        "SELECT id, site_code, check_in_at, lat, lng FROM visits WHERE person_id = ? AND check_out_at IS NULL AND site_code != ? AND check_in_at < ? ORDER BY check_in_at DESC LIMIT 1"
       ).bind(device.person_id, siteCode, occurredSql).first();
       if (openOther) {
         offTransferFrom = openOther.site_code;
@@ -1559,12 +1574,24 @@ export default {
           "SELECT travel_status FROM people WHERE id = ?"
         ).bind(device.person_id).first();
         if (pTravel && pTravel.travel_status === "paid") {
-          const aSite = await env.DB.prepare(
-            "SELECT lat, lng FROM sites WHERE site_name = ?"
-          ).bind(openOther.site_code).first();
-          if (aSite) offTravel = await getTravelData(env, aSite.lat, aSite.lng, matchedSite.lat, matchedSite.lng);
+          let aLat = isFiniteNumber(openOther.lat) ? Number(openOther.lat) : null;
+          let aLng = isFiniteNumber(openOther.lng) ? Number(openOther.lng) : null;
+          if (aLat === null || aLng === null) {
+            const aSite = await env.DB.prepare(
+              "SELECT lat, lng FROM sites WHERE site_name = ?"
+            ).bind(openOther.site_code).first();
+            if (aSite) { aLat = aSite.lat; aLng = aSite.lng; }
+          }
+          if (aLat !== null && aLng !== null) offTravel = await getTravelData(env, aLat, aLng, matchedSite.lat, matchedSite.lng);
         }
-        const leftSql = offTravel ? toSqlUtc(occurredMs - offTravel.mins * 60000) : occurredSql;
+        // Only back-date + credit the drive if it fits the gap (see /confirm-checkin).
+        const aInMs = Date.parse(String(openOther.check_in_at).replace(" ", "T") + "Z");
+        let leftSql = occurredSql;
+        if (offTravel && Number.isFinite(aInMs) && offTravel.mins * 60000 < (occurredMs - aInMs)) {
+          leftSql = toSqlUtc(occurredMs - offTravel.mins * 60000);
+        } else {
+          offTravel = null;
+        }
         await env.DB.prepare(
           "UPDATE visits SET check_out_at = MAX(check_in_at, ?), auto_checkout = 1, sign_out_confirmed = 0, transferred_to = ? WHERE id = ? AND check_out_at IS NULL"
         ).bind(leftSql, siteCode, openOther.id).run();
@@ -2066,6 +2093,8 @@ export default {
 
     // GET /on-site
     if (url.pathname === "/on-site" && request.method === "GET") {
+      const guard = requireAdmin();
+      if (guard) return guard;
       const site = url.searchParams.get("site") || "";
 
       const rows = await env.DB.prepare(`
@@ -2087,6 +2116,8 @@ export default {
 
     // POST /documents/create
     if (url.pathname === "/documents/create" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
       await ensureOfflineSchema(env);
       const body = await readBody(request);
       const docId = crypto.randomUUID();
@@ -2186,6 +2217,8 @@ export default {
     // GET /site-people — everyone signed into the site now OR previously, for the
     // document name dropdowns (currently-on-site listed first).
     if (url.pathname === "/site-people" && request.method === "GET") {
+      const guard = requireAdmin();
+      if (guard) return guard;
       const site = url.searchParams.get("site") || "";
       const rows = await env.DB.prepare(`
         SELECT p.id AS person_id, p.first_name, p.last_name, p.company,
@@ -2228,6 +2261,8 @@ export default {
     }
 
     if (url.pathname === "/documents" && request.method === "GET") {
+      const guard = requireAdmin();
+      if (guard) return guard;
       const type = url.searchParams.get("type") || "";
       const status = url.searchParams.get("status") || "";
       const site = url.searchParams.get("site") || "";
@@ -2335,9 +2370,27 @@ export default {
       return json({ ok: true });
     }
 
-    // GET /documents/single
+    // GET /documents/single — admin, OR the engineer app (a device whose person
+    // is named on / linked to the document). Anything else is rejected so the
+    // attendee PII (contacts, CSCS numbers, signatures) isn't public.
     if (url.pathname === "/documents/single" && request.method === "GET") {
       const id = url.searchParams.get("id") || "";
+
+      if (!isAdminAuthorised()) {
+        const deviceToken = url.searchParams.get("deviceToken") || "";
+        const dev = deviceToken
+          ? await env.DB.prepare("SELECT person_id FROM devices WHERE device_token = ?").bind(deviceToken).first()
+          : null;
+        let allowed = false;
+        if (dev && dev.person_id) {
+          const onDoc = await env.DB.prepare(
+            "SELECT 1 FROM document_attendees WHERE document_id = ? AND person_id = ? " +
+            "UNION SELECT 1 FROM document_links WHERE document_id = ? AND person_id = ? LIMIT 1"
+          ).bind(id, dev.person_id, id, dev.person_id).first();
+          allowed = !!onDoc;
+        }
+        if (!allowed) return json({ error: "Unauthorised" }, 401);
+      }
 
       const doc = await env.DB.prepare(
         "SELECT * FROM documents WHERE id = ?"

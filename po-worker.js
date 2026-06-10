@@ -95,7 +95,8 @@ async function ensureSchema(db) {
     ['office_user_name', 'TEXT'],
     ['last_edited_by_slug', 'TEXT'],
     ['last_edited_by_name', 'TEXT'],
-    ['last_edited_at', 'TEXT']
+    ['last_edited_at', 'TEXT'],
+    ['incident_no', 'TEXT']
   ];
   const info = await db.prepare(`PRAGMA table_info(po_log)`).all();
   const existingColumns = new Set(info.results.map(r => r.name));
@@ -309,8 +310,8 @@ async function getPOs(db, params) {
   }
   if (params.get('search')) {
     const term = '%' + params.get('search').toLowerCase() + '%';
-    query += ` AND (CAST(po_number AS TEXT) LIKE ? OR LOWER(engineer_name) LIKE ? OR LOWER(site) LIKE ? OR LOWER(supplier) LIKE ? OR LOWER(description) LIKE ? OR LOWER(flag_reason) LIKE ? OR LOWER(credit_note) LIKE ?)`;
-    binds.push(term, term, term, term, term, term, term);
+    query += ` AND (CAST(po_number AS TEXT) LIKE ? OR LOWER(engineer_name) LIKE ? OR LOWER(site) LIKE ? OR LOWER(incident_no) LIKE ? OR LOWER(supplier) LIKE ? OR LOWER(description) LIKE ? OR LOWER(flag_reason) LIKE ? OR LOWER(credit_note) LIKE ?)`;
+    binds.push(term, term, term, term, term, term, term, term);
   }
   query += ` ORDER BY po_number DESC LIMIT 1000`;
   return (await db.prepare(query).bind(...binds).all()).results;
@@ -323,7 +324,9 @@ async function issuePO(db, body) {
 
   // Validate required fields (engineer source only — office can issue with missing fields if needed for emergency reconciliation)
   if (body.source === 'engineer') {
-    if (!body.site || !body.site.trim()) return { error: 'Site is required' };
+    const hasSite = body.site && body.site.trim();
+    const hasIncident = body.incident_no && body.incident_no.trim();
+    if (!hasSite && !hasIncident) return { error: 'Enter a site or an incident number' };
     if (!body.supplier || !body.supplier.trim()) return { error: 'Supplier is required' };
     if (!body.description || !body.description.trim()) return { error: 'Description is required' };
     // Supplier must be in the active list
@@ -332,16 +335,16 @@ async function issuePO(db, body) {
   }
 
   const issuedAt = new Date().toISOString();
-  const result = await db.prepare(`INSERT INTO po_log (engineer_slug, engineer_name, issued_at, source, site, supplier, description, needs_review, office_user_slug, office_user_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+  const result = await db.prepare(`INSERT INTO po_log (engineer_slug, engineer_name, issued_at, source, site, incident_no, supplier, description, needs_review, office_user_slug, office_user_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
     body.engineer_slug || null, body.engineer_name || null, issuedAt, body.source || 'office',
-    body.site || null, body.supplier || null, body.description || null, body.source === 'office' ? 0 : 1,
+    body.site || null, body.incident_no || null, body.supplier || null, body.description || null, body.source === 'office' ? 0 : 1,
     body.office_user_slug || null, body.office_user_name || null
   ).run();
   return { success: true, po_number: result.meta.last_row_id, issued_at: issuedAt };
 }
 
 async function updatePO(db, poNumber, body) {
-  const allowed = ['site', 'supplier', 'description', 'needs_review', 'reviewed_by', 'engineer_slug', 'engineer_name', 'deleted', 'cost_ex_vat', 'vat_rate', 'status', 'flag_reason', 'credit_note'];
+  const allowed = ['site', 'incident_no', 'supplier', 'description', 'needs_review', 'reviewed_by', 'engineer_slug', 'engineer_name', 'deleted', 'cost_ex_vat', 'vat_rate', 'status', 'flag_reason', 'credit_note'];
   const fields = []; const binds = [];
   for (const [k, v] of Object.entries(body)) {
     if (allowed.includes(k)) {
@@ -458,13 +461,13 @@ async function csvExport(db, params) {
   if (params.get('status')) { query += ` AND COALESCE(status, 'open') = ?`; binds.push(params.get('status')); }
   query += ` ORDER BY po_number DESC`;
   const rows = await db.prepare(query).bind(...binds).all();
-  const headers = ['PO Number', 'Issued At', 'Source', 'Issued By (Office)', 'Engineer', 'Site', 'Supplier', 'Description', 'Status', 'Cost Ex VAT', 'VAT Rate', 'Cost Inc VAT', 'Flag Reason', 'Credit Note', 'Needs Review', 'Cost Entered At', 'Last Edited By', 'Last Edited At'];
+  const headers = ['PO Number', 'Issued At', 'Source', 'Issued By (Office)', 'Engineer', 'Site', 'Incident No', 'Supplier', 'Description', 'Status', 'Cost Ex VAT', 'VAT Rate', 'Cost Inc VAT', 'Flag Reason', 'Credit Note', 'Needs Review', 'Cost Entered At', 'Last Edited By', 'Last Edited At'];
   const csv = [headers.join(',')];
   for (const r of rows.results) {
     const vatRate = r.vat_rate != null ? r.vat_rate : 20;
     const costInc = r.cost_ex_vat != null ? (r.cost_ex_vat * (1 + vatRate / 100)).toFixed(2) : '';
     csv.push([
-      r.po_number, fmtDateTimeUK(r.issued_at), r.source, r.office_user_name || '', r.engineer_name || '', r.site || '', r.supplier || '', r.description || '',
+      r.po_number, fmtDateTimeUK(r.issued_at), r.source, r.office_user_name || '', r.engineer_name || '', r.site || '', r.incident_no || '', r.supplier || '', r.description || '',
       r.status || 'open', r.cost_ex_vat != null ? r.cost_ex_vat : '', r.cost_ex_vat != null ? vatRate : '', costInc,
       r.flag_reason || '', r.credit_note || '', r.needs_review ? 'Yes' : 'No', fmtDateTimeUK(r.cost_entered_at),
       r.last_edited_by_name || '', fmtDateTimeUK(r.last_edited_at)
@@ -700,11 +703,15 @@ function engineerPage(eng) {
     <div id="form-area" style="display:none">
       <div class="card fade-in">
         <h1 style="margin-bottom:4px">Raise a PO</h1>
-        <p class="muted">Outside office hours only. All fields required.</p>
+        <p class="muted">Outside office hours only. Enter a site or an incident number, plus supplier and description.</p>
         <div class="field" style="position:relative;margin-top:16px">
           <label>Site</label>
           <input id="site" type="text" placeholder="Start typing..." autocomplete="off" oninput="filterSites()" onfocus="filterSites()" onblur="setTimeout(hideSites,200)">
           <div id="site-dropdown" class="ac-dropdown" style="display:none"></div>
+        </div>
+        <div class="field">
+          <label>Incident number <span style="font-weight:400;color:#5a6677">(for incident jobs — use instead of, or as well as, a site)</span></label>
+          <input id="incident_no" type="text" placeholder="e.g. INC123456" autocomplete="off">
         </div>
         <div class="field" style="position:relative">
           <label>Supplier</label>
@@ -790,7 +797,8 @@ async function loadMyPOs(officeHours) {
     card.style.display = 'block';
     list.innerHTML = pos.slice(0, 20).map(p => {
       const dStr = fmtDateTime(p.issued_at);
-      return '<div class="my-po"><div class="my-po-num">'+p.po_number+'</div><div class="my-po-detail"><div><strong>'+escapeHtml(p.supplier || '—')+'</strong> · <span class="muted">'+escapeHtml(p.site || '—')+'</span></div><div class="muted" style="font-size:12px;margin-top:2px">'+dStr+'</div></div></div>';
+      const where = p.incident_no ? ('🎫 ' + escapeHtml(p.incident_no) + (p.site ? ' · ' + escapeHtml(p.site) : '')) : escapeHtml(p.site || '—');
+      return '<div class="my-po"><div class="my-po-num">'+p.po_number+'</div><div class="my-po-detail"><div><strong>'+escapeHtml(p.supplier || '—')+'</strong> · <span class="muted">'+where+'</span></div><div class="muted" style="font-size:12px;margin-top:2px">'+dStr+'</div></div></div>';
     }).join('');
     if (officeHours) {
       document.getElementById('status-area').appendChild(card);
@@ -801,9 +809,10 @@ let submittingEngineerPO = false;
 async function submitPO(btn) {
   if (submittingEngineerPO) return;
   const site = document.getElementById('site').value.trim();
+  const incident = document.getElementById('incident_no').value.trim();
   const supplier = document.getElementById('supplier').value.trim();
   const description = document.getElementById('description').value.trim();
-  if (!site) { alert('Site is required'); return; }
+  if (!site && !incident) { alert('Enter a site or an incident number'); return; }
   if (!supplier) { alert('Supplier is required'); return; }
   if (!description) { alert('Description is required'); return; }
   const valid = SUPPLIERS.some(s => s.name === supplier);
@@ -812,7 +821,7 @@ async function submitPO(btn) {
   if (btn) { btn.disabled = true; btn.textContent = 'Issuing...'; }
   try {
     const res = await fetch('/api/pos', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ engineer_slug: ENGINEER.slug, engineer_name: ENGINEER.name, source: 'engineer', site, supplier, description }) }).then(r => r.json());
+      body: JSON.stringify({ engineer_slug: ENGINEER.slug, engineer_name: ENGINEER.name, source: 'engineer', site, incident_no: incident, supplier, description }) }).then(r => r.json());
     if (res.error) { alert(res.error); if (btn) { btn.disabled = false; btn.textContent = 'Issue PO Number'; } submittingEngineerPO = false; return; }
     document.getElementById('form-area').style.display = 'none';
     document.getElementById('result-area').style.display = 'block';
@@ -821,7 +830,7 @@ async function submitPO(btn) {
         <p class="muted" style="text-transform:uppercase;font-size:12px;letter-spacing:0.08em;margin-bottom:8px">PO Number Issued</p>
         <div class="po-display">\${res.po_number}</div>
         <div style="margin:24px 0;color:#5a6677;font-size:14px;line-height:1.7">
-          <strong style="color:#003366">\${escapeHtml(site)}</strong><br>
+          <strong style="color:#003366">\${incident ? '🎫 ' + escapeHtml(incident) + (site ? ' · ' + escapeHtml(site) : '') : escapeHtml(site)}</strong><br>
           \${escapeHtml(supplier)}<br><span style="font-size:13px">\${escapeHtml(description)}</span>
         </div>
         <button class="ghost" onclick="location.reload()">Raise Another</button>
@@ -886,7 +895,7 @@ function officePage(user) {
 
     <div class="card">
       <div class="field" style="margin-bottom:10px">
-        <input id="search-input" type="text" placeholder="🔍 Search PO #, engineer, site, supplier, description..." oninput="loadPOs()">
+        <input id="search-input" type="text" placeholder="🔍 Search PO #, engineer, site, incident no, supplier, description..." oninput="loadPOs()">
       </div>
       <div class="filter-bar">
         <select id="filter-engineer"><option value="">All engineers</option></select>
@@ -911,7 +920,7 @@ function officePage(user) {
     <div class="card" style="padding:0">
       <div class="table-scroll">
         <table>
-          <thead><tr><th>PO #</th><th>Issued</th><th>Issued By</th><th>Engineer</th><th>Site</th><th>Supplier</th><th>Cost</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>PO #</th><th>Issued</th><th>Issued By</th><th>Engineer</th><th>Site / Incident</th><th>Supplier</th><th>Cost</th><th>Status</th><th></th></tr></thead>
           <tbody id="po-tbody"></tbody>
         </table>
       </div>
@@ -1051,7 +1060,8 @@ function renderPOs(pos) {
     const dStr = fmtDateTime(p.issued_at);
     const cost = p.cost_ex_vat != null ? formatMoney(p.cost_ex_vat) : '<span class="muted">—</span>';
     const siteUnmatched = p.site && !siteNames.has(p.site);
-    const siteCell = (p.site ? escapeHtml(p.site) : '—') + (siteUnmatched ? ' <span title="Site not in master list" style="color:#b58a00">⚠️</span>' : '');
+    let siteCell = (p.site ? escapeHtml(p.site) : (p.incident_no ? '<span class="muted">—</span>' : '—')) + (siteUnmatched ? ' <span title="Site not in master list" style="color:#b58a00">⚠️</span>' : '');
+    if (p.incident_no) siteCell += '<div style="font-size:12px;margin-top:2px"><span class="badge engineer" title="Incident number">🎫 ' + escapeHtml(p.incident_no) + '</span></div>';
     return \`<tr>
       <td><strong style="color:#003366">\${p.po_number}</strong></td>
       <td class="muted">\${dStr}</td>
@@ -1081,6 +1091,7 @@ async function openNewPO() {
   document.getElementById('modal-body').innerHTML = \`
     <div class="field"><label>Engineer (optional)</label><select id="m-engineer"><option value="">— None / Office —</option>\${engOptions}</select></div>
     <div class="field" style="position:relative"><label>Site</label><input id="m-site" type="text" autocomplete="off" oninput="filterMSites()" onfocus="filterMSites()" onblur="setTimeout(hideMSites,200)"><div id="m-site-dropdown" class="ac-dropdown" style="display:none"></div></div>
+    <div class="field"><label>Incident number <span style="font-weight:400;color:#5a6677">(optional)</span></label><input id="m-incident" type="text" placeholder="e.g. INC123456" autocomplete="off"></div>
     <div class="field" style="position:relative"><label>Supplier</label><input id="m-supplier" type="text" autocomplete="off" oninput="filterMSuppliers()" onfocus="filterMSuppliers()" onblur="setTimeout(hideMSuppliers,200)"><div id="m-supplier-dropdown" class="ac-dropdown" style="display:none"></div></div>
     <div class="field"><label>Description</label><textarea id="m-description"></textarea></div>
     <button onclick="submitNewPO(this)">Issue PO</button>\`;
@@ -1135,9 +1146,10 @@ let submittingNewPO = false;
 async function submitNewPO(btn) {
   if (submittingNewPO) return;
   const site = document.getElementById('m-site').value.trim();
+  const incident = document.getElementById('m-incident').value.trim();
   const supplier = document.getElementById('m-supplier').value.trim();
   const description = document.getElementById('m-description').value.trim();
-  if (!site) { alert('Site is required'); return; }
+  if (!site && !incident) { alert('Enter a site or an incident number'); return; }
   if (!supplier) { alert('Supplier is required'); return; }
   if (!description) { alert('Description is required'); return; }
   const valid = (allSuppliers || []).some(s => s.name === supplier);
@@ -1149,7 +1161,7 @@ async function submitNewPO(btn) {
     const eng = allEngineers.find(e => e.slug === engSlug);
     const res = await fetch('/api/pos', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ engineer_slug: engSlug || null, engineer_name: eng ? eng.name : null, source: 'office',
-        site, supplier, description,
+        site, incident_no: incident, supplier, description,
         office_user_slug: OFFICE_USER.slug, office_user_name: OFFICE_USER.name }) }).then(r => r.json());
     if (res.error) { alert(res.error); return; }
     alert('PO ' + res.po_number + ' issued');
@@ -1183,6 +1195,7 @@ function openEdit(poNumber) {
       <div id="e-site-dropdown" class="ac-dropdown" style="display:none"></div>
       <div id="e-site-status" style="margin-top:6px;font-size:12px"></div>
     </div>
+    <div class="field"><label>Incident number</label><input id="e-incident" type="text" placeholder="e.g. INC123456" autocomplete="off" value="\${escapeAttr(p.incident_no || '')}"></div>
     <div class="field" style="position:relative"><label>Supplier</label><input id="e-supplier" type="text" autocomplete="off" value="\${escapeAttr(p.supplier || '')}" oninput="filterESuppliers()" onfocus="filterESuppliers()" onblur="setTimeout(hideESuppliers,200)"><div id="e-supplier-dropdown" class="ac-dropdown" style="display:none"></div></div>
     <div class="field"><label>Description</label><textarea id="e-description">\${escapeHtml(p.description || '')}</textarea></div>
 
@@ -1300,6 +1313,7 @@ async function saveEdit(poNumber) {
       engineer_slug: engSlug || null,
       engineer_name: eng ? eng.name : null,
       site: document.getElementById('e-site').value.trim(),
+      incident_no: document.getElementById('e-incident').value.trim(),
       supplier: document.getElementById('e-supplier').value.trim(),
       description: document.getElementById('e-description').value.trim(),
       cost_ex_vat: costEx,
@@ -1451,7 +1465,7 @@ async function reportPage(db, params) {
         <td class="num">${r.po_number}</td>
         <td class="nowrap">${fmtDateUK(r.issued_at)}</td>
         <td>${esc(r.engineer_name || r.office_user_name || '—')}</td>
-        <td>${esc(r.site || '—')}</td>
+        <td>${esc(r.site || (r.incident_no ? '' : '—'))}${r.incident_no ? `<div style="font-size:9px;color:#5a6677">Incident: ${esc(r.incident_no)}</div>` : ''}</td>
         <td>${esc(r.supplier || '—')}</td>
         <td class="desc">${esc(r.description || '')}</td>
         <td class="num">${r.cost_ex_vat != null ? money(r.cost_ex_vat) : '—'}</td>
@@ -1544,7 +1558,7 @@ async function reportPage(db, params) {
     <h2>Transactions</h2>
     ${rows.length ? `<table>
       <thead><tr>
-        <th class="num">PO #</th><th>Date</th><th>Raised By</th><th>Site</th><th>Supplier</th><th style="width:24%">Description</th><th class="num">Net</th><th class="num">Gross</th><th>Status</th>
+        <th class="num">PO #</th><th>Date</th><th>Raised By</th><th>Site / Incident</th><th>Supplier</th><th style="width:24%">Description</th><th class="num">Net</th><th class="num">Gross</th><th>Status</th>
       </tr></thead>
       <tbody>
         ${transactionRows}

@@ -26,6 +26,7 @@ export default {
       if (path === '/admin') return html(adminPage());
       if (path === '/stats') return html(statsPage());
       if (path === '/accounts') return html(accountsPage());
+      if (path === '/report') return html(await reportPage(env.DB, url.searchParams));
 
       if (path === '/api/config' && method === 'GET') return json(await getConfig(env.DB));
       if (path === '/api/config' && method === 'POST') return json(await updateConfig(env.DB, await request.json()));
@@ -411,6 +412,14 @@ function fmtDateTimeUK(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return iso;
   return d.toLocaleString('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).replace(/\//g, '-').replace(',', '');
+}
+
+// DD-MM-YY in UK time
+function fmtDateUK(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString('en-GB', { timeZone: 'Europe/London', day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-');
 }
 
 async function csvExport(db, params) {
@@ -822,6 +831,7 @@ function officePage(user) {
       <h1 style="margin:0">PO Log</h1>
       <div class="row">
         <button class="ghost small" onclick="exportCSV()">⬇ Export CSV</button>
+        <button class="ghost small" onclick="openReport()">🖨 PDF Report</button>
         <button class="small" onclick="openNewPO()">+ New PO</button>
       </div>
     </div>
@@ -1248,6 +1258,27 @@ function exportCSV() {
   if (from) params.set('from', from); if (to) params.set('to', to);
   window.location.href = '/api/export?' + params;
 }
+// Opens the print-ready report with every filter currently applied to the log
+function openReport() {
+  const params = new URLSearchParams();
+  const eng = document.getElementById('filter-engineer').value;
+  const officeUser = document.getElementById('filter-office-user').value;
+  const sup = document.getElementById('filter-supplier').value;
+  const from = document.getElementById('filter-from').value;
+  const to = document.getElementById('filter-to').value;
+  const search = document.getElementById('search-input').value.trim();
+  if (eng) params.set('engineer', eng);
+  if (officeUser) params.set('office_user', officeUser);
+  if (sup) params.set('supplier', sup);
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  if (search) params.set('search', search);
+  if (currentStatus) params.set('status', currentStatus);
+  if (document.getElementById('filter-review').checked) params.set('needs_review', '1');
+  if (document.getElementById('filter-uncosted').checked) params.set('uncosted', '1');
+  if (document.getElementById('filter-unmatched-site').checked) params.set('unmatched_site', '1');
+  window.open('/report?' + params, '_blank');
+}
 function closeModal() { document.getElementById('modal').classList.remove('show'); }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function escapeAttr(s) { return String(s).replace(/"/g, '&quot;'); }
@@ -1270,6 +1301,192 @@ function fmtDateTime(v) {
 document.getElementById('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
 init();
 </script></body></html>`;
+}
+
+// ============================================================
+// PDF REPORT (print-optimised page; browser Save as PDF produces the PDF)
+// ============================================================
+const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+async function reportPage(db, params) {
+  const pos = await getPOs(db, params);
+  // Chronological reads best on paper
+  const rows = [...pos].sort((a, b) => (a.issued_at || '').localeCompare(b.issued_at || ''));
+  const esc = escapeHtmlServer;
+  const money = n => '£' + Number(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const grossOf = r => r.cost_ex_vat * (1 + (r.vat_rate != null ? r.vat_rate : 20) / 100);
+
+  let totalEx = 0, totalInc = 0, uncosted = 0;
+  const bySupplier = {};
+  for (const r of rows) {
+    const sup = r.supplier || '(none)';
+    const s = bySupplier[sup] = bySupplier[sup] || { count: 0, ex: 0, inc: 0 };
+    s.count++;
+    if (r.cost_ex_vat != null) {
+      totalEx += r.cost_ex_vat;
+      totalInc += grossOf(r);
+      s.ex += r.cost_ex_vat;
+      s.inc += grossOf(r);
+    } else {
+      uncosted++;
+    }
+  }
+  const topSuppliers = Object.entries(bySupplier).sort((a, b) => b[1].ex - a[1].ex).slice(0, 12);
+  const maxSupEx = topSuppliers.length ? Math.max(...topSuppliers.map(([, v]) => v.ex)) : 0;
+
+  // Human-readable description of the active filters
+  const filterBits = [];
+  if (params.get('from') || params.get('to')) {
+    filterBits.push((params.get('from') ? fmtDateUK(params.get('from')) : 'start') + ' — ' + (params.get('to') ? fmtDateUK(params.get('to')) : 'today'));
+  } else {
+    filterBits.push('All time');
+  }
+  if (params.get('supplier')) filterBits.push('Supplier: ' + params.get('supplier'));
+  if (params.get('engineer')) {
+    const e = await db.prepare(`SELECT name FROM engineers WHERE slug = ?`).bind(params.get('engineer')).first();
+    filterBits.push('Engineer: ' + (e ? e.name : params.get('engineer')));
+  }
+  if (params.get('office_user')) {
+    const u = await db.prepare(`SELECT name FROM office_users WHERE slug = ?`).bind(params.get('office_user')).first();
+    filterBits.push('Issued by: ' + (u ? u.name : params.get('office_user')));
+  }
+  if (params.get('status')) filterBits.push('Status: ' + params.get('status').replace('_', ' '));
+  if (params.get('search')) filterBits.push('Search: "' + params.get('search') + '"');
+
+  // Group transactions by month with subtotals
+  const groups = [];
+  let cur = null;
+  for (const r of rows) {
+    const ym = (r.issued_at || '').slice(0, 7);
+    if (!cur || cur.ym !== ym) { cur = { ym, rows: [], ex: 0, inc: 0 }; groups.push(cur); }
+    cur.rows.push(r);
+    if (r.cost_ex_vat != null) { cur.ex += r.cost_ex_vat; cur.inc += grossOf(r); }
+  }
+  const monthTitle = ym => {
+    const m = Number(ym.slice(5, 7));
+    return (MONTHS_FULL[m - 1] || ym) + ' ' + ym.slice(0, 4);
+  };
+
+  const STATUS_LABELS = { open: 'Open', priced: 'Priced', flagged: 'Flagged', credit_due: 'Credit Due', complete: 'Complete' };
+  const statusCell = r => {
+    const s = r.status || 'open';
+    return '<span class="st st-' + esc(s) + '">' + (STATUS_LABELS[s] || s) + '</span>';
+  };
+
+  const transactionRows = groups.map(g => {
+    const body = g.rows.map(r => `
+      <tr>
+        <td class="num">${r.po_number}</td>
+        <td class="nowrap">${fmtDateUK(r.issued_at)}</td>
+        <td>${esc(r.engineer_name || r.office_user_name || '—')}</td>
+        <td>${esc(r.site || '—')}</td>
+        <td>${esc(r.supplier || '—')}</td>
+        <td class="desc">${esc(r.description || '')}</td>
+        <td class="num">${r.cost_ex_vat != null ? money(r.cost_ex_vat) : '—'}</td>
+        <td class="num">${r.cost_ex_vat != null ? money(grossOf(r)) : '—'}</td>
+        <td>${statusCell(r)}</td>
+      </tr>`).join('');
+    return `
+      <tr class="month-row"><td colspan="9">${monthTitle(g.ym)}</td></tr>
+      ${body}
+      <tr class="subtotal-row"><td colspan="6">${monthTitle(g.ym)} total — ${g.rows.length} PO${g.rows.length === 1 ? '' : 's'}</td><td class="num">${money(g.ex)}</td><td class="num">${money(g.inc)}</td><td></td></tr>`;
+  }).join('');
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>PO Report — Mostlane</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif; color: #1a1a1a; margin: 0; background: #f0f2f5; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .sheet { max-width: 880px; margin: 0 auto; background: #fff; padding: 40px 44px; }
+    @media screen { .sheet { margin: 24px auto; box-shadow: 0 4px 20px rgba(0,30,80,0.12); border-radius: 8px; } }
+    .rpt-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #003366; padding-bottom: 18px; margin-bottom: 22px; }
+    .rpt-head img { height: 44px; }
+    .rpt-title { text-align: right; }
+    .rpt-title h1 { margin: 0; font-size: 22px; color: #003366; letter-spacing: 0.01em; }
+    .rpt-title .sub { color: #5a6677; font-size: 12px; margin-top: 4px; line-height: 1.5; }
+    .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+    .sumbox { border: 1px solid #dde3ec; border-left: 4px solid #1A4F8F; border-radius: 6px; padding: 10px 14px; }
+    .sumbox .v { font-size: 20px; font-weight: 700; color: #003366; }
+    .sumbox .l { font-size: 10.5px; color: #5a6677; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+    h2 { font-size: 14px; color: #003366; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid #dde3ec; padding-bottom: 6px; margin: 26px 0 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+    th { text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: #5a6677; padding: 6px 6px; border-bottom: 2px solid #003366; }
+    td { padding: 5px 6px; border-bottom: 1px solid #eef1f5; vertical-align: top; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    td.nowrap { white-space: nowrap; }
+    td.desc { color: #444; }
+    tbody tr:nth-child(even):not(.month-row):not(.subtotal-row) td { background: #f8fafd; }
+    tr.month-row td { background: #003366 !important; color: #fff; font-weight: 600; font-size: 11px; padding: 6px 8px; letter-spacing: 0.04em; }
+    tr.subtotal-row td { background: #eef3fa !important; font-weight: 700; color: #003366; border-bottom: 2px solid #c9d2dd; }
+    tr.grand-row td { background: #003366 !important; color: #fff; font-weight: 700; font-size: 11.5px; padding: 8px; }
+    .st { font-weight: 600; font-size: 9.5px; padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
+    .st-open { background: #ececf0; color: #555; }
+    .st-priced, .st-complete { background: #d6f5dd; color: #1e6c33; }
+    .st-flagged { background: #fdeeec; color: #962d22; }
+    .st-credit_due { background: #fff4d6; color: #8a6100; }
+    .supbar { display: inline-block; height: 9px; background: linear-gradient(90deg, #1A4F8F, #003468); border-radius: 4px; vertical-align: middle; }
+    .note { font-size: 10px; color: #8a94a3; margin-top: 18px; border-top: 1px solid #dde3ec; padding-top: 8px; display: flex; justify-content: space-between; }
+    .print-btn { position: fixed; bottom: 22px; right: 22px; background: linear-gradient(180deg, #1A4F8F 0%, #003468 100%); color: #fff; border: none; border-radius: 30px; padding: 14px 22px; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; box-shadow: 0 4px 14px rgba(0,30,80,0.35); }
+    .screen-hint { max-width: 880px; margin: 16px auto -8px; padding: 0 8px; color: #5a6677; font-size: 13px; }
+    @media print {
+      body { background: #fff; }
+      .sheet { max-width: none; padding: 0; }
+      .print-btn, .screen-hint { display: none; }
+      thead { display: table-header-group; }
+      tr { page-break-inside: avoid; }
+      h2 { page-break-after: avoid; }
+      @page { size: A4; margin: 13mm 11mm; }
+    }
+  </style></head><body>
+  <div class="screen-hint">Press the button (or Ctrl/Cmd+P) and choose <strong>Save as PDF</strong>. Adjust filters on the Office page, then re-open the report.</div>
+  <div class="sheet">
+    <div class="rpt-head">
+      <img src="/logo.jpg" alt="Mostlane">
+      <div class="rpt-title">
+        <h1>Purchase Order Report</h1>
+        <div class="sub">${filterBits.map(esc).join(' &middot; ')}<br>Generated ${fmtDateTimeUK(new Date().toISOString())}</div>
+      </div>
+    </div>
+
+    <div class="summary">
+      <div class="sumbox"><div class="v">${rows.length}</div><div class="l">Purchase Orders</div></div>
+      <div class="sumbox"><div class="v">${money(totalEx)}</div><div class="l">Net (ex VAT)</div></div>
+      <div class="sumbox"><div class="v">${money(totalInc)}</div><div class="l">Gross (inc VAT)</div></div>
+      <div class="sumbox"><div class="v">${uncosted}</div><div class="l">Awaiting cost</div></div>
+    </div>
+
+    ${topSuppliers.length ? `<h2>Spend by Supplier${topSuppliers.length === 12 ? ' (top 12)' : ''}</h2>
+    <table>
+      <thead><tr><th style="width:26%">Supplier</th><th style="width:8%" class="num">POs</th><th style="width:14%" class="num">Net</th><th style="width:14%" class="num">Gross</th><th>Share of net spend</th></tr></thead>
+      <tbody>${topSuppliers.map(([name, v]) => `
+        <tr>
+          <td><strong>${esc(name)}</strong></td>
+          <td class="num">${v.count}</td>
+          <td class="num">${money(v.ex)}</td>
+          <td class="num">${money(v.inc)}</td>
+          <td><span class="supbar" style="width:${maxSupEx ? Math.max(2, Math.round(v.ex / maxSupEx * 100)) : 2}%"></span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>` : ''}
+
+    <h2>Transactions</h2>
+    ${rows.length ? `<table>
+      <thead><tr>
+        <th class="num">PO #</th><th>Date</th><th>Raised By</th><th>Site</th><th>Supplier</th><th style="width:24%">Description</th><th class="num">Net</th><th class="num">Gross</th><th>Status</th>
+      </tr></thead>
+      <tbody>
+        ${transactionRows}
+        <tr class="grand-row"><td colspan="6">Grand total — ${rows.length} PO${rows.length === 1 ? '' : 's'}${uncosted ? ' (' + uncosted + ' not yet costed)' : ''}</td><td class="num">${money(totalEx)}</td><td class="num">${money(totalInc)}</td><td></td></tr>
+      </tbody>
+    </table>` : '<p style="color:#5a6677">No purchase orders match the selected filters.</p>'}
+
+    <div class="note">
+      <span>Mostlane PO System &middot; Net/Gross totals cover costed POs only${rows.length === 1000 ? ' &middot; Limited to the most recent 1,000 POs — narrow the date range for a complete report' : ''}</span>
+      <span>Generated ${fmtDateTimeUK(new Date().toISOString())}</span>
+    </div>
+  </div>
+  <button class="print-btn" onclick="window.print()">🖨 Save as PDF</button>
+</body></html>`;
 }
 
 function accountsPage() {

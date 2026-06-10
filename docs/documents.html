@@ -561,10 +561,10 @@ const API = "https://api.site-log.co.uk";
 // secret. Store it when pushed, and ask for it on load so admin-guarded calls
 // (link, unlink, delete, closeout) authenticate.
 window.addEventListener("message", function(ev){
-  if (!ev || !ev.data || ev.data.type !== "ml_admin_secret" || !ev.data.secret) return;
+  if (!ev || ev.origin !== location.origin || !ev.data || ev.data.type !== "ml_admin_secret" || !ev.data.secret) return;
   try { sessionStorage.setItem("ml_admin_secret", ev.data.secret); } catch(e){}
 });
-try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: "request_admin_secret" }, "*"); } catch(e){}
+try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: "request_admin_secret" }, location.origin); } catch(e){}
 
 // STATE
 let sitesData = [];

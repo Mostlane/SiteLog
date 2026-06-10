@@ -1134,7 +1134,7 @@ document.addEventListener("DOMContentLoaded", function () {
    doesn't have to enter the PIN twice. We accept it, store it, and bypass
    the login overlay. */
 window.addEventListener("message", function (ev) {
-  if (!ev || !ev.data || ev.data.type !== "ml_admin_secret") return;
+  if (!ev || ev.origin !== location.origin || !ev.data || ev.data.type !== "ml_admin_secret") return;
   const secret = ev.data.secret;
   if (typeof secret !== "string" || !secret) return;
   __adminSecret = secret;

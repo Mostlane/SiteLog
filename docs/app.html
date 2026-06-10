@@ -16,6 +16,7 @@
   <link rel="icon" type="image/x-icon" href="favicon.ico" />
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyANo2Q7OehYzHTTgMTxRr5ISamf5IradcM"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="document-render.js"></script>
   <style>
     :root {
@@ -1945,9 +1946,12 @@ function viewSiteDoc(id, download) {
   var sid = String(id).replace(/'/g, "\\'");
   var inner;
   if (ct.indexOf("pdf") >= 0) {
-    inner = '<iframe src="' + url + '" style="flex:1;width:100%;border:none;min-height:0;background:#fff;"></iframe>';
+    // Render with PDF.js into a scrollable container — iOS Safari won't scroll
+    // multi-page PDFs inside an <iframe>. Falls back to an iframe if PDF.js
+    // is unavailable or fails.
+    inner = '<div id="sitePdfMount" style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;background:#525659;min-height:0;"><div style="padding:24px;text-align:center;color:#fff;font-size:14px;">Loading…</div></div>';
   } else if (ct.indexOf("image/") === 0) {
-    inner = '<div style="flex:1;overflow:auto;background:#f2f2f7;padding:14px;text-align:center;"><img src="' + url + '" style="max-width:100%;height:auto;border-radius:8px;"/></div>';
+    inner = '<div style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;background:#f2f2f7;padding:14px;text-align:center;"><img src="' + url + '" style="max-width:100%;height:auto;border-radius:8px;"/></div>';
   } else {
     inner = '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:30px 20px;text-align:center;color:var(--muted);background:#f2f2f7;">' +
       '<div>This file type can&rsquo;t be previewed here.</div>' +
@@ -1964,6 +1968,44 @@ function viewSiteDoc(id, download) {
       '<div class="docview-body" style="padding:0;display:flex;flex-direction:column;background:#fff;">' + inner + '</div>' +
     '</div></div>';
   document.body.appendChild(host);
+  if (ct.indexOf("pdf") >= 0) renderSitePdf(url, sid);
+}
+async function renderSitePdf(url, sid) {
+  var mount = document.getElementById("sitePdfMount");
+  if (!mount) return;
+  var fallbackToIframe = function () {
+    mount.innerHTML = '<iframe src="' + url + '" style="width:100%;height:100%;border:none;background:#fff;"></iframe>';
+  };
+  if (!window.pdfjsLib) { fallbackToIframe(); return; }
+  try {
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+    var pdf = await pdfjsLib.getDocument({ url: url, disableRange: true, disableStream: true }).promise;
+    if (!document.getElementById("siteDocViewHost")) return; // closed while loading
+    mount.innerHTML = "";
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var targetW = Math.max((mount.clientWidth || 360) - 16, 240);
+    for (var i = 1; i <= pdf.numPages; i++) {
+      var page = await pdf.getPage(i);
+      if (!document.getElementById("siteDocViewHost")) return;
+      var base = page.getViewport({ scale: 1 });
+      var scale = targetW / base.width;
+      var vp = page.getViewport({ scale: scale * dpr });
+      var canvas = document.createElement("canvas");
+      canvas.width = vp.width; canvas.height = vp.height;
+      canvas.style.width = targetW + "px";
+      canvas.style.height = (vp.height / dpr) + "px";
+      canvas.style.display = "block";
+      canvas.style.margin = "8px auto";
+      canvas.style.background = "#fff";
+      canvas.style.boxShadow = "0 1px 5px rgba(0,0,0,0.45)";
+      mount.appendChild(canvas);
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+    }
+  } catch (e) {
+    fallbackToIframe();
+  }
 }
 function closeSiteDocOverlay() { var h = document.getElementById("siteDocViewHost"); if (h) h.remove(); }
 async function ackSiteDoc(id) {

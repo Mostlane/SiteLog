@@ -61,7 +61,14 @@ export default {
 // ============================================================
 // SCHEMA
 // ============================================================
+// Schema setup is idempotent but expensive (dozens of D1 round trips), so it
+// runs once per isolate rather than on every request. Isolates serve many
+// requests; a cold start re-runs it, which is harmless.
+let schemaReady = false;
+
 async function ensureSchema(db) {
+  if (schemaReady) return;
+
   await db.exec(`CREATE TABLE IF NOT EXISTS engineers (slug TEXT PRIMARY KEY, name TEXT NOT NULL, active INTEGER DEFAULT 1, created_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
   await db.exec(`CREATE TABLE IF NOT EXISTS office_users (slug TEXT PRIMARY KEY, name TEXT NOT NULL, active INTEGER DEFAULT 1, created_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
   await db.exec(`CREATE TABLE IF NOT EXISTS suppliers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, active INTEGER DEFAULT 1)`);
@@ -70,18 +77,38 @@ async function ensureSchema(db) {
   await db.exec(`CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)`);
   await db.exec(`CREATE TABLE IF NOT EXISTS po_log (po_number INTEGER PRIMARY KEY AUTOINCREMENT, engineer_slug TEXT, engineer_name TEXT, issued_at TEXT NOT NULL, source TEXT NOT NULL, site TEXT, supplier TEXT, description TEXT, needs_review INTEGER DEFAULT 1, reviewed_at TEXT, reviewed_by TEXT, deleted INTEGER DEFAULT 0)`);
 
-  // Migrations - add new columns if missing (idempotent)
-  await addColumnIfMissing(db, 'po_log', 'cost_ex_vat', 'REAL');
-  await addColumnIfMissing(db, 'po_log', 'vat_rate', 'REAL');
-  await addColumnIfMissing(db, 'po_log', 'status', "TEXT DEFAULT 'open'");
-  await addColumnIfMissing(db, 'po_log', 'flag_reason', 'TEXT');
-  await addColumnIfMissing(db, 'po_log', 'credit_note', 'TEXT');
-  await addColumnIfMissing(db, 'po_log', 'cost_entered_at', 'TEXT');
-  await addColumnIfMissing(db, 'po_log', 'office_user_slug', 'TEXT');
-  await addColumnIfMissing(db, 'po_log', 'office_user_name', 'TEXT');
-  await addColumnIfMissing(db, 'po_log', 'last_edited_by_slug', 'TEXT');
-  await addColumnIfMissing(db, 'po_log', 'last_edited_by_name', 'TEXT');
-  await addColumnIfMissing(db, 'po_log', 'last_edited_at', 'TEXT');
+  // Migrations - add new columns if missing (idempotent).
+  // One PRAGMA read covers every column instead of one read per column.
+  const newColumns = [
+    ['cost_ex_vat', 'REAL'],
+    ['vat_rate', 'REAL'],
+    ['status', "TEXT DEFAULT 'open'"],
+    ['flag_reason', 'TEXT'],
+    ['credit_note', 'TEXT'],
+    ['cost_entered_at', 'TEXT'],
+    ['office_user_slug', 'TEXT'],
+    ['office_user_name', 'TEXT'],
+    ['last_edited_by_slug', 'TEXT'],
+    ['last_edited_by_name', 'TEXT'],
+    ['last_edited_at', 'TEXT']
+  ];
+  const info = await db.prepare(`PRAGMA table_info(po_log)`).all();
+  const existingColumns = new Set(info.results.map(r => r.name));
+  for (const [column, type] of newColumns) {
+    if (!existingColumns.has(column)) {
+      try {
+        await db.exec(`ALTER TABLE po_log ADD COLUMN ${column} ${type}`);
+      } catch (e) {
+        console.error(`Migration failed for po_log.${column}:`, e.message);
+      }
+    }
+  }
+
+  const counterCheck = await db.prepare(`SELECT COUNT(*) as c FROM po_log`).first();
+  if (counterCheck.c === 0) {
+    await db.prepare(`INSERT INTO po_log (po_number, issued_at, source, deleted) VALUES (10010, ?, 'seed', 1)`).bind(new Date().toISOString()).run();
+    await db.prepare(`DELETE FROM po_log WHERE po_number = 10010`).run();
+  }
 
   const defaults = [
     ['office_hours_start', '08:30'],
@@ -91,20 +118,8 @@ async function ensureSchema(db) {
     ['office_phone', '02380 262000'],
     ['force_open_ooh', '0']
   ];
-  for (const [k, v] of defaults) {
-    await db.prepare(`INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)`).bind(k, v).run();
-  }
-
-  const counterCheck = await db.prepare(`SELECT COUNT(*) as c FROM po_log`).first();
-  if (counterCheck.c === 0) {
-    await db.prepare(`INSERT INTO po_log (po_number, issued_at, source, deleted) VALUES (10010, ?, 'seed', 1)`).bind(new Date().toISOString()).run();
-    await db.prepare(`DELETE FROM po_log WHERE po_number = 10010`).run();
-  }
 
   const engineers = ['David Molloy', 'Connor Brady', 'Ryan Diggens', 'Daniel Walker', 'Chris Cooke', 'Chris Freeman', 'Tony Pelin', 'Joe Line', 'Jamie Line', 'Greg Line'];
-  for (const name of engineers) {
-    await db.prepare(`INSERT OR IGNORE INTO engineers (slug, name) VALUES (?, ?)`).bind(slugify(name), name).run();
-  }
 
   const officeUsers = [
     ['jamie', 'Jamie'],
@@ -115,29 +130,22 @@ async function ensureSchema(db) {
     ['megan', 'Megan'],
     ['chloe', 'Chloe']
   ];
-  for (const [slug, name] of officeUsers) {
-    await db.prepare(`INSERT OR IGNORE INTO office_users (slug, name) VALUES (?, ?)`).bind(slug, name).run();
-  }
 
   const suppliers = ['Howdens', 'Trade UK', 'Brewers', 'CEF', 'Rexel - WF Senate', 'Electric Center', 'Elliotts', 'Travis Perkins', 'CCF', 'Speedy', 'HSS', 'Dulux', 'Auto Trade Tyres', 'Collard', 'NICEIC', 'Ace Liftaway', 'Huws Gray Ltd', 'Covers', 'Ironmangery', 'L&S Waste', 'Jewsons', 'Midsummer', 'Eurocell', 'TLC', 'FH Brundle', 'Astroflame', 'TJ Waste Zero Waste', 'Metal Supermarket', 'Toolstation', 'Stalwart Products', 'N&C', 'Envirochem', 'City Plumbing', 'AMEX Card DD 17TH', 'Pickerings', 'Keyline', 'Nutland', 'Borderland', 'GERFLOR', 'Glasdon', 'Reform Electrical', 'Pioneer Welding', 'Soham', 'Basingstoke Skip Hire', 'Eyre & Elliston', 'Sydnhams'];
-  for (const name of suppliers) {
-    await db.prepare(`INSERT OR IGNORE INTO suppliers (name) VALUES (?)`).bind(name).run();
-  }
+
+  // One batched round trip for all seed rows instead of ~70 sequential ones.
+  // INSERT OR IGNORE leaves existing rows untouched.
+  await db.batch([
+    ...defaults.map(([k, v]) => db.prepare(`INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)`).bind(k, v)),
+    ...engineers.map(name => db.prepare(`INSERT OR IGNORE INTO engineers (slug, name) VALUES (?, ?)`).bind(slugify(name), name)),
+    ...officeUsers.map(([slug, name]) => db.prepare(`INSERT OR IGNORE INTO office_users (slug, name) VALUES (?, ?)`).bind(slug, name)),
+    ...suppliers.map(name => db.prepare(`INSERT OR IGNORE INTO suppliers (name) VALUES (?)`).bind(name))
+  ]);
+
+  schemaReady = true;
 }
 
 function slugify(name) { return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
-
-async function addColumnIfMissing(db, table, column, type) {
-  try {
-    const info = await db.prepare(`PRAGMA table_info(${table})`).all();
-    const exists = info.results.some(r => r.name === column);
-    if (!exists) {
-      await db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
-    }
-  } catch (e) {
-    console.error(`Migration failed for ${table}.${column}:`, e.message);
-  }
-}
 
 // ============================================================
 // LOGO (Mostlane-inspired SVG)
@@ -329,23 +337,27 @@ async function getStats(db, params) {
   if (params.get('to')) { where += ` AND issued_at <= ?`; binds.push(params.get('to') + 'T23:59:59'); }
   if (params.get('source')) { where += ` AND source = ?`; binds.push(params.get('source')); }
 
-  const total = await db.prepare(`SELECT COUNT(*) as c FROM po_log ${where}`).bind(...binds).first();
-  const bySupplier = await db.prepare(`SELECT COALESCE(supplier, '(none)') as supplier, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY supplier ORDER BY count DESC`).bind(...binds).all();
-  const byEngineer = await db.prepare(`SELECT COALESCE(engineer_name, '(none)') as engineer, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY engineer_name ORDER BY count DESC`).bind(...binds).all();
-  const byOfficeUser = await db.prepare(`SELECT COALESCE(office_user_name, '(no office user)') as office_user, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} AND office_user_name IS NOT NULL GROUP BY office_user_name ORDER BY count DESC`).bind(...binds).all();
-  const bySite = await db.prepare(`SELECT COALESCE(site, '(none)') as site, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY site ORDER BY total_ex_vat DESC`).bind(...binds).all();
-  const bySource = await db.prepare(`SELECT source, COUNT(*) as count FROM po_log ${where} GROUP BY source ORDER BY count DESC`).bind(...binds).all();
-  const byDay = await db.prepare(`SELECT substr(issued_at, 1, 10) as day, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY day ORDER BY day DESC LIMIT 60`).bind(...binds).all();
-  const needsReview = await db.prepare(`SELECT COUNT(*) as c FROM po_log ${where} AND needs_review = 1`).bind(...binds).first();
-  const byStatus = await db.prepare(`SELECT COALESCE(status, 'open') as status, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY status`).bind(...binds).all();
-  const totalSpend = await db.prepare(`SELECT COALESCE(SUM(cost_ex_vat), 0) as total FROM po_log ${where}`).bind(...binds).first();
-  const uncosted = await db.prepare(`SELECT COUNT(*) as c FROM po_log ${where} AND cost_ex_vat IS NULL`).bind(...binds).first();
+  // All eleven aggregates are independent, so run them in one batched round
+  // trip instead of sequentially.
+  const [total, bySupplier, byEngineer, byOfficeUser, bySite, bySource, byDay, needsReview, byStatus, totalSpend, uncosted] = await db.batch([
+    db.prepare(`SELECT COUNT(*) as c FROM po_log ${where}`).bind(...binds),
+    db.prepare(`SELECT COALESCE(supplier, '(none)') as supplier, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY supplier ORDER BY count DESC`).bind(...binds),
+    db.prepare(`SELECT COALESCE(engineer_name, '(none)') as engineer, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY engineer_name ORDER BY count DESC`).bind(...binds),
+    db.prepare(`SELECT COALESCE(office_user_name, '(no office user)') as office_user, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} AND office_user_name IS NOT NULL GROUP BY office_user_name ORDER BY count DESC`).bind(...binds),
+    db.prepare(`SELECT COALESCE(site, '(none)') as site, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY site ORDER BY total_ex_vat DESC`).bind(...binds),
+    db.prepare(`SELECT source, COUNT(*) as count FROM po_log ${where} GROUP BY source ORDER BY count DESC`).bind(...binds),
+    db.prepare(`SELECT substr(issued_at, 1, 10) as day, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY day ORDER BY day DESC LIMIT 60`).bind(...binds),
+    db.prepare(`SELECT COUNT(*) as c FROM po_log ${where} AND needs_review = 1`).bind(...binds),
+    db.prepare(`SELECT COALESCE(status, 'open') as status, COUNT(*) as count, COALESCE(SUM(cost_ex_vat), 0) as total_ex_vat FROM po_log ${where} GROUP BY status`).bind(...binds),
+    db.prepare(`SELECT COALESCE(SUM(cost_ex_vat), 0) as total FROM po_log ${where}`).bind(...binds),
+    db.prepare(`SELECT COUNT(*) as c FROM po_log ${where} AND cost_ex_vat IS NULL`).bind(...binds)
+  ]);
 
   return {
-    total: total.c,
-    needs_review: needsReview.c,
-    total_spend_ex_vat: totalSpend.total,
-    uncosted: uncosted.c,
+    total: total.results[0].c,
+    needs_review: needsReview.results[0].c,
+    total_spend_ex_vat: totalSpend.results[0].total,
+    uncosted: uncosted.results[0].c,
     by_supplier: bySupplier.results,
     by_engineer: byEngineer.results,
     by_office_user: byOfficeUser.results,

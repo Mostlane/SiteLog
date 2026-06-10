@@ -1898,6 +1898,8 @@ async function loadSiteDocuments(siteName) {
     if (siteName !== dashCurrentSite) return;
     var docs = data.documents || [];
     if (!docs.length) { card.style.display = "none"; return; }
+    siteDocsById = {};
+    docs.forEach(function (d) { siteDocsById[String(d.id)] = d; });
     if (lbl) lbl.textContent = "· " + siteName;
     list.innerHTML = docs.map(siteDocItem).join("");
     card.style.display = "block";
@@ -1927,12 +1929,43 @@ function siteDocItem(d) {
       (ackHtml ? '<div style="flex-basis:100%;margin-top:6px;">' + ackHtml + '</div>' : '') +
     '</div>';
 }
-function viewSiteDoc(id, download) {
-  // Engineer access is gated by deviceToken (in the URL) so a plain navigation
-  // works — view opens inline, download forces a save.
-  var u = API + "/site-documents/file?id=" + encodeURIComponent(id) + "&deviceToken=" + encodeURIComponent(deviceToken || "") + (download ? "&download=1" : "");
-  window.open(u, "_blank");
+var siteDocsById = {};
+function siteDocFileUrl(id, download) {
+  // Engineer access is gated by deviceToken (in the URL).
+  return API + "/site-documents/file?id=" + encodeURIComponent(id) + "&deviceToken=" + encodeURIComponent(deviceToken || "") + (download ? "&download=1" : "");
 }
+function viewSiteDoc(id, download) {
+  if (download) { window.open(siteDocFileUrl(id, true), "_blank"); return; }
+  // View in an in-app overlay (same style as site inductions) rather than a new tab.
+  var d = siteDocsById[String(id)] || { id: id };
+  var url = siteDocFileUrl(id, false);
+  var ct = String(d.content_type || "").toLowerCase();
+  var icon = SITE_DOC_ICONS[d.category] || "📄";
+  var title = escapeHtml(d.title || d.file_name || "Document");
+  var sid = String(id).replace(/'/g, "\\'");
+  var inner;
+  if (ct.indexOf("pdf") >= 0) {
+    inner = '<iframe src="' + url + '" style="flex:1;width:100%;border:none;min-height:0;background:#fff;"></iframe>';
+  } else if (ct.indexOf("image/") === 0) {
+    inner = '<div style="flex:1;overflow:auto;background:#f2f2f7;padding:14px;text-align:center;"><img src="' + url + '" style="max-width:100%;height:auto;border-radius:8px;"/></div>';
+  } else {
+    inner = '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:30px 20px;text-align:center;color:var(--muted);background:#f2f2f7;">' +
+      '<div>This file type can&rsquo;t be previewed here.</div>' +
+      '<button class="docview-pdf" onclick="viewSiteDoc(\'' + sid + '\',true)">&#11015; Download to open</button></div>';
+  }
+  var host = document.getElementById("siteDocViewHost") || document.createElement("div");
+  host.id = "siteDocViewHost";
+  host.innerHTML =
+    '<div class="docview-backdrop" onclick="closeSiteDocOverlay()"><div class="docview-card" onclick="event.stopPropagation();">' +
+      '<div class="docview-head"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + icon + ' ' + title + '</span>' +
+        '<span style="display:flex;gap:8px;align-items:center;flex-shrink:0;">' +
+          '<button class="docview-pdf" onclick="viewSiteDoc(\'' + sid + '\',true)" title="Download">&#11015;</button>' +
+          '<button class="docview-close" onclick="closeSiteDocOverlay()">&#10005;</button></span></div>' +
+      '<div class="docview-body" style="padding:0;display:flex;flex-direction:column;background:#fff;">' + inner + '</div>' +
+    '</div></div>';
+  document.body.appendChild(host);
+}
+function closeSiteDocOverlay() { var h = document.getElementById("siteDocViewHost"); if (h) h.remove(); }
 async function ackSiteDoc(id) {
   try {
     var res = await fetchWithTimeout(API + "/site-documents/ack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceToken: deviceToken, id: id }) });

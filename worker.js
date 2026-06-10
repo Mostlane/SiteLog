@@ -1546,9 +1546,13 @@ export default {
       // (this arrival minus the A->B drive) and attribute that drive to this
       // visit's inbound paid travel. Uses the device-clock time for the maths.
       let offTravel = null, offTransferFrom = null;
+      // Only a visit that was open BEFORE this offline event can be the site it
+      // transferred from. Without the check_in_at < occurredSql guard, replaying
+      // an old queued check-in could wrongly close a LATER (current) visit at a
+      // different site and mark it transferred.
       const openOther = await env.DB.prepare(
-        "SELECT id, site_code FROM visits WHERE person_id = ? AND check_out_at IS NULL AND site_code != ? ORDER BY check_in_at DESC LIMIT 1"
-      ).bind(device.person_id, siteCode).first();
+        "SELECT id, site_code FROM visits WHERE person_id = ? AND check_out_at IS NULL AND site_code != ? AND check_in_at < ? ORDER BY check_in_at DESC LIMIT 1"
+      ).bind(device.person_id, siteCode, occurredSql).first();
       if (openOther) {
         offTransferFrom = openOther.site_code;
         const pTravel = await env.DB.prepare(

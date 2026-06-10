@@ -50,6 +50,7 @@ export default {
       if (path === '/api/pos' && method === 'GET') return json(await getPOs(env.DB, url.searchParams));
       if (path === '/api/pos' && method === 'POST') return json(await issuePO(env.DB, await request.json()));
       if (path.startsWith('/api/pos/') && method === 'PATCH') return json(await updatePO(env.DB, path.split('/').pop(), await request.json()));
+      if (path.startsWith('/api/pos/') && method === 'DELETE') return json(await deletePoRecord(env.DB, path.split('/').pop()));
       if (path === '/api/status' && method === 'GET') return json(await getSystemStatus(env.DB));
       if (path === '/api/dashboard' && method === 'GET') return json(await getDashboard(env.DB));
       if (path === '/api/stats' && method === 'GET') return json(await getStats(env.DB, url.searchParams));
@@ -317,6 +318,24 @@ async function getPOs(db, params) {
   return (await db.prepare(query).bind(...binds).all()).results;
 }
 
+// Lowest PO number the system will ever issue (the seed deletes 10010, so the
+// first real PO is 10011).
+const PO_START = 10011;
+
+// Smallest number >= PO_START not currently present in po_log. Because deletes
+// are permanent (the row is removed), a freed number becomes the next one
+// issued, keeping the sequence gap-free.
+async function nextPoNumber(db) {
+  const row = await db.prepare(`
+    SELECT COALESCE(MIN(n), ?) AS next FROM (
+      SELECT ? AS n
+      UNION ALL
+      SELECT po_number + 1 FROM po_log
+    ) WHERE n >= ? AND n NOT IN (SELECT po_number FROM po_log)
+  `).bind(PO_START, PO_START, PO_START).first();
+  return row.next;
+}
+
 async function issuePO(db, body) {
   const status = await getSystemStatus(db);
   if (status.mode === 'disabled') return { error: status.message };
@@ -335,13 +354,33 @@ async function issuePO(db, body) {
   }
 
   const issuedAt = new Date().toISOString();
-  const result = await db.prepare(`INSERT INTO po_log (engineer_slug, engineer_name, issued_at, source, site, incident_no, supplier, description, needs_review, office_user_slug, office_user_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
-    body.engineer_slug || null, body.engineer_name || null, issuedAt, body.source || 'office',
-    body.site || null, body.incident_no || null, body.supplier || null, body.description || null, body.source === 'office' ? 0 : 1,
-    body.office_user_slug || null, body.office_user_name || null
-  ).run();
-  return { success: true, po_number: result.meta.last_row_id, issued_at: issuedAt };
+  // Assign the number explicitly (lowest free) instead of relying on
+  // AUTOINCREMENT, so deleted numbers get reused. Retry on the off-chance two
+  // POs are issued at the same instant and pick the same number.
+  let poNumber;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    poNumber = await nextPoNumber(db);
+    try {
+      await db.prepare(`INSERT INTO po_log (po_number, engineer_slug, engineer_name, issued_at, source, site, incident_no, supplier, description, needs_review, office_user_slug, office_user_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+        poNumber, body.engineer_slug || null, body.engineer_name || null, issuedAt, body.source || 'office',
+        body.site || null, body.incident_no || null, body.supplier || null, body.description || null, body.source === 'office' ? 0 : 1,
+        body.office_user_slug || null, body.office_user_name || null
+      ).run();
+      return { success: true, po_number: poNumber, issued_at: issuedAt };
+    } catch (e) {
+      if (!/UNIQUE|constraint|PRIMARY/i.test(e.message)) throw e;
+      // number was taken between read and write — recompute and retry
+    }
+  }
+  return { error: 'Could not allocate a PO number, please try again' };
 }
+
+// Permanent delete — removes the row so the number is freed for reissue.
+async function deletePoRecord(db, poNumber) {
+  await db.prepare(`DELETE FROM po_log WHERE po_number = ?`).bind(poNumber).run();
+  return { success: true };
+}
+
 
 async function updatePO(db, poNumber, body) {
   const allowed = ['site', 'incident_no', 'supplier', 'description', 'needs_review', 'reviewed_by', 'engineer_slug', 'engineer_name', 'deleted', 'cost_ex_vat', 'vat_rate', 'status', 'flag_reason', 'credit_note'];
@@ -1071,7 +1110,7 @@ function renderPOs(pos) {
       <td>\${escapeHtml(p.supplier || '—')}</td>
       <td>\${cost}</td>
       <td>\${statusBadge(p)}</td>
-      <td><button class="ghost small" onclick='openEdit(\${p.po_number})'>Edit</button></td>
+      <td><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="ghost small" onclick='openEdit(\${p.po_number})'>Edit</button><button class="danger small" title="Delete PO \${p.po_number}" onclick='hardDeletePO(\${p.po_number}, false)'>🗑</button></div></td>
     </tr>\`;
   }).join('');
 }
@@ -1228,7 +1267,7 @@ function openEdit(poNumber) {
     \${p.needs_review ? '<div class="alert" style="margin-top:14px">⚠️ Engineer-raised, needs office review of details above.</div>' : ''}
 
     <div class="row-between" style="margin-top:18px;margin-bottom:0">
-      <button class="danger small" onclick='deletePO(\${poNumber})'>Delete</button>
+      <button class="danger small" onclick='hardDeletePO(\${poNumber}, true)'>Delete</button>
       <div class="row">
         \${p.needs_review ? '<button class="ghost small" onclick="markReviewed(' + poNumber + ')">Mark Reviewed</button>' : ''}
         <button class="small" onclick='saveEdit(\${poNumber})'>Save</button>
@@ -1327,10 +1366,11 @@ async function saveEdit(poNumber) {
   closeModal(); loadPOs(); loadDashboard();
 }
 async function markReviewed(n) { await fetch('/api/pos/' + n, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ needs_review: 0, edited_by_slug: OFFICE_USER.slug, edited_by_name: OFFICE_USER.name }) }); closeModal(); loadPOs(); loadDashboard(); }
-async function deletePO(n) {
-  if (!confirm('Delete PO ' + n + '? Hides from log but the number stays used.')) return;
-  await fetch('/api/pos/' + n, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deleted: 1, edited_by_slug: OFFICE_USER.slug, edited_by_name: OFFICE_USER.name }) });
-  closeModal(); loadPOs(); loadDashboard();
+async function hardDeletePO(n, fromModal) {
+  if (!confirm('Delete PO ' + n + ' permanently?\\n\\nThe number ' + n + ' will be freed and reused on the next PO, so the sequence has no gaps. This cannot be undone.')) return;
+  await fetch('/api/pos/' + n, { method: 'DELETE' });
+  if (fromModal) closeModal();
+  loadPOs(); loadDashboard();
 }
 function exportCSV() {
   const params = new URLSearchParams();

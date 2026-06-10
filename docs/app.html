@@ -1083,7 +1083,10 @@ async function flushOfflineQueue() {
       var evt = q[0];
       var res;
       try {
-        res = await fetchWithTimeout(API + "/sync-event", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(evt) }, 15000);
+        // clientNow is read fresh at SEND time so the server can derive this
+        // device's clock skew and correct the captured event time for it.
+        var payload = Object.assign({}, evt, { clientNow: new Date().toISOString() });
+        res = await fetchWithTimeout(API + "/sync-event", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }, 15000);
       } catch (e) { break; } // still offline / network error -> keep queue, retry later
       if (!res.ok) {
         // Bad request (4xx) -> drop so it can't block the queue forever; 5xx -> stop and retry.

@@ -244,6 +244,24 @@ function londonLocalToUtcIso(londonDateKey, hhmm = "16:00:00") {
   return utc.toISOString();
 }
 
+// Forced ("auto") checkout time for an open visit that has rolled past its day
+// and was never signed out. Day shifts close at the 16:00 London policy cutoff.
+// A check-in AT OR AFTER that cutoff is an evening/overnight shift — closing it
+// at 16:00 the same day would land before they arrived (zero/negative hours), so
+// it is instead capped at a 12-hour shift. The result is finally clamped to the
+// current time so a forgotten overnight sign-out can never be stamped in the
+// future. The SQL MAX(check_in_at, ?) guard still protects the lower bound.
+function forcedCheckoutSql(checkInAt, visitDateKey, nowMs) {
+  const checkInMs = Date.parse(String(checkInAt).replace(" ", "T") + "Z");
+  const dayCutoffMs = Date.parse(londonLocalToUtcIso(visitDateKey, "16:00:00"));
+  let forcedMs = dayCutoffMs;
+  if (Number.isFinite(checkInMs) && checkInMs >= dayCutoffMs) {
+    forcedMs = checkInMs + 12 * 60 * 60 * 1000;
+  }
+  if (Number.isFinite(nowMs)) forcedMs = Math.min(forcedMs, nowMs);
+  return toSqlUtc(forcedMs);
+}
+
 function haversineMeters(lat1, lon1, lat2, lon2) {
   const R = 6371000;
   const toRad = (d) => d * Math.PI / 180;
@@ -1492,12 +1510,29 @@ export default {
 
       await touchDevice(env, deviceToken);
 
-      // Trust the device clock, but guard against garbage or future timestamps.
+      // Trust the device clock, but correct for a constant clock offset and
+      // guard against garbage / future timestamps. The client reports its own
+      // clock (clientNow) at SEND time; the gap to our clock is the device's
+      // skew, which we subtract from the captured event time so a mis-set phone
+      // clock doesn't shift the recorded sign-in/out. (Old clients that don't
+      // send clientNow get skew 0 — identical to the previous behaviour.)
       const nowMs = Date.now();
+      const clientNowMs = typeof body.clientNow === "string" ? Date.parse(body.clientNow) : NaN;
+      let skewMs = 0;
+      if (Number.isFinite(clientNowMs)) {
+        const s = nowMs - clientNowMs;
+        // Ignore sub-minute gaps (latency/rounding); cap the correction so a
+        // wildly wrong clientNow can't itself manufacture a bad timestamp.
+        if (Math.abs(s) > 60 * 1000) {
+          const CAP = 2 * 24 * 60 * 60 * 1000;
+          skewMs = Math.max(-CAP, Math.min(CAP, s));
+        }
+      }
       const parsed = typeof body.occurredAt === "string" ? Date.parse(body.occurredAt) : NaN;
+      const correctedMs = Number.isFinite(parsed) ? parsed + skewMs : NaN;
       const occurredMs =
-        Number.isFinite(parsed) && parsed <= nowMs + 5 * 60 * 1000 && parsed >= nowMs - 30 * 24 * 60 * 60 * 1000
-          ? parsed
+        Number.isFinite(correctedMs) && correctedMs <= nowMs + 5 * 60 * 1000 && correctedMs >= nowMs - 30 * 24 * 60 * 60 * 1000
+          ? correctedMs
           : nowMs;
       const occurredSql = toSqlUtc(occurredMs);
 
@@ -1739,9 +1774,9 @@ export default {
         const visitDateKey = londonDateKeyFromUtcString(v.check_in_at);
 
         if (visitDateKey < nowDateKey) {
-          // MAX(check_in_at, ...) so a night-shift / late check-in can never be
-          // closed BEFORE it opened (which would record negative hours).
-          const forcedCheckoutUtc = toSqlUtc(Date.parse(londonLocalToUtcIso(visitDateKey, "16:00:00")));
+          // Day shift -> 16:00 cutoff; evening/overnight check-in -> 12h cap.
+          // MAX(check_in_at, ...) additionally guards against negative durations.
+          const forcedCheckoutUtc = forcedCheckoutSql(v.check_in_at, visitDateKey, Date.now());
 
           await env.DB.prepare(`
             UPDATE visits
@@ -2511,9 +2546,10 @@ export default {
         const visitDateKey = londonDateKeyFromUtcString(v.check_in_at);
 
         if (visitDateKey < now.dateKey) {
-          // MAX(check_in_at, ...) guards against negative durations for late /
-          // overnight check-ins (see the matching guard in /scan).
-          const forcedCheckoutUtc = toSqlUtc(Date.parse(londonLocalToUtcIso(visitDateKey, "16:00:00")));
+          // Day shift -> 16:00 cutoff; evening/overnight check-in -> 12h cap,
+          // clamped to now (see forcedCheckoutSql). MAX(check_in_at, ...) below
+          // additionally guards against negative durations.
+          const forcedCheckoutUtc = forcedCheckoutSql(v.check_in_at, visitDateKey, Date.now());
 
           await env.DB.prepare(`
             UPDATE visits

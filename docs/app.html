@@ -1956,8 +1956,8 @@ function viewSiteDoc(id, download) {
   var host = document.getElementById("siteDocViewHost") || document.createElement("div");
   host.id = "siteDocViewHost";
   host.innerHTML =
-    '<div class="docview-backdrop" onclick="closeSiteDocOverlay()"><div class="docview-card" style="height:94vh;" onclick="event.stopPropagation();">' +
-      '<div class="docview-head"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + icon + ' ' + title + '</span>' +
+    '<div class="docview-backdrop" onclick="closeSiteDocOverlay()"><div class="docview-card" style="height:90vh;height:90dvh;max-height:90dvh;" onclick="event.stopPropagation();">' +
+      '<div class="docview-head" style="position:relative;z-index:2;"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + icon + ' ' + title + '</span>' +
         '<span style="display:flex;gap:8px;align-items:center;flex-shrink:0;">' +
           '<button class="docview-pdf" onclick="viewSiteDoc(\'' + sid + '\',true)" title="Download">&#11015;</button>' +
           '<button class="docview-close" onclick="closeSiteDocOverlay()">&#10005;</button></span></div>' +

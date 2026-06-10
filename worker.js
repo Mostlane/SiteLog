@@ -63,6 +63,23 @@ async function ensureOfflineSchema(env) {
       "CREATE TABLE IF NOT EXISTS pending_events (id TEXT PRIMARY KEY, device_token TEXT, lat REAL, lng REAL, accuracy REAL, site_code TEXT, intent TEXT, occurred_at TEXT, synced_at TEXT, resolved INTEGER DEFAULT 0)"
     ).run();
   } catch (e) {}
+  // Per-site document library (drawings, RAMS/H&S, certs). File bytes live in R2
+  // (env.DOCS_BUCKET); this table holds the metadata + R2 key. Tied to a site by
+  // site_name (consistent with the templated `documents` feature).
+  try {
+    await env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS site_documents (id TEXT PRIMARY KEY, site_name TEXT, category TEXT, title TEXT, file_name TEXT, content_type TEXT, size_bytes INTEGER, r2_key TEXT, require_ack INTEGER DEFAULT 0, uploaded_by TEXT, uploaded_at TEXT, archived INTEGER DEFAULT 0)"
+    ).run();
+  } catch (e) {}
+  // One row per person who has ticked "read & understood" on a site document.
+  try {
+    await env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS site_document_acks (id TEXT PRIMARY KEY, document_id TEXT, person_id TEXT, person_name TEXT, company TEXT, acked_at TEXT)"
+    ).run();
+  } catch (e) {}
+  // Trusted people who may view a site's documents any time (not just while
+  // signed in at that site).
+  try { await env.DB.prepare("ALTER TABLE people ADD COLUMN doc_access_always INTEGER DEFAULT 0").run(); } catch (e) {}
   offlineSchemaReady = true;
 }
 
@@ -162,6 +179,25 @@ function travelAllowanceOn(person) {
   const fuel = person.fuel_paid != null ? Number(person.fuel_paid) : (person.travel_status === "paid" ? 1 : 0);
   const time = person.travel_time_paid != null ? Number(person.travel_time_paid) : (person.travel_status === "paid" ? 1 : 0);
   return fuel === 1 || time === 1;
+}
+
+// May this person view the document library for `siteName`? Yes when the site is
+// active (not archived) AND either they have always-on access, or they have an
+// open visit there right now.
+async function canViewSiteDocs(env, personId, siteName) {
+  if (!personId || !siteName) return false;
+  const site = await env.DB.prepare(
+    "SELECT COALESCE(archived,0) AS archived FROM sites WHERE site_name = ?"
+  ).bind(siteName).first();
+  if (!site || Number(site.archived) === 1) return false;
+  const person = await env.DB.prepare(
+    "SELECT COALESCE(doc_access_always,0) AS always FROM people WHERE id = ?"
+  ).bind(personId).first();
+  if (person && Number(person.always) === 1) return true;
+  const open = await env.DB.prepare(
+    "SELECT 1 FROM visits WHERE person_id = ? AND site_code = ? AND check_out_at IS NULL LIMIT 1"
+  ).bind(personId, siteName).first();
+  return !!open;
 }
 
 async function handleTravelIn(env, visitId, personId, siteLat, siteLng) {
@@ -743,6 +779,7 @@ export default {
                COALESCE(travel_time_paid, CASE WHEN travel_status='paid' THEN 1 ELSE 0 END) as travel_time_paid,
                travel_cap_type, travel_cap_value, fuel_rate,
                COALESCE(is_main,0) as is_main,
+               COALESCE(doc_access_always,0) as doc_access_always,
                (SELECT COUNT(*) FROM visits WHERE visits.person_id = people.id) AS visit_count,
                (SELECT COUNT(*) FROM devices WHERE devices.person_id = people.id) AS device_count,
                (SELECT MAX(last_seen) FROM devices WHERE devices.person_id = people.id) AS device_last_seen
@@ -826,6 +863,7 @@ export default {
           : Number(fuelIn);
 
       const isMainIn = body.isMain ?? body.is_main;
+      const docAlwaysIn = body.docAccessAlways ?? body.doc_access_always;
 
       const sets = [];
       const binds = [];
@@ -895,6 +933,11 @@ export default {
       if (isMainIn !== undefined) {
         sets.push("is_main = ?");
         binds.push(isMainIn ? 1 : 0);
+      }
+
+      if (docAlwaysIn !== undefined) {
+        sets.push("doc_access_always = ?");
+        binds.push(docAlwaysIn ? 1 : 0);
       }
 
       if (!sets.length) return json({ ok: true, note: "No fields to update" });
@@ -2579,6 +2622,200 @@ export default {
         .map((r) => ({ value: r.value }));
 
       return json({ suggestions });
+    }
+
+    // ───────────────────────── SITE DOCUMENTS ─────────────────────────
+    // Per-site file library (drawings, RAMS/H&S, certs). Files are stored in R2
+    // (env.DOCS_BUCKET); D1 holds metadata. Admin uploads/manages; engineers
+    // signed in at the site (or with always-on access) view/download.
+
+    // POST /site-documents/upload  (admin, multipart: site, category, title, requireAck, file)
+    if (url.pathname === "/site-documents/upload" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+      if (!env.DOCS_BUCKET) {
+        return json({ ok: false, error: "File storage is not configured. Add an R2 bucket binding named DOCS_BUCKET to the worker." }, 500);
+      }
+      const form = await request.formData();
+      const file = form.get("file");
+      const site = (form.get("site") || "").toString().trim();
+      const category = (form.get("category") || "Other").toString().trim() || "Other";
+      const title = (form.get("title") || "").toString().trim();
+      const requireAck = form.get("requireAck") && form.get("requireAck") !== "0" ? 1 : 0;
+      const uploadedBy = (form.get("uploadedBy") || "Admin").toString();
+      if (!site) return json({ ok: false, error: "Missing site" }, 400);
+      if (!file || typeof file === "string") return json({ ok: false, error: "Missing file" }, 400);
+
+      const id = crypto.randomUUID();
+      const fileName = (file.name || "document").toString();
+      const contentType = file.type || "application/octet-stream";
+      const key = "site-docs/" + id + "/" + fileName;
+      const buf = await file.arrayBuffer();
+      await env.DOCS_BUCKET.put(key, buf, { httpMetadata: { contentType } });
+      await env.DB.prepare(
+        "INSERT INTO site_documents (id, site_name, category, title, file_name, content_type, size_bytes, r2_key, require_ack, uploaded_by, uploaded_at, archived) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)"
+      ).bind(id, site, category, title || fileName, fileName, contentType, buf.byteLength, key, requireAck, uploadedBy, toSqlUtc(Date.now())).run();
+      return json({ ok: true, id });
+    }
+
+    // GET /site-documents/list?site=NAME  (admin) — docs for one site (active sites only)
+    if (url.pathname === "/site-documents/list" && request.method === "GET") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+      const site = url.searchParams.get("site") || "";
+      const wheres = ["COALESCE(sd.archived,0) = 0"];
+      const binds = [];
+      if (site) { wheres.push("sd.site_name = ?"); binds.push(site); }
+      const rows = await env.DB.prepare(`
+        SELECT sd.id, sd.site_name, sd.category, sd.title, sd.file_name, sd.content_type,
+               sd.size_bytes, sd.require_ack, sd.uploaded_by, sd.uploaded_at,
+               (SELECT COUNT(*) FROM site_document_acks a WHERE a.document_id = sd.id) AS ack_count
+        FROM site_documents sd
+        JOIN sites s ON s.site_name = sd.site_name AND COALESCE(s.archived,0) = 0
+        WHERE ${wheres.join(" AND ")}
+        ORDER BY sd.category ASC, sd.uploaded_at DESC
+      `).bind(...binds).all();
+      return json({ ok: true, documents: rows.results || [] });
+    }
+
+    // GET /site-documents/summary  (admin) — doc counts per active site, for the picker
+    if (url.pathname === "/site-documents/summary" && request.method === "GET") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+      const rows = await env.DB.prepare(`
+        SELECT sd.site_name AS site_name, COUNT(*) AS count
+        FROM site_documents sd
+        JOIN sites s ON s.site_name = sd.site_name AND COALESCE(s.archived,0) = 0
+        WHERE COALESCE(sd.archived,0) = 0
+        GROUP BY sd.site_name
+      `).all();
+      return json({ ok: true, sites: rows.results || [] });
+    }
+
+    // POST /site-documents/update  (admin) — rename / recategorise / toggle ack
+    if (url.pathname === "/site-documents/update" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+      const body = await readBody(request);
+      const id = body.id;
+      if (!id) return json({ ok: false, error: "Missing id" }, 400);
+      const sets = [], binds = [];
+      if (body.title != null) { sets.push("title = ?"); binds.push(String(body.title)); }
+      if (body.category != null) { sets.push("category = ?"); binds.push(String(body.category)); }
+      if (body.requireAck !== undefined) { sets.push("require_ack = ?"); binds.push(body.requireAck && body.requireAck !== "0" ? 1 : 0); }
+      if (!sets.length) return json({ ok: true });
+      binds.push(id);
+      await env.DB.prepare(`UPDATE site_documents SET ${sets.join(", ")} WHERE id = ?`).bind(...binds).run();
+      return json({ ok: true });
+    }
+
+    // POST /site-documents/delete  (admin) — remove the file from R2 and the row
+    if (url.pathname === "/site-documents/delete" && request.method === "POST") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+      const body = await readBody(request);
+      const id = body.id;
+      if (!id) return json({ ok: false, error: "Missing id" }, 400);
+      const row = await env.DB.prepare("SELECT r2_key FROM site_documents WHERE id = ?").bind(id).first();
+      if (row && row.r2_key && env.DOCS_BUCKET) { try { await env.DOCS_BUCKET.delete(row.r2_key); } catch (e) {} }
+      await env.DB.prepare("DELETE FROM site_document_acks WHERE document_id = ?").bind(id).run();
+      await env.DB.prepare("DELETE FROM site_documents WHERE id = ?").bind(id).run();
+      return json({ ok: true });
+    }
+
+    // GET /site-documents/acks?id=DOC  (admin) — who has acknowledged a document
+    if (url.pathname === "/site-documents/acks" && request.method === "GET") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+      const id = url.searchParams.get("id") || "";
+      const rows = await env.DB.prepare(
+        "SELECT person_name, company, acked_at FROM site_document_acks WHERE document_id = ? ORDER BY acked_at DESC"
+      ).bind(id).all();
+      return json({ ok: true, acks: rows.results || [] });
+    }
+
+    // GET /site-documents/my?site=NAME&deviceToken=...  (engineer) — docs the caller may see
+    if (url.pathname === "/site-documents/my" && request.method === "GET") {
+      await ensureOfflineSchema(env);
+      const deviceToken = url.searchParams.get("deviceToken") || "";
+      const site = url.searchParams.get("site") || "";
+      if (!deviceToken || !site) return json({ documents: [] });
+      const dev = await env.DB.prepare("SELECT person_id FROM devices WHERE device_token = ?").bind(deviceToken).first();
+      if (!dev || !dev.person_id) return json({ documents: [] });
+      if (!(await canViewSiteDocs(env, dev.person_id, site))) return json({ documents: [] });
+      const rows = await env.DB.prepare(`
+        SELECT sd.id, sd.category, sd.title, sd.file_name, sd.content_type, sd.size_bytes,
+               sd.require_ack, sd.uploaded_at,
+               (SELECT COUNT(*) FROM site_document_acks a WHERE a.document_id = sd.id AND a.person_id = ?) AS acked
+        FROM site_documents sd
+        JOIN sites s ON s.site_name = sd.site_name AND COALESCE(s.archived,0) = 0
+        WHERE sd.site_name = ? AND COALESCE(sd.archived,0) = 0
+        ORDER BY sd.category ASC, sd.uploaded_at DESC
+      `).bind(dev.person_id, site).all();
+      return json({ documents: rows.results || [] });
+    }
+
+    // POST /site-documents/ack  (engineer) — record "read & understood"
+    if (url.pathname === "/site-documents/ack" && request.method === "POST") {
+      await ensureOfflineSchema(env);
+      const body = await readBody(request);
+      const deviceToken = (body.deviceToken || "").toString();
+      const id = (body.id || "").toString();
+      if (!deviceToken || !id) return json({ ok: false, error: "Missing fields" }, 400);
+      const dev = await env.DB.prepare("SELECT person_id FROM devices WHERE device_token = ?").bind(deviceToken).first();
+      if (!dev || !dev.person_id) return json({ ok: false, error: "Unknown device" }, 401);
+      const doc = await env.DB.prepare("SELECT site_name FROM site_documents WHERE id = ?").bind(id).first();
+      if (!doc) return json({ ok: false, error: "Document not found" }, 404);
+      if (!(await canViewSiteDocs(env, dev.person_id, doc.site_name))) return json({ ok: false, error: "Not permitted" }, 403);
+      const person = await env.DB.prepare("SELECT first_name, last_name, company FROM people WHERE id = ?").bind(dev.person_id).first();
+      const name = person ? `${person.first_name || ""} ${person.last_name || ""}`.trim() : "";
+      const existing = await env.DB.prepare(
+        "SELECT id FROM site_document_acks WHERE document_id = ? AND person_id = ?"
+      ).bind(id, dev.person_id).first();
+      if (!existing) {
+        await env.DB.prepare(
+          "INSERT INTO site_document_acks (id, document_id, person_id, person_name, company, acked_at) VALUES (?, ?, ?, ?, ?, ?)"
+        ).bind(crypto.randomUUID(), id, dev.person_id, name, person ? (person.company || "") : "", toSqlUtc(Date.now())).run();
+      }
+      return json({ ok: true });
+    }
+
+    // GET /site-documents/file?id=DOC[&download=1][&deviceToken=...]  — stream the file
+    // Auth: admin (x-admin-secret header) OR an engineer permitted for the site.
+    if (url.pathname === "/site-documents/file" && request.method === "GET") {
+      await ensureOfflineSchema(env);
+      const id = url.searchParams.get("id") || "";
+      const download = url.searchParams.get("download") === "1";
+      if (!id) return new Response("Missing id", { status: 400, headers: corsFor(request) });
+      const doc = await env.DB.prepare("SELECT * FROM site_documents WHERE id = ?").bind(id).first();
+      if (!doc) return new Response("Not found", { status: 404, headers: corsFor(request) });
+
+      let ok = isAdminAuthorised();
+      if (!ok) {
+        const deviceToken = url.searchParams.get("deviceToken") || "";
+        if (deviceToken) {
+          const dev = await env.DB.prepare("SELECT person_id FROM devices WHERE device_token = ?").bind(deviceToken).first();
+          if (dev && dev.person_id) ok = await canViewSiteDocs(env, dev.person_id, doc.site_name);
+        }
+      }
+      if (!ok) return new Response("Unauthorised", { status: 401, headers: corsFor(request) });
+      if (!env.DOCS_BUCKET) return new Response("Storage not configured", { status: 500, headers: corsFor(request) });
+
+      const obj = await env.DOCS_BUCKET.get(doc.r2_key);
+      if (!obj) return new Response("File missing", { status: 404, headers: corsFor(request) });
+      const headers = corsFor(request);
+      headers["Content-Type"] = doc.content_type || "application/octet-stream";
+      const safeName = (doc.file_name || "document").replace(/["\\\r\n]/g, "");
+      headers["Content-Disposition"] = (download ? "attachment" : "inline") + '; filename="' + safeName + '"';
+      headers["Access-Control-Expose-Headers"] = "Content-Disposition";
+      headers["Cache-Control"] = "private, max-age=60";
+      return new Response(obj.body, { headers });
     }
 
     return new Response("Not found", { status: 404, headers: corsFor(request) });

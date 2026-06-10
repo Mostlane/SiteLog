@@ -676,6 +676,7 @@
       <button class="btn-ghost btn-sm" onclick="openTimesheetsModal()">&#129534; Timesheets</button>
       <button class="btn-ghost btn-sm" onclick="openJobCostingModal()">&#128176; Job Costing</button>
       <button class="btn-ghost btn-sm" onclick="openSitesModal()">&#128194; Sites</button>
+      <button class="btn-ghost btn-sm" onclick="openSiteDocsModal()">&#128206; Site Docs</button>
       <button class="btn-ghost btn-sm" onclick="openEngineersModal()">&#128119; Engineers</button>
       <button class="btn-ghost btn-sm" onclick="openCompaniesModal()">&#127970; Companies</button>
       <button class="btn-amber btn-sm" id="transfersNavBtn" onclick="openTransfersModal()" style="display:none;">&#9200; Transfers <span id="transfersBadge"></span></button>
@@ -690,6 +691,7 @@
   <button class="btn-ghost" onclick="openTimesheetsModal();closeNavDrawer()">&#129534; Timesheets</button>
   <button class="btn-ghost" onclick="openJobCostingModal();closeNavDrawer()">&#128176; Job Costing</button>
   <button class="btn-ghost" onclick="openSitesModal();closeNavDrawer()">&#128194; Sites</button>
+  <button class="btn-ghost" onclick="openSiteDocsModal();closeNavDrawer()">&#128206; Site Docs</button>
   <button class="btn-ghost" onclick="openEngineersModal();closeNavDrawer()">&#128119; Engineers</button>
   <button class="btn-ghost" onclick="openCompaniesModal();closeNavDrawer()">&#127970; Companies</button>
   <button class="btn-amber" id="transfersNavBtnMobile" onclick="openTransfersModal();closeNavDrawer()" style="display:none;">&#9200; Transfers <span id="transfersBadgeMobile"></span></button>
@@ -920,6 +922,54 @@
       </div>
       <div id="engineersAdminBody"></div>
     </div>
+  </div>
+</div>
+<div id="siteDocsModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div><div class="modal-title">&#128206; Site Documents</div><div class="modal-subtitle">Upload drawings, RAMS / H&amp;S and certs for each site</div></div>
+      <button class="btn-ghost btn-sm" onclick="closeSiteDocsModal()">Close</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-note">Engineers see a site's documents in the app while signed in there (plus anyone with 24/7 access). Archived sites are hidden automatically.</div>
+      <div class="field-stack" style="margin-bottom:14px;">
+        <span class="field-label">Site</span>
+        <select id="siteDocsSiteSelect" onchange="loadSiteDocs()" style="max-width:340px;"></select>
+      </div>
+      <div class="add-form" id="siteDocsUploadForm" style="display:none;">
+        <div class="add-form-title">Upload a document</div>
+        <div class="add-form-grid">
+          <div class="field-stack"><span class="field-label">Title (optional)</span><input id="siteDocTitle" type="text" placeholder="e.g. Ground Floor GA Drawing"/></div>
+          <div class="field-stack"><span class="field-label">Category</span>
+            <select id="siteDocCategory">
+              <option>Drawing</option>
+              <option>RAMS (H&amp;S)</option>
+              <option>Certification</option>
+              <option>Permit</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="field-stack" style="grid-column:1 / -1;"><span class="field-label">File</span><input id="siteDocFile" type="file"/></div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--label2);cursor:pointer;margin-top:10px;">
+          <input type="checkbox" id="siteDocRequireAck"> Require engineers to confirm they have read &amp; understood this
+        </label>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:10px;">
+          <button class="btn-primary btn-sm" id="siteDocUploadBtn" onclick="uploadSiteDoc()">&#11014; Upload</button>
+          <span id="siteDocUploadStatus" style="font-size:13px;color:var(--label3);"></span>
+        </div>
+      </div>
+      <div id="siteDocsBody"><p style="color:var(--label3);">Choose a site to manage its documents.</p></div>
+    </div>
+  </div>
+</div>
+<div id="siteDocAcksModal" class="modal" style="z-index:9450;">
+  <div class="modal-content" style="max-width:460px;">
+    <div class="modal-header">
+      <div><div class="modal-title">&#9989; Acknowledged by</div><div class="modal-subtitle" id="siteDocAcksSubtitle"></div></div>
+      <button class="btn-ghost btn-sm" onclick="document.getElementById('siteDocAcksModal').style.display='none'">Close</button>
+    </div>
+    <div class="modal-body"><div id="siteDocAcksBody"></div></div>
   </div>
 </div>
 
@@ -2103,6 +2153,7 @@ function buildEngineerAdminPanel(eng, name, company, id) {
     '<input data-ts-eng-purpose="' + escapeHtml(eid) + '" value="' + escapeHtml(r.purpose || "") + '" placeholder="Purpose">' +
     '<input data-ts-eng-rate="' + escapeHtml(eid) + '" type="number" step="0.01" min="0" value="' + escapeHtml(r.hourly_rate != null ? String(r.hourly_rate) : "") + '" placeholder="Rate per hr">' +
     '<label class="full" style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--label2);cursor:pointer;"><input type="checkbox" data-ts-eng-main="' + escapeHtml(eid) + '"' + (Number(r.is_main || 0) === 1 ? " checked" : "") + '> Main (Mostlane) &mdash; shown by default</label>' +
+    '<label class="full" style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--label2);cursor:pointer;"><input type="checkbox" data-ts-eng-docalways="' + escapeHtml(eid) + '"' + (Number(r.doc_access_always || 0) === 1 ? " checked" : "") + '> 24/7 site document access &mdash; can view any site\'s documents without signing in</label>' +
     '<div class="full">' + travelHtml + '</div>' +
     '<div class="ts-engineer-admin-btns full">' +
       '<button class="btn-ghost btn-sm" onclick="saveTimesheetEngineer(\'' + escapeHtml(eid) + '\')">Save</button>' +
@@ -2927,6 +2978,7 @@ async function saveTimesheetEngineer(id) {
   const fuelRaw = (document.querySelector('[data-ts-eng-fuel="' + escSel(id) + '"]')?.value || "").trim();
   const fuelRate = fuelRaw === "" ? null : Number(fuelRaw);
   const isMain = !!document.querySelector('[data-ts-eng-main="' + escSel(id) + '"]')?.checked;
+  const docAccessAlways = !!document.querySelector('[data-ts-eng-docalways="' + escSel(id) + '"]')?.checked;
 
   if (!firstName && !lastName) {
     alert("Engineer must have at least a first or last name.");
@@ -2936,7 +2988,7 @@ async function saveTimesheetEngineer(id) {
   const r = await fetch(API_BASE + "/update-engineer", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, fuelPaid, travelTimePaid, travelCapType: travelCapType || null, travelCapValue, fuelRate, isMain })
+    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, fuelPaid, travelTimePaid, travelCapType: travelCapType || null, travelCapValue, fuelRate, isMain, docAccessAlways })
   });
   const d = await r.json();
 
@@ -3034,6 +3086,168 @@ async function openSitesModal() {
 function closeSitesModal() {
   document.getElementById("sitesModal").style.display = "none";
 }
+
+/* ── SITE DOCUMENTS (admin) ── */
+let siteDocsCounts = {};
+async function openSiteDocsModal() {
+  document.getElementById("siteDocsModal").style.display = "flex";
+  document.getElementById("siteDocsBody").innerHTML = '<p style="color:var(--label3);">Loading…</p>';
+  await fetchSites();
+  // Doc counts per site (so the picker can show which sites already have docs).
+  siteDocsCounts = {};
+  try {
+    const r = await fetch(API_BASE + "/site-documents/summary");
+    if (r.ok) { const d = await r.json(); (d.sites || []).forEach(s => { siteDocsCounts[s.site_name] = s.count; }); }
+  } catch (e) {}
+  const sel = document.getElementById("siteDocsSiteSelect");
+  const prev = sel.value;
+  const names = sitesActive.map(s => s.site_name).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  sel.innerHTML = '<option value="">— Select a site —</option>' +
+    names.map(n => {
+      const c = siteDocsCounts[n] || 0;
+      return '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + (c ? ' (' + c + ')' : '') + '</option>';
+    }).join("");
+  if (prev && names.includes(prev)) { sel.value = prev; loadSiteDocs(); }
+  else document.getElementById("siteDocsUploadForm").style.display = "none";
+}
+function closeSiteDocsModal() {
+  document.getElementById("siteDocsModal").style.display = "none";
+}
+async function loadSiteDocs() {
+  const site = document.getElementById("siteDocsSiteSelect").value;
+  const body = document.getElementById("siteDocsBody");
+  const form = document.getElementById("siteDocsUploadForm");
+  if (!site) {
+    form.style.display = "none";
+    body.innerHTML = '<p style="color:var(--label3);">Choose a site to manage its documents.</p>';
+    return;
+  }
+  form.style.display = "block";
+  document.getElementById("siteDocUploadStatus").textContent = "";
+  body.innerHTML = '<p style="color:var(--label3);">Loading…</p>';
+  try {
+    const r = await fetch(API_BASE + "/site-documents/list?site=" + encodeURIComponent(site));
+    const d = await r.json();
+    renderSiteDocs(d.documents || []);
+  } catch (e) {
+    body.innerHTML = '<p style="color:var(--red);">Could not load documents.</p>';
+  }
+}
+function fmtBytes(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return n + " B";
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + " KB";
+  return (n / 1024 / 1024).toFixed(1) + " MB";
+}
+function renderSiteDocs(docs) {
+  const body = document.getElementById("siteDocsBody");
+  if (!docs.length) {
+    body.innerHTML = '<p style="color:var(--label3);">No documents for this site yet. Upload one above.</p>';
+    return;
+  }
+  const byCat = {};
+  docs.forEach(d => { (byCat[d.category || "Other"] = byCat[d.category || "Other"] || []).push(d); });
+  body.innerHTML = Object.keys(byCat).sort().map(cat => {
+    const rows = byCat[cat].map(d => {
+      const id = escapeHtml(d.id);
+      const ackBadge = Number(d.require_ack || 0) === 1
+        ? '<span class="site-item-fact" style="background:var(--amber-soft,#fef3c7);color:#92400e;cursor:pointer;" onclick="showSiteDocAcks(\'' + id + '\',\'' + jsAttr(d.title || d.file_name || "") + '\')">Read-ack · ' + (Number(d.ack_count || 0)) + '</span>'
+        : '';
+      return '<div class="comp-row" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div class="comp-name" style="font-size:14px;">' + escapeHtml(d.title || d.file_name) + '</div>' +
+            '<div style="font-size:12px;color:var(--label3);">' + escapeHtml(d.file_name) + ' · ' + fmtBytes(d.size_bytes) + ' · ' + escapeHtml(toLocal(d.uploaded_at)) + ' ' + ackBadge + '</div>' +
+          '</div>' +
+          '<button class="btn-ghost btn-sm" onclick="viewSiteDoc(\'' + id + '\',false)">View</button>' +
+          '<button class="btn-ghost btn-sm" onclick="viewSiteDoc(\'' + id + '\',true)">Download</button>' +
+          '<button class="btn-ghost btn-sm" title="' + (Number(d.require_ack||0)===1?'Read-ack on':'Read-ack off') + '" onclick="toggleSiteDocAck(\'' + id + '\',' + (Number(d.require_ack||0)===1?0:1) + ')">' + (Number(d.require_ack||0)===1?'&#9989;':'&#9711;') + '</button>' +
+          '<button class="btn-danger btn-sm" onclick="deleteSiteDoc(\'' + id + '\',\'' + jsAttr(d.title || d.file_name || "") + '\')">Delete</button>' +
+        '</div>';
+    }).join("");
+    return '<div style="margin-top:14px;"><div class="add-form-title" style="margin-bottom:2px;">' + escapeHtml(cat) + '</div>' + rows + '</div>';
+  }).join("");
+}
+async function uploadSiteDoc() {
+  const site = document.getElementById("siteDocsSiteSelect").value;
+  const fileEl = document.getElementById("siteDocFile");
+  const status = document.getElementById("siteDocUploadStatus");
+  const btn = document.getElementById("siteDocUploadBtn");
+  if (!site) { status.textContent = "Select a site first."; return; }
+  if (!fileEl.files || !fileEl.files[0]) { status.textContent = "Choose a file."; return; }
+  const fd = new FormData();
+  fd.append("site", site);
+  fd.append("category", document.getElementById("siteDocCategory").value || "Other");
+  fd.append("title", document.getElementById("siteDocTitle").value || "");
+  fd.append("requireAck", document.getElementById("siteDocRequireAck").checked ? "1" : "0");
+  fd.append("file", fileEl.files[0]);
+  btn.disabled = true; status.textContent = "Uploading…";
+  try {
+    const r = await fetch(API_BASE + "/site-documents/upload", { method: "POST", body: fd });
+    const d = await r.json();
+    if (!r.ok || !d.ok) { status.textContent = d.error || "Upload failed."; btn.disabled = false; return; }
+    status.textContent = "Uploaded.";
+    fileEl.value = ""; document.getElementById("siteDocTitle").value = ""; document.getElementById("siteDocRequireAck").checked = false;
+    await loadSiteDocs();
+  } catch (e) {
+    status.textContent = "Upload failed.";
+  }
+  btn.disabled = false;
+}
+// Admin file access needs the x-admin-secret header, so fetch as a blob (the
+// global fetch wrapper attaches the header) and open/download the blob URL.
+async function viewSiteDoc(id, download) {
+  try {
+    const r = await fetch(API_BASE + "/site-documents/file?id=" + encodeURIComponent(id) + (download ? "&download=1" : ""));
+    if (!r.ok) { alert("Could not open file."); return; }
+    const blob = await r.blob();
+    const dispo = r.headers.get("Content-Disposition") || "";
+    const m = /filename="?([^"]+)"?/.exec(dispo);
+    const fname = m ? m[1] : "document";
+    const objUrl = URL.createObjectURL(blob);
+    if (download) {
+      const a = document.createElement("a");
+      a.href = objUrl; a.download = fname; document.body.appendChild(a); a.click(); a.remove();
+    } else {
+      window.open(objUrl, "_blank");
+    }
+    setTimeout(() => URL.revokeObjectURL(objUrl), 60000);
+  } catch (e) { alert("Could not open file."); }
+}
+async function toggleSiteDocAck(id, requireAck) {
+  try {
+    await fetch(API_BASE + "/site-documents/update", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, requireAck })
+    });
+    await loadSiteDocs();
+  } catch (e) {}
+}
+async function deleteSiteDoc(id, name) {
+  if (!confirm("Delete \"" + name + "\"? This removes the file permanently.")) return;
+  try {
+    await fetch(API_BASE + "/site-documents/delete", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id })
+    });
+    await loadSiteDocs();
+  } catch (e) {}
+}
+async function showSiteDocAcks(id, name) {
+  const modal = document.getElementById("siteDocAcksModal");
+  document.getElementById("siteDocAcksSubtitle").textContent = name || "";
+  document.getElementById("siteDocAcksBody").innerHTML = '<p style="color:var(--label3);">Loading…</p>';
+  modal.style.display = "flex";
+  try {
+    const r = await fetch(API_BASE + "/site-documents/acks?id=" + encodeURIComponent(id));
+    const d = await r.json();
+    const acks = d.acks || [];
+    document.getElementById("siteDocAcksBody").innerHTML = acks.length
+      ? acks.map(a => '<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);"><span>' + escapeHtml(a.person_name || "—") + (a.company ? ' <span style="color:var(--label3);">· ' + escapeHtml(a.company) + '</span>' : '') + '</span><span style="color:var(--label3);font-size:12.5px;">' + escapeHtml(toLocal(a.acked_at)) + '</span></div>').join("")
+      : '<p style="color:var(--label3);">No one has acknowledged this yet.</p>';
+  } catch (e) {
+    document.getElementById("siteDocAcksBody").innerHTML = '<p style="color:var(--red);">Could not load.</p>';
+  }
+}
+
 function siteCategoryOf(s) {
   return (String(s.category || "").trim()) || "Projects";
 }
@@ -3589,6 +3803,7 @@ function renderEngineersTable() {
             '<label class="field-stack"><span class="field-label">Purpose</span><input data-eng-purpose="' + id + '" value="' + escapeHtml(p.purpose || "") + '"/></label>' +
             '<label class="field-stack"><span class="field-label">Rate (per hr)</span><input data-eng-rate="' + id + '" type="number" step="0.01" min="0" value="' + escapeHtml(p.hourly_rate != null ? String(p.hourly_rate) : "") + '" placeholder="-"/></label>' +
             '<label style="grid-column:1 / -1;display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--label2);cursor:pointer;"><input type="checkbox" data-eng-main="' + id + '"' + (Number(p.is_main || 0) === 1 ? " checked" : "") + '> Main (Mostlane) &mdash; shown by default</label>' +
+            '<label style="grid-column:1 / -1;display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--label2);cursor:pointer;"><input type="checkbox" data-eng-docalways="' + id + '"' + (Number(p.doc_access_always || 0) === 1 ? " checked" : "") + '> 24/7 site document access &mdash; can view any site\'s documents without signing in</label>' +
           '</div>' +
           '<div class="travel-section">' +
             '<div class="travel-section-label">Travel allowance <span style="font-weight:400;color:var(--label3);">(inter-site time is always paid to everyone)</span></div>' +
@@ -3647,6 +3862,7 @@ async function saveEngineer(id) {
   const fuelRaw = (document.querySelector('[data-eng-fuel="' + escSel(id) + '"]')?.value || "").trim();
   const fuelRate = fuelRaw === "" ? null : Number(fuelRaw);
   const isMain = !!document.querySelector('[data-eng-main="' + escSel(id) + '"]')?.checked;
+  const docAccessAlways = !!document.querySelector('[data-eng-docalways="' + escSel(id) + '"]')?.checked;
 
   if (!firstName && !lastName) {
     alert("Name required.");
@@ -3656,7 +3872,7 @@ async function saveEngineer(id) {
   const r = await fetch(API_BASE + "/update-engineer", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, fuelPaid, travelTimePaid, travelCapType: travelCapType || null, travelCapValue, fuelRate, isMain })
+    body: JSON.stringify({ id, firstName, lastName, company, purpose, hourlyRate, fuelPaid, travelTimePaid, travelCapType: travelCapType || null, travelCapValue, fuelRate, isMain, docAccessAlways })
   });
   const d = await r.json();
 

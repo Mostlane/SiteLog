@@ -313,6 +313,11 @@
 .ddoc-pill { flex-shrink: 0; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.4px; }
 .ddoc-pill.open { background: rgba(217,119,6,0.12); color: #b45309; }
 .ddoc-pill.closed { background: rgba(22,163,74,0.12); color: #15803d; }
+.sdoc-mini { border: 1px solid var(--border); background: #fff; color: var(--blue); font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 9px; cursor: pointer; }
+.sdoc-mini:active { opacity: 0.6; }
+.sdoc-ack-btn { width: 100%; border: none; background: var(--amber); color: #fff; font-size: 13px; font-weight: 700; padding: 9px 12px; border-radius: 10px; cursor: pointer; }
+.sdoc-ack-btn:active { opacity: 0.75; }
+.sdoc-ack.done { font-size: 12.5px; font-weight: 700; color: #15803d; padding: 4px 0; }
 
 .docdetail-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); z-index: 30000; display: flex; align-items: flex-end; justify-content: center; padding: 0; }
 .docdetail-card { width: 100%; max-width: 520px; background: #fff; border-radius: 20px 20px 0 0; padding: 20px 18px calc(18px + env(safe-area-inset-bottom,0px)); max-height: 80vh; overflow-y: auto; }
@@ -522,6 +527,10 @@ text-align: center;
     <div class="dash-docs-card" id="dashDocsCard" style="display:none;">
       <div class="dash-docs-title">&#128196; My Documents <span id="dashDocsSite" style="font-weight:500;color:var(--muted);font-size:12px;"></span></div>
       <div id="dashDocsList"></div>
+    </div>
+    <div class="dash-docs-card" id="siteDocsCard" style="display:none;">
+      <div class="dash-docs-title">&#128206; Site Documents <span id="siteDocsSiteLbl" style="font-weight:500;color:var(--muted);font-size:12px;"></span></div>
+      <div id="siteDocsList"></div>
     </div>
     <div class="status-card" id="appCard" style="padding:0;overflow:hidden;">
       <div id="appMap" style="height:180px;border-radius:18px;"></div>
@@ -1815,6 +1824,7 @@ function dashSetState(state, siteName, visitId, checkInTime) {
     if (onSiteSub) onSiteSub.textContent = siteName || "View";
     loadOnSiteCount(siteName);
     loadMyDocuments(siteName);
+    loadSiteDocuments(siteName);
   } else if (state === "ready") {
     dot.classList.add("ready");
     label.textContent   = "Site found";
@@ -1825,6 +1835,7 @@ function dashSetState(state, siteName, visitId, checkInTime) {
     if (onSiteSub) onSiteSub.textContent = siteName || "View";
     loadOnSiteCount(siteName);
     loadMyDocuments(siteName);
+    loadSiteDocuments(siteName);
   } else {
     dot.classList.add("unknown");
     label.textContent = "Not on site";
@@ -1833,6 +1844,7 @@ function dashSetState(state, siteName, visitId, checkInTime) {
     dashCurrentSite   = null;
     if (onSiteSub) onSiteSub.textContent = "\u2014";
     var _dc = document.getElementById("dashDocsCard"); if (_dc) _dc.style.display = "none";
+    var _sdc = document.getElementById("siteDocsCard"); if (_sdc) _sdc.style.display = "none";
     // Offer a manual check-in only if we actually have a location to record.
     if (btnUnmatched && lastLocation && lastLocation.lat != null) btnUnmatched.style.display = "block";
   }
@@ -1871,6 +1883,61 @@ async function loadMyDocuments(siteName) {
       : '<div style="padding:10px 0;font-size:13px;color:var(--muted);">No documents linked to you at this site yet.</div>';
     card.style.display = "block";
   } catch(e) { card.style.display = "none"; }
+}
+async function loadSiteDocuments(siteName) {
+  var card = document.getElementById("siteDocsCard");
+  var list = document.getElementById("siteDocsList");
+  var lbl  = document.getElementById("siteDocsSiteLbl");
+  if (!card || !list) return;
+  if (!siteName || !deviceToken) { card.style.display = "none"; return; }
+  try {
+    var res = await fetchWithTimeout(API + "/site-documents/my?deviceToken=" + encodeURIComponent(deviceToken) + "&site=" + encodeURIComponent(siteName));
+    if (siteName !== dashCurrentSite) return;
+    if (!res.ok) { card.style.display = "none"; return; }
+    var data = await res.json();
+    if (siteName !== dashCurrentSite) return;
+    var docs = data.documents || [];
+    if (!docs.length) { card.style.display = "none"; return; }
+    if (lbl) lbl.textContent = "· " + siteName;
+    list.innerHTML = docs.map(siteDocItem).join("");
+    card.style.display = "block";
+  } catch (e) { card.style.display = "none"; }
+}
+var SITE_DOC_ICONS = { "Drawing": "📐", "RAMS (H&S)": "⚠️", "Certification": "📜", "Permit": "📋", "Other": "📄" };
+function siteDocItem(d) {
+  var id = String(d.id || "").replace(/'/g, "\\'");
+  var icon = SITE_DOC_ICONS[d.category] || "📄";
+  var needsAck = Number(d.require_ack || 0) === 1;
+  var acked = Number(d.acked || 0) === 1;
+  var ackHtml = "";
+  if (needsAck) {
+    ackHtml = acked
+      ? '<div class="sdoc-ack done">&#10003; Read &amp; understood</div>'
+      : '<button class="sdoc-ack-btn" onclick="event.stopPropagation();ackSiteDoc(\'' + id + '\')">Confirm read &amp; understood</button>';
+  }
+  return '<div class="ddoc-item sdoc-item" style="flex-wrap:wrap;">' +
+      '<div class="ddoc-main" onclick="viewSiteDoc(\'' + id + '\',false)" style="cursor:pointer;flex:1;min-width:0;">' +
+        '<div class="ddoc-title">' + icon + ' ' + escapeHtml(d.title || d.file_name || "Document") + '</div>' +
+        '<div class="ddoc-meta">' + escapeHtml(d.category || "") + (needsAck && !acked ? ' &middot; <span style="color:var(--amber);">read required</span>' : '') + '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:6px;flex-shrink:0;">' +
+        '<button class="sdoc-mini" onclick="event.stopPropagation();viewSiteDoc(\'' + id + '\',false)">View</button>' +
+        '<button class="sdoc-mini" onclick="event.stopPropagation();viewSiteDoc(\'' + id + '\',true)">&#11015;</button>' +
+      '</div>' +
+      (ackHtml ? '<div style="flex-basis:100%;margin-top:6px;">' + ackHtml + '</div>' : '') +
+    '</div>';
+}
+function viewSiteDoc(id, download) {
+  // Engineer access is gated by deviceToken (in the URL) so a plain navigation
+  // works — view opens inline, download forces a save.
+  var u = API + "/site-documents/file?id=" + encodeURIComponent(id) + "&deviceToken=" + encodeURIComponent(deviceToken || "") + (download ? "&download=1" : "");
+  window.open(u, "_blank");
+}
+async function ackSiteDoc(id) {
+  try {
+    var res = await fetchWithTimeout(API + "/site-documents/ack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceToken: deviceToken, id: id }) });
+    if (res.ok) loadSiteDocuments(dashCurrentSite);
+  } catch (e) {}
 }
 function dashDocItem(d) {
   var tl = { induction: "📋 Site Induction", hwp: "🔥 Hot Works Permit", tbt: "💬 Toolbox Talk" };

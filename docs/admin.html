@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="document-render.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -935,6 +937,14 @@
       <div class="field-stack" style="margin-bottom:14px;">
         <span class="field-label">Site</span>
         <select id="siteDocsSiteSelect" onchange="loadSiteDocs()" style="max-width:340px;"></select>
+      </div>
+      <div class="add-form" id="siteHsExportForm" style="display:none;">
+        <div class="add-form-title">&#128230; H&amp;S file (ZIP)</div>
+        <div class="add-site-hint">Downloads a structured ZIP for this site: H&amp;S Job Files, Site Inductions, Hot Work Permits, Toolbox Talks and the Site Log &mdash; each with a folder per engineer who has relevant documents.</div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:10px;">
+          <button class="btn-primary btn-sm" id="siteHsExportBtn" onclick="downloadSiteHsZip()">&#11015; Download H&amp;S file</button>
+          <span id="siteHsExportStatus" style="font-size:13px;color:var(--label3);"></span>
+        </div>
       </div>
       <div class="add-form" id="siteDocsUploadForm" style="display:none;">
         <div class="add-form-title">Upload a document</div>
@@ -3117,12 +3127,16 @@ async function loadSiteDocs() {
   const site = document.getElementById("siteDocsSiteSelect").value;
   const body = document.getElementById("siteDocsBody");
   const form = document.getElementById("siteDocsUploadForm");
+  const exportForm = document.getElementById("siteHsExportForm");
   if (!site) {
     form.style.display = "none";
+    if (exportForm) exportForm.style.display = "none";
     body.innerHTML = '<p style="color:var(--label3);">Choose a site to manage its documents.</p>';
     return;
   }
   form.style.display = "block";
+  if (exportForm) exportForm.style.display = "block";
+  const hsStatus = document.getElementById("siteHsExportStatus"); if (hsStatus) hsStatus.textContent = "";
   document.getElementById("siteDocUploadStatus").textContent = "";
   body.innerHTML = '<p style="color:var(--label3);">Loading…</p>';
   try {
@@ -3246,6 +3260,177 @@ async function showSiteDocAcks(id, name) {
   } catch (e) {
     document.getElementById("siteDocAcksBody").innerHTML = '<p style="color:var(--red);">Could not load.</p>';
   }
+}
+
+/* ── H&S ZIP EXPORT (admin) ──
+   Builds, client-side, a structured ZIP for the selected site:
+     {Site} H&S Export/
+       H&S Job Files/{Engineer}/        ← every RAMS (H&S) upload, duplicated
+       Site Inductions/{Engineer}/      ← inductions the engineer attended
+       Hot Work Permits/{Engineer}/     ← HWPs the engineer attended
+       Toolbox Talks/{Engineer}/        ← TBTs the engineer attended
+       Site Log/{Site} Full Site Log.pdf   ← every visit at the site
+       Site Log/{Engineer}/...Site Log.pdf ← that engineer's visits
+   Engineer folders are only created where there's content. Templated documents
+   (inductions/permits/talks) are generated to PDF here via DocRender; uploaded
+   H&S files are pulled as-is from R2; the site logs are generated with jsPDF. */
+const HS_TYPE_FOLDER = { induction: "Site Inductions", hwp: "Hot Work Permits", tbt: "Toolbox Talks" };
+const HS_TYPE_LABEL  = { induction: "Induction", hwp: "HWP", tbt: "TBT" };
+function hsSafe(name) {
+  return (String(name || "").replace(/[\/\\:*?"<>|]/g, "-").replace(/\s+/g, " ").trim()) || "Unnamed";
+}
+function hsEngKey(personId, name) {
+  return personId ? ("id:" + personId) : ("nm:" + String(name || "").trim().toLowerCase());
+}
+function hsClip(s, w) {
+  const max = Math.max(3, Math.floor(w / 1.7));
+  s = String(s == null ? "" : s);
+  return s.length > max ? s.slice(0, max - 1) + "…" : s;
+}
+async function downloadSiteHsZip() {
+  const site = document.getElementById("siteDocsSiteSelect").value;
+  const status = document.getElementById("siteHsExportStatus");
+  const btn = document.getElementById("siteHsExportBtn");
+  const setStatus = (t) => { if (status) status.textContent = t; };
+  if (!site) { setStatus("Select a site first."); return; }
+  if (typeof JSZip === "undefined" || !window.DocRender || !(window.jspdf && window.jspdf.jsPDF)) {
+    setStatus("Export libraries didn't load — reload the page and retry.");
+    return;
+  }
+  btn.disabled = true;
+  try {
+    setStatus("Gathering documents…");
+    const zip = new JSZip();
+    const root = zip.folder(hsSafe(site + " H&S Export"));
+    const engineers = {}; // engKey -> display name (everyone relevant to the job)
+
+    // 1. Templated documents → per-engineer PDFs.
+    let docs = [];
+    try { docs = ((await (await fetch(API_BASE + "/documents?site=" + encodeURIComponent(site))).json()).documents) || []; } catch (e) {}
+    let made = 0;
+    for (const meta of docs) {
+      let full = null;
+      try { full = (await (await fetch(API_BASE + "/documents/single?id=" + encodeURIComponent(meta.id))).json()).document; } catch (e) {}
+      if (!full) continue;
+      full.type = full.type || meta.type;
+      setStatus("Rendering documents… (" + (++made) + "/" + docs.length + ")");
+      let bytes;
+      try {
+        await DocRender.prefetchDocImages(full);
+        bytes = DocRender.generateDocPdf(full).output("arraybuffer");
+      } catch (e) { continue; }
+      const folderName = HS_TYPE_FOLDER[full.type] || "Other Documents";
+      const dt = (full.issued_at || "").slice(0, 10);
+      const fileName = hsSafe((full.doc_number ? full.doc_number + "_" : "") + (HS_TYPE_LABEL[full.type] || "Doc") + "_" + dt) + ".pdf";
+      const attendees = (full.attendees && full.attendees.length) ? full.attendees : [{ person_name: "Unassigned", person_id: null }];
+      for (const a of attendees) {
+        const key = hsEngKey(a.person_id, a.person_name);
+        const nm = hsSafe(a.person_name || "Unassigned");
+        engineers[key] = nm;
+        root.folder(folderName).folder(nm).file(fileName, bytes);
+      }
+    }
+
+    // 2. Site Log — full log + per-engineer logs (also captures visiting engineers).
+    setStatus("Building site log…");
+    let visits = [];
+    try { visits = (await fetchRangeComplete(null, null)).filter(v => (v.site_code || "") === site); } catch (e) {}
+    if (visits.length) {
+      root.folder("Site Log").file(hsSafe(site + " Full Site Log") + ".pdf", buildSiteLogPdf(site + " — Full Site Log", site, visits, true).output("arraybuffer"));
+      const byEng = {};
+      for (const v of visits) {
+        const key = hsEngKey(v.person_id, nameOf(v));
+        (byEng[key] = byEng[key] || { name: hsSafe(nameOf(v) || "Unnamed"), rows: [] }).rows.push(v);
+      }
+      for (const key of Object.keys(byEng)) {
+        const g = byEng[key];
+        engineers[key] = g.name;
+        root.folder("Site Log").folder(g.name).file(hsSafe(g.name + " Site Log") + ".pdf", buildSiteLogPdf(g.name + " — Site Log", site, g.rows, false).output("arraybuffer"));
+      }
+    }
+
+    // 3. H&S Job Files — RAMS (H&S) uploads, duplicated into every engineer's folder.
+    let rams = [];
+    try {
+      rams = ((await (await fetch(API_BASE + "/site-documents/list?site=" + encodeURIComponent(site))).json()).documents || [])
+        .filter(d => (d.category || "") === "RAMS (H&S)");
+    } catch (e) {}
+    if (rams.length) {
+      setStatus("Fetching H&S files…");
+      const files = [];
+      const used = {};
+      for (const d of rams) {
+        try {
+          const r = await fetch(API_BASE + "/site-documents/file?id=" + encodeURIComponent(d.id));
+          if (!r.ok) continue;
+          let nm = hsSafe(d.file_name || d.title || "document.pdf");
+          if (used[nm] != null) { const dot = nm.lastIndexOf("."); used[nm]++; nm = dot > 0 ? nm.slice(0, dot) + " (" + used[nm] + ")" + nm.slice(dot) : nm + " (" + used[nm] + ")"; }
+          else used[nm] = 0;
+          files.push({ name: nm, bytes: await r.arrayBuffer() });
+        } catch (e) {}
+      }
+      const targets = Object.values(engineers);
+      if (targets.length) {
+        targets.forEach(nm => { const f = root.folder("H&S Job Files").folder(nm); files.forEach(rf => f.file(rf.name, rf.bytes)); });
+      } else {
+        const f = root.folder("H&S Job Files"); files.forEach(rf => f.file(rf.name, rf.bytes));
+      }
+    }
+
+    setStatus("Zipping…");
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = hsSafe(site + " H&S Export") + ".zip";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    setStatus("Downloaded.");
+  } catch (e) {
+    setStatus("Export failed: " + (e && e.message ? e.message : e));
+  }
+  btn.disabled = false;
+}
+// Minimal site-log PDF (jsPDF): title + a table of visits.
+function buildSiteLogPdf(title, site, visits, includeName) {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  const pageW = 210, pageH = 297, margin = 14;
+  let y = margin;
+  pdf.setFont("helvetica", "bold"); pdf.setFontSize(14);
+  pdf.text(String(title), margin, y); y += 7;
+  pdf.setFont("helvetica", "normal"); pdf.setFontSize(9); pdf.setTextColor(110);
+  pdf.text("Site: " + site + "   ·   Generated " + new Date().toLocaleString("en-GB"), margin, y); y += 6;
+  pdf.setTextColor(0);
+  const sorted = visits.slice().sort((a, b) => String(a.check_in_at || "").localeCompare(String(b.check_in_at || "")));
+  const cols = includeName
+    ? [{ t: "Date", w: 24 }, { t: "Name", w: 46 }, { t: "Company", w: 40 }, { t: "In", w: 22 }, { t: "Out", w: 22 }, { t: "Hours", w: 18 }]
+    : [{ t: "Date", w: 28 }, { t: "In", w: 30 }, { t: "Out", w: 30 }, { t: "Hours", w: 22 }, { t: "Notes", w: 62 }];
+  const drawHeader = () => {
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(8.5);
+    let x = margin; cols.forEach(c => { pdf.text(c.t, x, y); x += c.w; });
+    y += 2; pdf.setDrawColor(200); pdf.line(margin, y, pageW - margin, y); y += 3.5;
+    pdf.setFont("helvetica", "normal");
+  };
+  drawHeader(); pdf.setFontSize(8.5);
+  let total = 0;
+  for (const v of sorted) {
+    if (y > pageH - margin) { pdf.addPage(); y = margin; drawHeader(); }
+    const date = (v.check_in_at || "").slice(0, 10);
+    const inT = formatTimeOnly(v.check_in_at);
+    const outT = v.check_out_at ? formatTimeOnly(v.check_out_at) : "—";
+    const mins = minutesBetween(v.check_in_at, v.check_out_at);
+    total += mins;
+    const hrs = (mins / 60).toFixed(2);
+    const note = !v.check_out_at ? "no sign-out" : (v.transferred_to ? "moved to " + v.transferred_to : (Number(v.auto_checkout || 0) === 1 ? "auto sign-out" : ""));
+    const cells = includeName ? [date, nameOf(v), v.company || "", inT, outT, hrs] : [date, inT, outT, hrs, note];
+    let x = margin; cells.forEach((txt, i) => { pdf.text(hsClip(txt, cols[i].w), x, y); x += cols[i].w; });
+    y += 5;
+  }
+  if (y > pageH - margin) { pdf.addPage(); y = margin; }
+  y += 1; pdf.setDrawColor(200); pdf.line(margin, y, pageW - margin, y); y += 5;
+  pdf.setFont("helvetica", "bold"); pdf.setFontSize(9);
+  pdf.text(sorted.length + " visit(s)   ·   Total " + (total / 60).toFixed(2) + " h", margin, y);
+  return pdf;
 }
 
 function siteCategoryOf(s) {

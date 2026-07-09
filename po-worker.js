@@ -16,9 +16,9 @@ export default {
       if (path === '/office') {
         const remembered = getCookie(request, 'office_user');
         if (remembered) {
-          // Verify it's still a valid active user
-          const user = await env.DB.prepare(`SELECT slug FROM office_users WHERE slug = ? AND active = 1`).bind(remembered).first();
-          if (user) return Response.redirect(new URL('/o/' + user.slug, request.url).toString(), 302);
+          // Verify it's still a valid active user; redirect to their token URL
+          const user = await env.DB.prepare(`SELECT slug, token FROM office_users WHERE slug = ? AND active = 1`).bind(remembered).first();
+          if (user && user.token) return Response.redirect(new URL('/o/' + user.token, request.url).toString(), 302);
         }
         return html(officeAccessRequiredPage());
       }
@@ -32,9 +32,11 @@ export default {
       if (path === '/api/config' && method === 'POST') return json(await updateConfig(env.DB, await request.json()));
       if (path === '/api/engineers' && method === 'GET') return json(await getEngineers(env.DB));
       if (path === '/api/engineers' && method === 'POST') return json(await addEngineer(env.DB, await request.json()));
+      if (path.startsWith('/api/engineers/') && path.endsWith('/rotate') && method === 'POST') return json(await rotateToken(env.DB, 'engineers', path.split('/')[3]));
       if (path.startsWith('/api/engineers/') && method === 'DELETE') return json(await deleteEngineer(env.DB, path.split('/').pop()));
       if (path === '/api/office-users' && method === 'GET') return json(await getOfficeUsers(env.DB));
       if (path === '/api/office-users' && method === 'POST') return json(await addOfficeUser(env.DB, await request.json()));
+      if (path.startsWith('/api/office-users/') && path.endsWith('/rotate') && method === 'POST') return json(await rotateToken(env.DB, 'office_users', path.split('/')[3]));
       if (path.startsWith('/api/office-users/') && method === 'DELETE') return json(await deleteOfficeUser(env.DB, path.split('/').pop()));
       if (path === '/api/suppliers' && method === 'GET') return json(await getSuppliers(env.DB));
       if (path === '/api/suppliers' && method === 'POST') return json(await addSupplier(env.DB, await request.json()));
@@ -123,6 +125,20 @@ async function ensureSchema(db) {
     }
   }
 
+  // Access tokens: personal URLs are /e/<token> and /o/<token> (random,
+  // unguessable) instead of name-based slugs, so links can't be derived from
+  // someone's name. Slugs remain the internal IDs.
+  for (const table of ['engineers', 'office_users']) {
+    const tInfo = await db.prepare(`PRAGMA table_info(${table})`).all();
+    if (!tInfo.results.some(r => r.name === 'token')) {
+      try {
+        await db.exec(`ALTER TABLE ${table} ADD COLUMN token TEXT`);
+      } catch (e) {
+        console.error(`Migration failed for ${table}.token:`, e.message);
+      }
+    }
+  }
+
   const counterCheck = await db.prepare(`SELECT COUNT(*) as c FROM po_log`).first();
   if (counterCheck.c === 0) {
     await db.prepare(`INSERT INTO po_log (po_number, issued_at, source, deleted) VALUES (10010, ?, 'seed', 1)`).bind(new Date().toISOString()).run();
@@ -161,10 +177,31 @@ async function ensureSchema(db) {
     ...suppliers.map(name => db.prepare(`INSERT OR IGNORE INTO suppliers (name) VALUES (?)`).bind(name))
   ]);
 
+  // Give anyone without an access token one (existing rows on first deploy,
+  // plus the seed rows above).
+  for (const table of ['engineers', 'office_users']) {
+    const missing = await db.prepare(`SELECT slug FROM ${table} WHERE token IS NULL OR token = ''`).all();
+    if (missing.results.length) {
+      await db.batch(missing.results.map(r =>
+        db.prepare(`UPDATE ${table} SET token = ? WHERE slug = ?`).bind(randomToken(), r.slug)
+      ));
+    }
+  }
+
   schemaReady = true;
 }
 
 function slugify(name) { return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+
+// 16 chars from a 62-char alphabet (~95 bits) — unguessable personal URL token.
+function randomToken() {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let t = '';
+  for (const b of bytes) t += alphabet[b % 62];
+  return t;
+}
 
 // ============================================================
 // LOGO (Mostlane-inspired SVG)
@@ -182,15 +219,15 @@ function logoResponse() {
 // API LOGIC
 // ============================================================
 async function handleEngineerView(path, env) {
-  const slug = path.split('/')[2];
-  const eng = await env.DB.prepare(`SELECT * FROM engineers WHERE slug = ? AND active = 1`).bind(slug).first();
+  const token = path.split('/')[2];
+  const eng = await env.DB.prepare(`SELECT * FROM engineers WHERE token = ? AND active = 1`).bind(token).first();
   if (!eng) return html(unknownEngineerPage());
   return html(engineerPage(eng));
 }
 
 async function handleOfficeUserView(path, env) {
-  const slug = path.split('/')[2];
-  const user = await env.DB.prepare(`SELECT * FROM office_users WHERE slug = ? AND active = 1`).bind(slug).first();
+  const token = path.split('/')[2];
+  const user = await env.DB.prepare(`SELECT * FROM office_users WHERE token = ? AND active = 1`).bind(token).first();
   if (!user) return html(unknownOfficeUserPage());
   // Set cookie remembering this office user for 90 days
   const cookie = `office_user=${encodeURIComponent(user.slug)}; Max-Age=${90 * 24 * 60 * 60}; Path=/; SameSite=Lax`;
@@ -211,7 +248,8 @@ function getCookie(request, name) {
 async function getOfficeUsers(db) { return (await db.prepare(`SELECT * FROM office_users ORDER BY name`).all()).results; }
 async function addOfficeUser(db, body) {
   const slug = slugify(body.name);
-  await db.prepare(`INSERT INTO office_users (slug, name, active) VALUES (?, ?, 1) ON CONFLICT(slug) DO UPDATE SET active = 1, name = ?`).bind(slug, body.name, body.name).run();
+  // On conflict the existing token is kept, so re-adding someone doesn't break their link
+  await db.prepare(`INSERT INTO office_users (slug, name, active, token) VALUES (?, ?, 1, ?) ON CONFLICT(slug) DO UPDATE SET active = 1, name = ?`).bind(slug, body.name, randomToken(), body.name).run();
   return { success: true, slug };
 }
 async function deleteOfficeUser(db, slug) {
@@ -252,10 +290,19 @@ async function updateConfig(db, body) {
 async function getEngineers(db) { return (await db.prepare(`SELECT * FROM engineers ORDER BY name`).all()).results; }
 async function addEngineer(db, body) {
   const slug = slugify(body.name);
-  await db.prepare(`INSERT INTO engineers (slug, name, active) VALUES (?, ?, 1) ON CONFLICT(slug) DO UPDATE SET active = 1, name = ?`).bind(slug, body.name, body.name).run();
+  // On conflict the existing token is kept, so re-adding someone doesn't break their link
+  await db.prepare(`INSERT INTO engineers (slug, name, active, token) VALUES (?, ?, 1, ?) ON CONFLICT(slug) DO UPDATE SET active = 1, name = ?`).bind(slug, body.name, randomToken(), body.name).run();
   return { success: true, slug };
 }
 async function deleteEngineer(db, slug) { await db.prepare(`UPDATE engineers SET active = 0 WHERE slug = ?`).bind(slug).run(); return { success: true }; }
+
+// Issue a fresh token, instantly invalidating the old link. `table` is fixed
+// by the route, never user input.
+async function rotateToken(db, table, slug) {
+  const token = randomToken();
+  await db.prepare(`UPDATE ${table} SET token = ? WHERE slug = ?`).bind(token, slug).run();
+  return { success: true, token };
+}
 async function getSuppliers(db) { return (await db.prepare(`SELECT * FROM suppliers WHERE active = 1 ORDER BY name`).all()).results; }
 async function addSupplier(db, body) {
   await db.prepare(`INSERT INTO suppliers (name) VALUES (?) ON CONFLICT(name) DO UPDATE SET active = 1`).bind(body.name).run();
@@ -737,8 +784,7 @@ function officeAccessRequiredPage() {
   <div class="wrap-narrow">
     <div class="card">
       <h2>Use your office link</h2>
-      <p class="muted" style="margin-bottom:12px">Each office user has their own URL so we can track who issues which PO. If you don't have your link, ask Jamie.</p>
-      <p class="muted">Format: <code>/o/yourname</code></p>
+      <p class="muted" style="margin-bottom:12px">Each office user has their own private URL so we can track who issues which PO. If you don't have your link (or it has stopped working), ask Jamie for a new one.</p>
     </div>
   </div></body></html>`;
 }
@@ -1911,7 +1957,7 @@ function adminPage() {
     <div id="tab-engineers" class="tab-pane" style="display:none">
       <div class="card">
         <h2>Engineers</h2>
-        <p class="muted">Each engineer has a unique URL — share so they can bookmark on their phone.</p>
+        <p class="muted">Each engineer has a private, unguessable URL — share it so they can bookmark it on their phone. Use ♻ New link if a link leaks or needs revoking; the old one stops working immediately.</p>
         <div class="table-scroll"><table>
           <thead><tr><th>Name</th><th>URL</th><th></th></tr></thead>
           <tbody id="eng-tbody"></tbody>
@@ -1924,7 +1970,7 @@ function adminPage() {
     <div id="tab-office-users" class="tab-pane" style="display:none">
       <div class="card">
         <h2>Office Users</h2>
-        <p class="muted">Each office user has a unique URL. Issued POs and edits are stamped with the user.</p>
+        <p class="muted">Each office user has a private, unguessable URL. Issued POs and edits are stamped with the user. Use ♻ New link to revoke and reissue a link.</p>
         <div class="table-scroll"><table>
           <thead><tr><th>Name</th><th>URL</th><th></th></tr></thead>
           <tbody id="ou-tbody"></tbody>
@@ -2027,8 +2073,8 @@ async function loadEngineers() {
   document.getElementById('eng-tbody').innerHTML = engs.filter(e => e.active).map(e => \`
     <tr>
       <td><strong>\${escapeHtml(e.name)}</strong></td>
-      <td><a href="/e/\${e.slug}" target="_blank" style="font-family:ui-monospace,monospace;font-size:12px;color:#1A4F8F">\${base}/e/\${e.slug}</a></td>
-      <td><div class="row"><button class="ghost small" onclick='copyLink("\${base}/e/\${e.slug}")'>Copy</button><button class="danger small" onclick='removeEngineer("\${e.slug}")'>Remove</button></div></td>
+      <td><a href="/e/\${e.token}" target="_blank" style="font-family:ui-monospace,monospace;font-size:12px;color:#1A4F8F">\${base}/e/\${e.token}</a></td>
+      <td><div class="row"><button class="ghost small" onclick='copyLink("\${base}/e/\${e.token}")'>Copy</button><button class="ghost small" title="Invalidate the current link and issue a new one" onclick='rotateLink("engineers", "\${e.slug}", "\${escapeAttr(e.name)}")'>♻ New link</button><button class="danger small" onclick='removeEngineer("\${e.slug}")'>Remove</button></div></td>
     </tr>\`).join('');
 }
 async function addEngineer() {
@@ -2049,8 +2095,8 @@ async function loadOfficeUsers() {
   document.getElementById('ou-tbody').innerHTML = active.map(u => \`
     <tr>
       <td><strong>\${escapeHtml(u.name)}</strong></td>
-      <td><a href="/o/\${u.slug}" target="_blank" style="font-family:ui-monospace,monospace;font-size:12px;color:#1A4F8F">\${base}/o/\${u.slug}</a></td>
-      <td><div class="row"><button class="ghost small" onclick='copyLink("\${base}/o/\${u.slug}")'>Copy</button><button class="danger small" onclick='removeOfficeUser("\${u.slug}")'>Remove</button></div></td>
+      <td><a href="/o/\${u.token}" target="_blank" style="font-family:ui-monospace,monospace;font-size:12px;color:#1A4F8F">\${base}/o/\${u.token}</a></td>
+      <td><div class="row"><button class="ghost small" onclick='copyLink("\${base}/o/\${u.token}")'>Copy</button><button class="ghost small" title="Invalidate the current link and issue a new one" onclick='rotateLink("office-users", "\${u.slug}", "\${escapeAttr(u.name)}")'>♻ New link</button><button class="danger small" onclick='removeOfficeUser("\${u.slug}")'>Remove</button></div></td>
     </tr>\`).join('');
 }
 async function addOfficeUser() {
@@ -2100,7 +2146,13 @@ async function addClosure() {
 }
 async function removeClosure(date) { await fetch('/api/closures/' + encodeURIComponent(date), { method: 'DELETE' }); loadClosures(); }
 function copyLink(url) { navigator.clipboard.writeText(url).then(() => alert('Copied: ' + url)); }
+async function rotateLink(kind, slug, name) {
+  if (!confirm('Issue a new link for ' + name + '?\\n\\nTheir current link stops working immediately — send them the new one.')) return;
+  await fetch('/api/' + kind + '/' + slug + '/rotate', { method: 'POST' });
+  if (kind === 'engineers') loadEngineers(); else loadOfficeUsers();
+}
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return String(s).replace(/"/g, '&quot;'); }
 function fmtDate(s) {
   s = String(s || '');
   if (s.length === 10 && s.charAt(4) === '-') return s.slice(8,10) + '-' + s.slice(5,7) + '-' + s.slice(2,4);

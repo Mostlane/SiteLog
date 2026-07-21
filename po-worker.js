@@ -27,6 +27,7 @@ export default {
       if (path === '/stats') return html(statsPage());
       if (path === '/accounts') return html(accountsPage());
       if (path === '/report') return html(await reportPage(env.DB, url.searchParams));
+      if (path === '/summary') return html(summaryPage());
 
       if (path === '/api/config' && method === 'GET') return json(await getConfig(env.DB));
       if (path === '/api/config' && method === 'POST') return json(await updateConfig(env.DB, await request.json()));
@@ -58,6 +59,8 @@ export default {
       if (path === '/api/status' && method === 'GET') return json(await getSystemStatus(env.DB));
       if (path === '/api/dashboard' && method === 'GET') return json(await getDashboard(env.DB));
       if (path === '/api/stats' && method === 'GET') return json(await getStats(env.DB, url.searchParams));
+      if (path === '/api/summary' && method === 'GET') return json(await getSummary(env.DB, url.searchParams));
+      if (path === '/summary/email' && method === 'GET') return html(await weeklySummaryEmailHtml(env.DB, url.searchParams, url.origin));
       if (path === '/api/export' && method === 'GET') return csvExport(env.DB, url.searchParams);
       if (path === '/logo.jpg' || path === '/logo.svg') return logoResponse();
       if (path === '/icon-192.png') return iconResponse(ICON_192_B64);
@@ -71,6 +74,12 @@ export default {
     } catch (err) {
       return new Response('Error: ' + err.message, { status: 500 });
     }
+  },
+
+  // Cron trigger (add e.g. "0 7 * * MON" in Worker settings) sends the weekly
+  // activity email. Dormant until email is configured (see runWeeklyEmail).
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runWeeklyEmail(env));
   }
 };
 
@@ -806,7 +815,7 @@ function topbar(active) {
   const link = (href, label, key) => `<a href="${href}"${active === key ? ' class="active"' : ''}>${label}</a>`;
   return `<div class="topbar">
     <div class="brand"><img src="/logo.jpg" alt="Mostlane"> PO System</div>
-    <nav><a href="https://mostlane-portal.com/main.html">🏠 Portal</a>${link('/office', 'Office', 'office')}${link('/accounts', 'Accounts', 'accounts')}${link('/stats', 'Stats', 'stats')}${link('/admin', 'Admin', 'admin')}</nav>
+    <nav><a href="https://mostlane-portal.com/main.html">🏠 Portal</a>${link('/office', 'Office', 'office')}${link('/summary', 'Summary', 'summary')}${link('/accounts', 'Accounts', 'accounts')}${link('/stats', 'Stats', 'stats')}${link('/admin', 'Admin', 'admin')}</nav>
   </div>`;
 }
 
@@ -1783,6 +1792,228 @@ async function reportPage(db, params) {
     </div>
   </div>
   <button class="print-btn" onclick="window.print()">🖨 Save as PDF</button>
+</body></html>`;
+}
+
+// ============================================================
+// WEEKLY ACTIVITY SUMMARY (who bought what, from where, for which jobs)
+// ============================================================
+// Aggregate POs in a date range by the engineer they're attributed to, with a
+// per-engineer supplier breakdown and the list of jobs. Cost is ignored — this
+// is about buying activity, not spend (which lags by weeks).
+async function getSummaryRange(db, from, to) {
+  let where = 'WHERE deleted = 0';
+  const binds = [];
+  if (from) { where += ' AND issued_at >= ?'; binds.push(from); }
+  if (to) { where += ' AND issued_at <= ?'; binds.push(to + 'T23:59:59'); }
+  const rows = (await db.prepare(
+    `SELECT po_number, issued_at, engineer_name, office_user_name, source, supplier, site, incident_no, description
+     FROM po_log ${where} ORDER BY issued_at DESC`
+  ).bind(...binds).all()).results;
+
+  const groups = {};
+  const supTotals = {};
+  for (const r of rows) {
+    const key = r.engineer_name || (r.office_user_name ? 'Office — ' + r.office_user_name : '(no engineer)');
+    const g = groups[key] || (groups[key] = { name: key, count: 0, sup: {}, pos: [] });
+    g.count++;
+    const sup = r.supplier || '(none)';
+    g.sup[sup] = (g.sup[sup] || 0) + 1;
+    supTotals[sup] = (supTotals[sup] || 0) + 1;
+    g.pos.push({ po_number: r.po_number, issued_at: r.issued_at, supplier: r.supplier, site: r.site, incident_no: r.incident_no, description: r.description });
+  }
+  const engineers = Object.values(groups).map(g => ({
+    name: g.name,
+    count: g.count,
+    suppliers: g.sup,
+    by_supplier: Object.entries(g.sup).map(([supplier, count]) => ({ supplier, count })).sort((a, b) => b.count - a.count),
+    pos: g.pos
+  })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  const by_supplier = Object.entries(supTotals).map(([supplier, count]) => ({ supplier, count })).sort((a, b) => b.count - a.count);
+  return { from: from || null, to: to || null, total: rows.length, engineers, by_supplier };
+}
+async function getSummary(db, params) {
+  return getSummaryRange(db, params.get('from'), params.get('to'));
+}
+
+// Monday-Sunday of the previous full week, in UK time, as YYYY-MM-DD strings.
+function lastWeekRangeUK() {
+  const nowUK = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));
+  const dow = nowUK.getDay(); // 0 Sun .. 6 Sat
+  const mondayThis = new Date(nowUK); mondayThis.setDate(nowUK.getDate() - ((dow + 6) % 7));
+  const start = new Date(mondayThis); start.setDate(mondayThis.getDate() - 7);
+  const end = new Date(mondayThis); end.setDate(mondayThis.getDate() - 1);
+  const fmt = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  return { from: fmt(start), to: fmt(end) };
+}
+
+// Server-rendered, inline-styled email body (also viewable at /summary/email).
+async function weeklySummaryEmailHtml(db, params, origin) {
+  const from = params.get('from');
+  const to = params.get('to');
+  const s = await getSummaryRange(db, from, to);
+  const esc = escapeHtmlServer;
+  const range = (from ? fmtDateUK(from) : '') + (from && to ? ' – ' : '') + (to ? fmtDateUK(to) : '');
+  const base = origin || '';
+  const supLine = bs => bs.map(x => esc(x.supplier) + ' ×' + x.count).join(' · ');
+
+  const engineerBlocks = s.engineers.map(e => {
+    const jobs = e.pos.map(p => {
+      const where = p.incident_no ? ('INC ' + esc(p.incident_no) + (p.site ? ' · ' + esc(p.site) : '')) : esc(p.site || '—');
+      return `<tr>
+        <td style="padding:4px 8px;border-bottom:1px solid #eef1f5;font-family:monospace;color:#003366">${p.po_number}</td>
+        <td style="padding:4px 8px;border-bottom:1px solid #eef1f5;white-space:nowrap;color:#5a6677">${fmtDateUK(p.issued_at)}</td>
+        <td style="padding:4px 8px;border-bottom:1px solid #eef1f5"><strong>${esc(p.supplier || '—')}</strong></td>
+        <td style="padding:4px 8px;border-bottom:1px solid #eef1f5">${where}</td>
+        <td style="padding:4px 8px;border-bottom:1px solid #eef1f5;color:#444">${esc(p.description || '')}</td>
+      </tr>`;
+    }).join('');
+    return `<details style="margin:0 0 8px;border:1px solid #e3e7ee;border-radius:10px;overflow:hidden">
+      <summary style="cursor:pointer;padding:12px 14px;background:#f0f5fc;list-style:none">
+        <span style="font-weight:700;color:#003366;font-size:15px">${esc(e.name)}</span>
+        <span style="color:#1A4F8F;font-weight:600"> — ${e.count} PO${e.count === 1 ? '' : 's'}</span>
+        <div style="color:#5a6677;font-size:12px;margin-top:3px">${supLine(e.by_supplier)}</div>
+      </summary>
+      <div style="padding:6px 10px 12px">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+          <thead><tr>
+            <th style="text-align:left;padding:4px 8px;border-bottom:2px solid #003366;font-size:10px;color:#5a6677;text-transform:uppercase">PO #</th>
+            <th style="text-align:left;padding:4px 8px;border-bottom:2px solid #003366;font-size:10px;color:#5a6677;text-transform:uppercase">Date</th>
+            <th style="text-align:left;padding:4px 8px;border-bottom:2px solid #003366;font-size:10px;color:#5a6677;text-transform:uppercase">Supplier</th>
+            <th style="text-align:left;padding:4px 8px;border-bottom:2px solid #003366;font-size:10px;color:#5a6677;text-transform:uppercase">Site / Job</th>
+            <th style="text-align:left;padding:4px 8px;border-bottom:2px solid #003366;font-size:10px;color:#5a6677;text-transform:uppercase">Description</th>
+          </tr></thead>
+          <tbody>${jobs}</tbody>
+        </table>
+      </div>
+    </details>`;
+  }).join('');
+
+  const supplierTally = s.by_supplier.slice(0, 15).map(x =>
+    `<span style="display:inline-block;background:#f0f5fc;border:1px solid #d6e4f5;border-radius:16px;padding:4px 10px;margin:0 6px 6px 0;font-size:12.5px;color:#003366">${esc(x.supplier)} <strong>×${x.count}</strong></span>`
+  ).join('');
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Weekly PO Summary</title></head>
+  <body style="margin:0;background:#e6e8eb;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;color:#1a1a1a">
+  <div style="max-width:680px;margin:0 auto;padding:20px 14px 40px">
+    <div style="background:#fff;border-radius:14px;padding:20px;border:1px solid #e3e7ee">
+      <div style="border-bottom:3px solid #003366;padding-bottom:12px;margin-bottom:16px">
+        <h1 style="margin:0;font-size:19px;color:#003366">Weekly PO Activity</h1>
+        <div style="color:#5a6677;font-size:13px;margin-top:4px">${esc(range || 'All time')}</div>
+      </div>
+      <p style="margin:0 0 16px;font-size:14px;color:#1a1a1a">
+        <strong>${s.total}</strong> PO${s.total === 1 ? '' : 's'} raised by <strong>${s.engineers.length}</strong> ${s.engineers.length === 1 ? 'person' : 'people'} across <strong>${s.by_supplier.length}</strong> supplier${s.by_supplier.length === 1 ? '' : 's'}. Tap a name to expand.
+      </p>
+      ${s.total ? engineerBlocks : '<p style="color:#5a6677">No POs were raised in this period.</p>'}
+      ${s.total ? `<h2 style="font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:#5a6677;margin:20px 0 8px">All suppliers this week</h2><div>${supplierTally}</div>` : ''}
+      <div style="margin-top:22px;text-align:center">
+        <a href="${base}/summary${from ? '?from=' + esc(from) + (to ? '&to=' + esc(to) : '') : ''}" style="display:inline-block;background:#003468;color:#fff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:600;font-size:14px">Open the interactive summary</a>
+      </div>
+      <p style="margin:18px 0 0;font-size:11px;color:#8a94a3;text-align:center">Mostlane PO System · buying activity (costs not shown — they're added later from invoices)</p>
+    </div>
+  </div></body></html>`;
+}
+
+// Sends the previous week's summary email. Dormant unless email is configured
+// via Worker secrets: RESEND_API_KEY, SUMMARY_FROM, SUMMARY_TO, and (optional)
+// PUBLIC_URL for the "open interactive summary" link.
+async function runWeeklyEmail(env) {
+  await ensureSchema(env.DB);
+  const { from, to } = lastWeekRangeUK();
+  const origin = env.PUBLIC_URL || 'https://site-log.co.uk';
+  const params = new URLSearchParams({ from, to });
+  const htmlBody = await weeklySummaryEmailHtml(env.DB, params, origin);
+  const subject = `Mostlane PO — week of ${fmtDateUK(from)}`;
+  await sendEmail(env, subject, htmlBody);
+}
+
+async function sendEmail(env, subject, htmlBody) {
+  const to = (env.SUMMARY_TO || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!env.RESEND_API_KEY || !env.SUMMARY_FROM || !to.length) {
+    console.log('Weekly email not sent: email not configured (need RESEND_API_KEY, SUMMARY_FROM, SUMMARY_TO).');
+    return;
+  }
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: env.SUMMARY_FROM, to, subject, html: htmlBody })
+  });
+  if (!res.ok) console.error('Weekly email send failed:', res.status, await res.text());
+}
+
+function summaryPage() {
+  return `${pageHead('Summary — PO System')}${topbar('summary')}
+  <div class="wrap">
+    <h1>Buying Activity</h1>
+    <div class="card">
+      <p class="muted" style="margin-bottom:10px">Who raised POs, how many, from which suppliers and for which jobs. Tap an engineer to expand. Costs aren't shown here — this is about buying activity.</p>
+      <div class="filter-bar" style="margin-bottom:10px">
+        <input id="f-from" type="date">
+        <input id="f-to" type="date">
+      </div>
+      <div class="row">
+        <button class="ghost small" onclick="setThisWeek()">This week</button>
+        <button class="ghost small" onclick="setLastWeek()">Last week</button>
+        <button class="ghost small" onclick="setThisMonth()">This month</button>
+        <button class="ghost small" onclick="setDays(30)">Last 30 days</button>
+      </div>
+    </div>
+    <div class="stat-grid" id="overview"></div>
+    <div id="engineers"></div>
+    <div class="card" id="supplier-card" style="display:none">
+      <h2>All suppliers</h2>
+      <div id="supplier-tally" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+  </div>
+<script>
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function fmtDate(v){const s=String(v||'');if(s.length>=10&&s.charAt(4)==='-')return s.slice(8,10)+'-'+s.slice(5,7)+'-'+s.slice(2,4);return s}
+function mondayOf(d){const x=new Date(d);x.setDate(d.getDate()-((d.getDay()+6)%7));return x}
+function setThisWeek(){const n=new Date();document.getElementById('f-from').value=ymd(mondayOf(n));document.getElementById('f-to').value=ymd(n);load()}
+function setLastWeek(){const n=new Date();const m=mondayOf(n);const s=new Date(m);s.setDate(m.getDate()-7);const e=new Date(m);e.setDate(m.getDate()-1);document.getElementById('f-from').value=ymd(s);document.getElementById('f-to').value=ymd(e);load()}
+function setThisMonth(){const n=new Date();document.getElementById('f-from').value=ymd(new Date(n.getFullYear(),n.getMonth(),1));document.getElementById('f-to').value=ymd(n);load()}
+function setDays(days){const to=new Date();const from=new Date(Date.now()-days*86400000);document.getElementById('f-from').value=ymd(from);document.getElementById('f-to').value=ymd(to);load()}
+['f-from','f-to'].forEach(id=>document.getElementById(id).addEventListener('change',load));
+async function load(){
+  const from=document.getElementById('f-from').value, to=document.getElementById('f-to').value;
+  const p=new URLSearchParams(); if(from)p.set('from',from); if(to)p.set('to',to);
+  const s=await fetch('/api/summary?'+p).then(r=>r.json());
+  document.getElementById('overview').innerHTML=
+    '<div class="stat"><div class="v">'+s.total+'</div><div class="l">POs raised</div></div>'+
+    '<div class="stat"><div class="v">'+s.engineers.length+'</div><div class="l">People buying</div></div>'+
+    '<div class="stat"><div class="v">'+s.by_supplier.length+'</div><div class="l">Suppliers used</div></div>'+
+    '<div class="stat"><div class="v">'+(s.engineers[0]?escapeHtml(s.engineers[0].name.split(" ")[0]):'—')+'</div><div class="l">Most active</div></div>';
+  const cont=document.getElementById('engineers');
+  if(!s.total){cont.innerHTML='<div class="card"><div class="empty">No POs were raised in this period.</div></div>';document.getElementById('supplier-card').style.display='none';return}
+  cont.innerHTML=s.engineers.map((e,i)=>{
+    const supLine=e.by_supplier.map(x=>escapeHtml(x.supplier)+' ×'+x.count).join(' · ');
+    const chips=e.by_supplier.map(x=>'<span class="chip">'+escapeHtml(x.supplier)+' <strong style="margin-left:2px">×'+x.count+'</strong></span>').join('');
+    const rows=e.pos.map(p=>{
+      const where=p.incident_no?('🎫 '+escapeHtml(p.incident_no)+(p.site?' · '+escapeHtml(p.site):'')):escapeHtml(p.site||'—');
+      return '<tr><td style="font-family:ui-monospace,monospace;color:#003366;font-weight:600">'+p.po_number+'</td><td class="muted" style="white-space:nowrap">'+fmtDate(p.issued_at)+'</td><td><strong>'+escapeHtml(p.supplier||'—')+'</strong></td><td>'+where+'</td><td>'+escapeHtml(p.description||'')+'</td></tr>';
+    }).join('');
+    return '<details class="card acc"'+(i===0?' open':'')+' style="padding:0;overflow:hidden">'+
+      '<summary style="cursor:pointer;padding:14px 16px;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px">'+
+        '<span><span style="font-weight:700;color:#003366;font-size:16px">'+escapeHtml(e.name)+'</span><span style="color:#1A4F8F;font-weight:600"> — '+e.count+' PO'+(e.count===1?'':'s')+'</span>'+
+        '<div class="muted" style="font-size:12px;margin-top:3px">'+supLine+'</div></span>'+
+        '<span class="acc-chevron" style="color:#5a6677;font-size:20px">▾</span>'+
+      '</summary>'+
+      '<div style="padding:0 16px 16px">'+
+        '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">'+chips+'</div>'+
+        '<div class="table-scroll"><table><thead><tr><th>PO #</th><th>Date</th><th>Supplier</th><th>Site / Job</th><th>Description</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+      '</div></details>';
+  }).join('');
+  document.getElementById('supplier-card').style.display='block';
+  document.getElementById('supplier-tally').innerHTML=s.by_supplier.map(x=>'<span class="chip">'+escapeHtml(x.supplier)+' <strong style="margin-left:2px">×'+x.count+'</strong></span>').join('');
+}
+setThisWeek();
+</script>
+<style>
+details.acc summary::-webkit-details-marker{display:none}
+details.acc[open] .acc-chevron{transform:rotate(180deg)}
+details.acc summary:hover{background:#f8fafd}
+</style>
 </body></html>`;
 }
 

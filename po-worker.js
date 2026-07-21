@@ -1915,8 +1915,8 @@ async function weeklySummaryEmailHtml(db, params, origin) {
 }
 
 // Sends the previous week's summary email. Dormant unless email is configured
-// via Worker secrets: RESEND_API_KEY, SUMMARY_FROM, SUMMARY_TO, and (optional)
-// PUBLIC_URL for the "open interactive summary" link.
+// via Worker secrets (see sendEmail). PUBLIC_URL (optional) sets the base for
+// the "open interactive summary" link.
 async function runWeeklyEmail(env) {
   await ensureSchema(env.DB);
   const { from, to } = lastWeekRangeUK();
@@ -1927,18 +1927,52 @@ async function runWeeklyEmail(env) {
   await sendEmail(env, subject, htmlBody);
 }
 
+// Extract a bare address from "Name <a@b.com>" or "a@b.com".
+function parseEmailAddress(s) {
+  const m = String(s || '').match(/<([^>]+)>/);
+  return (m ? m[1] : (s || '')).trim();
+}
+
+// Sends via Microsoft 365 (Microsoft Graph, app-only auth). Dormant unless
+// configured with Worker secrets:
+//   MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET  (Azure app registration
+//     with the Mail.Send *application* permission, admin-consented)
+//   SUMMARY_FROM  the 365 mailbox to send from (e.g. office@mostlane.co.uk)
+//   SUMMARY_TO    comma-separated recipient addresses
 async function sendEmail(env, subject, htmlBody) {
   const to = (env.SUMMARY_TO || '').split(',').map(s => s.trim()).filter(Boolean);
-  if (!env.RESEND_API_KEY || !env.SUMMARY_FROM || !to.length) {
-    console.log('Weekly email not sent: email not configured (need RESEND_API_KEY, SUMMARY_FROM, SUMMARY_TO).');
+  const sender = parseEmailAddress(env.SUMMARY_FROM);
+  if (!env.MS_TENANT_ID || !env.MS_CLIENT_ID || !env.MS_CLIENT_SECRET || !sender || !to.length) {
+    console.log('Weekly email not sent: Microsoft 365 not configured (need MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, SUMMARY_FROM, SUMMARY_TO).');
     return;
   }
-  const res = await fetch('https://api.resend.com/emails', {
+  // 1. App-only access token (client credentials flow)
+  const tokRes = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(env.MS_TENANT_ID)}/oauth2/v2.0/token`, {
     method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: env.SUMMARY_FROM, to, subject, html: htmlBody })
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: env.MS_CLIENT_ID,
+      client_secret: env.MS_CLIENT_SECRET,
+      scope: 'https://graph.microsoft.com/.default',
+      grant_type: 'client_credentials'
+    })
   });
-  if (!res.ok) console.error('Weekly email send failed:', res.status, await res.text());
+  if (!tokRes.ok) { console.error('MS token request failed:', tokRes.status, await tokRes.text()); return; }
+  const token = (await tokRes.json()).access_token;
+  // 2. Send from the configured mailbox
+  const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: {
+        subject,
+        body: { contentType: 'HTML', content: htmlBody },
+        toRecipients: to.map(a => ({ emailAddress: { address: a } }))
+      },
+      saveToSentItems: true
+    })
+  });
+  if (!res.ok) console.error('MS sendMail failed:', res.status, await res.text());
 }
 
 function summaryPage() {

@@ -33,6 +33,7 @@ export default {
       if (path === '/api/engineers' && method === 'GET') return json(await getEngineers(env.DB));
       if (path === '/api/engineers' && method === 'POST') return json(await addEngineer(env.DB, await request.json()));
       if (path.startsWith('/api/engineers/') && path.endsWith('/rotate') && method === 'POST') return json(await rotateToken(env.DB, 'engineers', path.split('/')[3]));
+      if (path.startsWith('/api/engineers/') && method === 'PATCH') return json(await updateEngineer(env.DB, path.split('/').pop(), await request.json()));
       if (path.startsWith('/api/engineers/') && method === 'DELETE') return json(await deleteEngineer(env.DB, path.split('/').pop()));
       if (path === '/api/office-users' && method === 'GET') return json(await getOfficeUsers(env.DB));
       if (path === '/api/office-users' && method === 'POST') return json(await addOfficeUser(env.DB, await request.json()));
@@ -141,6 +142,20 @@ async function ensureSchema(db) {
         await db.exec(`ALTER TABLE ${table} ADD COLUMN token TEXT`);
       } catch (e) {
         console.error(`Migration failed for ${table}.token:`, e.message);
+      }
+    }
+  }
+
+  // Per-engineer suspension: link stays valid but access is blocked with a
+  // message until reinstated. suspend_reason is optional, shown to the engineer.
+  const engInfo = await db.prepare(`PRAGMA table_info(engineers)`).all();
+  const engCols = new Set(engInfo.results.map(r => r.name));
+  for (const [col, type] of [['suspended', 'INTEGER DEFAULT 0'], ['suspend_reason', 'TEXT']]) {
+    if (!engCols.has(col)) {
+      try {
+        await db.exec(`ALTER TABLE engineers ADD COLUMN ${col} ${type}`);
+      } catch (e) {
+        console.error(`Migration failed for engineers.${col}:`, e.message);
       }
     }
   }
@@ -267,6 +282,10 @@ async function handleEngineerView(path, env) {
   const token = path.split('/')[2];
   const eng = await env.DB.prepare(`SELECT * FROM engineers WHERE token = ? AND active = 1`).bind(token).first();
   if (!eng) return html(unknownEngineerPage());
+  if (eng.suspended) {
+    const cfg = await getConfigMap(env.DB);
+    return html(suspendedEngineerPage(eng, cfg.office_phone));
+  }
   return html(engineerPage(eng));
 }
 
@@ -340,6 +359,15 @@ async function addEngineer(db, body) {
   return { success: true, slug };
 }
 async function deleteEngineer(db, slug) { await db.prepare(`UPDATE engineers SET active = 0 WHERE slug = ?`).bind(slug).run(); return { success: true }; }
+// Suspend (block access, keep the link) or reinstate an engineer.
+async function updateEngineer(db, slug, body) {
+  if (body.suspended !== undefined) {
+    const susp = body.suspended ? 1 : 0;
+    const reason = susp ? ((body.suspend_reason || '').trim() || null) : null;
+    await db.prepare(`UPDATE engineers SET suspended = ?, suspend_reason = ? WHERE slug = ?`).bind(susp, reason, slug).run();
+  }
+  return { success: true };
+}
 
 // Issue a fresh token, instantly invalidating the old link. `table` is fixed
 // by the route, never user input.
@@ -447,6 +475,11 @@ async function issuePO(db, body) {
 
   // Validate required fields (engineer source only — office can issue with missing fields if needed for emergency reconciliation)
   if (body.source === 'engineer') {
+    // Block a suspended engineer even if they still have the form loaded
+    if (body.engineer_slug) {
+      const eng = await db.prepare(`SELECT suspended FROM engineers WHERE slug = ?`).bind(body.engineer_slug).first();
+      if (eng && eng.suspended) return { error: 'Access to Mostlane PO system has been suspended. Please contact the office for more info.' };
+    }
     const hasSite = body.site && body.site.trim();
     const hasIncident = body.incident_no && body.incident_no.trim();
     if (!hasSite && !hasIncident) return { error: 'Enter a site or an incident number' };
@@ -821,6 +854,28 @@ function unknownEngineerPage() {
     <div class="card">
       <h2>Link not recognised</h2>
       <p class="muted">Please call the office on <a href="tel:02380262000"><code>02380 262000</code></a>.</p>
+    </div>
+  </div></body></html>`;
+}
+
+function suspendedEngineerPage(eng, officePhone) {
+  const phone = officePhone || '02380 262000';
+  const telHref = 'tel:' + phone.replace(/[^0-9+]/g, '');
+  const reason = eng.suspend_reason
+    ? `<p style="margin-top:14px"><strong style="color:#962d22">Reason:</strong> ${escapeHtmlServer(eng.suspend_reason)}</p>`
+    : '';
+  return `${pageHead('Access suspended')}
+  <div class="topbar">
+    <div class="brand"><img src="/logo.jpg" alt="Mostlane"> PO</div>
+    <div style="font-size:13px;font-weight:500">👷 ${escapeHtmlServer(eng.name)}</div>
+  </div>
+  <div class="wrap-narrow">
+    <div class="card fade-in" style="text-align:center;padding:36px 22px">
+      <div style="font-size:44px;line-height:1;margin-bottom:12px">🚫</div>
+      <h1 style="margin-bottom:8px">Access suspended</h1>
+      <p style="font-size:15px;color:#1a1a1a;margin-bottom:4px">Access to the Mostlane PO system has been suspended. Please contact the office for more info.</p>
+      ${reason}
+      <a class="btn" style="margin-top:20px" href="${telHref}">📞 Call ${escapeHtmlServer(phone)}</a>
     </div>
   </div></body></html>`;
 }
@@ -2013,7 +2068,7 @@ function adminPage() {
     <div id="tab-engineers" class="tab-pane" style="display:none">
       <div class="card">
         <h2>Engineers</h2>
-        <p class="muted">Each engineer has a private, unguessable URL — share it so they can bookmark it on their phone. Use ♻ New link if a link leaks or needs revoking; the old one stops working immediately.</p>
+        <p class="muted">Each engineer has a private, unguessable URL — share it so they can bookmark it on their phone. <strong>Suspend</strong> blocks access (their link shows a "suspended" message) but keeps the same link for when you <strong>Reinstate</strong> them. <strong>♻ New link</strong> revokes and replaces the link. <strong>Remove</strong> takes them off entirely.</p>
         <div class="table-scroll"><table>
           <thead><tr><th>Name</th><th>URL</th><th></th></tr></thead>
           <tbody id="eng-tbody"></tbody>
@@ -2126,12 +2181,42 @@ async function saveConfig() {
 async function loadEngineers() {
   const engs = await fetch('/api/engineers').then(r => r.json());
   const base = window.location.origin;
-  document.getElementById('eng-tbody').innerHTML = engs.filter(e => e.active).map(e => \`
-    <tr>
-      <td><strong>\${escapeHtml(e.name)}</strong></td>
-      <td><a href="/e/\${e.token}" target="_blank" style="font-family:ui-monospace,monospace;font-size:12px;color:#1A4F8F">\${base}/e/\${e.token}</a></td>
-      <td><div class="row"><button class="ghost small" onclick='copyLink("\${base}/e/\${e.token}")'>Copy</button><button class="ghost small" title="Invalidate the current link and issue a new one" onclick='rotateLink("engineers", "\${e.slug}", "\${escapeAttr(e.name)}")'>♻ New link</button><button class="danger small" onclick='removeEngineer("\${e.slug}")'>Remove</button></div></td>
-    </tr>\`).join('');
+  document.getElementById('eng-tbody').innerHTML = engs.filter(e => e.active).map(e => {
+    const susp = Number(e.suspended) === 1;
+    const badge = susp ? '<span class="badge danger-badge" title="' + escapeAttr(e.suspend_reason || 'No reason given') + '">Suspended</span>' : '';
+    const suspBtn = susp
+      ? '<button class="ghost small" onclick="reinstateEngineer(\\'' + e.slug + '\\', \\'' + escapeJs(e.name) + '\\')">Reinstate</button>'
+      : '<button class="ghost small" title="Block access, keep the link" onclick="suspendEngineer(\\'' + e.slug + '\\', \\'' + escapeJs(e.name) + '\\')">Suspend</button>';
+    return '<tr' + (susp ? ' style="background:#fdf3f2"' : '') + '>' +
+      '<td><strong>' + escapeHtml(e.name) + '</strong> ' + badge + '</td>' +
+      '<td><a href="/e/' + e.token + '" target="_blank" style="font-family:ui-monospace,monospace;font-size:12px;color:#1A4F8F">' + base + '/e/' + e.token + '</a></td>' +
+      '<td><div class="row"><button class="ghost small" onclick="copyLink(\\'' + base + '/e/' + e.token + '\\')">Copy</button>' + suspBtn +
+      '<button class="ghost small" title="Invalidate the current link and issue a new one" onclick="rotateLink(\\'engineers\\', \\'' + e.slug + '\\', \\'' + escapeJs(e.name) + '\\')">♻ New link</button>' +
+      '<button class="danger small" onclick="removeEngineer(\\'' + e.slug + '\\')">Remove</button></div></td></tr>';
+  }).join('');
+}
+function escapeJs(s) { return String(s).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'"); }
+async function suspendEngineer(slug, name) {
+  const reason = prompt('Suspend ' + name + '?\\n\\nTheir link keeps working but shows a "suspended" message until you reinstate them.\\n\\nOptional reason to show them (leave blank for none):', '');
+  if (reason === null) return; // cancelled
+  await fetch('/api/engineers/' + slug, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ suspended: 1, suspend_reason: reason.trim() }) });
+  loadEngineers();
+}
+async function reinstateEngineer(slug, name) {
+  if (!confirm('Reinstate ' + name + '? Their existing link will work again straight away.')) return;
+  await fetch('/api/engineers/' + slug, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ suspended: 0 }) });
+  loadEngineers();
+}
+async function suspendEngineer(slug, name) {
+  const reason = prompt('Suspend ' + name + '?\\n\\nTheir link keeps working but shows a "suspended" message until you reinstate them.\\n\\nOptional reason to show them (leave blank for none):', '');
+  if (reason === null) return; // cancelled
+  await fetch('/api/engineers/' + slug, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ suspended: 1, suspend_reason: reason.trim() }) });
+  loadEngineers();
+}
+async function reinstateEngineer(slug, name) {
+  if (!confirm('Reinstate ' + name + '? Their existing link will work again straight away.')) return;
+  await fetch('/api/engineers/' + slug, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ suspended: 0 }) });
+  loadEngineers();
 }
 async function addEngineer() {
   const name = document.getElementById('new-eng-name').value.trim();

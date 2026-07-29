@@ -44,6 +44,12 @@ export default {
       if (path === '/api/suppliers' && method === 'POST') return json(await addSupplier(env.DB, await request.json()));
       if (path.startsWith('/api/suppliers/') && method === 'DELETE') return json(await deleteSupplier(env.DB, path.split('/').pop()));
       if (path.startsWith('/api/suppliers/') && method === 'PATCH') return json(await updateSupplier(env.DB, path.split('/').pop(), await request.json()));
+      if (path === '/api/subcontractors' && method === 'GET') return json(await getSubcontractors(env.DB));
+      if (path === '/api/subcontractors' && method === 'POST') return json(await addSubcontractor(env.DB, await request.json()));
+      if (path.startsWith('/api/subcontractors/') && method === 'DELETE') return json(await deleteSubcontractor(env.DB, path.split('/').pop()));
+      if (path === '/api/trades' && method === 'GET') return json(await getTrades(env.DB));
+      if (path === '/api/trades' && method === 'POST') return json(await addTrade(env.DB, await request.json()));
+      if (path.startsWith('/api/trades/') && method === 'DELETE') return json(await deleteTrade(env.DB, path.split('/').pop()));
       if (path === '/api/accounts' && method === 'GET') return json(await getAccounts(env.DB));
       if (path === '/api/sites' && method === 'GET') return json(await getSites(env.DB));
       if (path === '/api/sites' && method === 'POST') return json(await addSite(env.DB, await request.json()));
@@ -98,6 +104,10 @@ async function ensureSchema(db) {
   await db.exec(`CREATE TABLE IF NOT EXISTS office_users (slug TEXT PRIMARY KEY, name TEXT NOT NULL, active INTEGER DEFAULT 1, created_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
   await db.exec(`CREATE TABLE IF NOT EXISTS suppliers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, active INTEGER DEFAULT 1)`);
   await db.exec(`CREATE TABLE IF NOT EXISTS sites (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, active INTEGER DEFAULT 1)`);
+  // Office-only: subcontractor companies and the trades they cover (for
+  // subcontractor POs, which contribute to job cost).
+  await db.exec(`CREATE TABLE IF NOT EXISTS subcontractors (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, active INTEGER DEFAULT 1)`);
+  await db.exec(`CREATE TABLE IF NOT EXISTS trades (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, active INTEGER DEFAULT 1)`);
   await db.exec(`CREATE TABLE IF NOT EXISTS closures (date TEXT PRIMARY KEY, reason TEXT)`);
   await db.exec(`CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)`);
   await db.exec(`CREATE TABLE IF NOT EXISTS po_log (po_number INTEGER PRIMARY KEY AUTOINCREMENT, engineer_slug TEXT, engineer_name TEXT, issued_at TEXT NOT NULL, source TEXT NOT NULL, site TEXT, supplier TEXT, description TEXT, needs_review INTEGER DEFAULT 1, reviewed_at TEXT, reviewed_by TEXT, deleted INTEGER DEFAULT 0)`);
@@ -116,7 +126,9 @@ async function ensureSchema(db) {
     ['last_edited_by_slug', 'TEXT'],
     ['last_edited_by_name', 'TEXT'],
     ['last_edited_at', 'TEXT'],
-    ['incident_no', 'TEXT']
+    ['incident_no', 'TEXT'],
+    ['cost_category', "TEXT DEFAULT 'materials'"],
+    ['trade', 'TEXT']
   ];
   const info = await db.prepare(`PRAGMA table_info(po_log)`).all();
   const existingColumns = new Set(info.results.map(r => r.name));
@@ -198,13 +210,17 @@ async function ensureSchema(db) {
 
   const suppliers = ['Howdens', 'Trade UK', 'Brewers', 'CEF', 'Rexel - WF Senate', 'Electric Center', 'Elliotts', 'Travis Perkins', 'CCF', 'Speedy', 'HSS', 'Dulux', 'Auto Trade Tyres', 'Collard', 'NICEIC', 'Ace Liftaway', 'Huws Gray Ltd', 'Covers', 'Ironmangery', 'L&S Waste', 'Jewsons', 'Midsummer', 'Eurocell', 'TLC', 'FH Brundle', 'Astroflame', 'TJ Waste Zero Waste', 'Metal Supermarket', 'Toolstation', 'Stalwart Products', 'N&C', 'Envirochem', 'City Plumbing', 'AMEX Card DD 17TH', 'Pickerings', 'Keyline', 'Nutland', 'Borderland', 'GERFLOR', 'Glasdon', 'Reform Electrical', 'Pioneer Welding', 'Soham', 'Basingstoke Skip Hire', 'Eyre & Elliston', 'Sydnhams'];
 
+  // Starter trades for subcontractor POs (office can add more in Admin).
+  const trades = ['Roofing', 'Plumbing', 'Electrical', 'Groundworks', 'Scaffolding', 'Plastering', 'Painting & Decorating', 'Flooring', 'Glazing', 'Heating & Gas', 'Drainage', 'Bricklaying'];
+
   // One batched round trip for all seed rows instead of ~70 sequential ones.
   // INSERT OR IGNORE leaves existing rows untouched.
   await db.batch([
     ...defaults.map(([k, v]) => db.prepare(`INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)`).bind(k, v)),
     ...engineers.map(name => db.prepare(`INSERT OR IGNORE INTO engineers (slug, name) VALUES (?, ?)`).bind(slugify(name), name)),
     ...officeUsers.map(([slug, name]) => db.prepare(`INSERT OR IGNORE INTO office_users (slug, name) VALUES (?, ?)`).bind(slug, name)),
-    ...suppliers.map(name => db.prepare(`INSERT OR IGNORE INTO suppliers (name) VALUES (?)`).bind(name))
+    ...suppliers.map(name => db.prepare(`INSERT OR IGNORE INTO suppliers (name) VALUES (?)`).bind(name)),
+    ...trades.map(name => db.prepare(`INSERT OR IGNORE INTO trades (name) VALUES (?)`).bind(name))
   ]);
 
   // Give anyone without an access token one (existing rows on first deploy,
@@ -391,6 +407,18 @@ async function addSupplier(db, body) {
   return { success: true };
 }
 async function deleteSupplier(db, id) { await db.prepare(`UPDATE suppliers SET active = 0 WHERE id = ?`).bind(id).run(); return { success: true }; }
+async function getSubcontractors(db) { return (await db.prepare(`SELECT * FROM subcontractors WHERE active = 1 ORDER BY name`).all()).results; }
+async function addSubcontractor(db, body) {
+  await db.prepare(`INSERT INTO subcontractors (name) VALUES (?) ON CONFLICT(name) DO UPDATE SET active = 1`).bind(body.name).run();
+  return { success: true };
+}
+async function deleteSubcontractor(db, id) { await db.prepare(`UPDATE subcontractors SET active = 0 WHERE id = ?`).bind(id).run(); return { success: true }; }
+async function getTrades(db) { return (await db.prepare(`SELECT * FROM trades WHERE active = 1 ORDER BY name`).all()).results; }
+async function addTrade(db, body) {
+  await db.prepare(`INSERT INTO trades (name) VALUES (?) ON CONFLICT(name) DO UPDATE SET active = 1`).bind(body.name).run();
+  return { success: true };
+}
+async function deleteTrade(db, id) { await db.prepare(`UPDATE trades SET active = 0 WHERE id = ?`).bind(id).run(); return { success: true }; }
 async function updateSupplier(db, id, body) {
   if (body.terms_days !== undefined) {
     const days = Number(body.terms_days) === 60 ? 60 : 30;
@@ -440,6 +468,11 @@ async function getPOs(db, params) {
   let query = `SELECT * FROM po_log WHERE deleted = 0`;
   const binds = [];
   if (params.get('needs_review') === '1') query += ` AND needs_review = 1`;
+  // Engineer-facing views pass hide_subcontractor=1 — subcontractor POs are
+  // office-only to see, so they never reach an engineer even if mis-attributed.
+  if (params.get('hide_subcontractor') === '1') query += ` AND COALESCE(cost_category, 'materials') != 'subcontractor'`;
+  if (params.get('category')) { query += ` AND COALESCE(cost_category, 'materials') = ?`; binds.push(params.get('category')); }
+  if (params.get('trade')) { query += ` AND trade = ?`; binds.push(params.get('trade')); }
   if (params.get('engineer')) { query += ` AND engineer_slug = ?`; binds.push(params.get('engineer')); }
   if (params.get('office_user')) { query += ` AND office_user_slug = ?`; binds.push(params.get('office_user')); }
   if (params.get('supplier')) { query += ` AND supplier = ?`; binds.push(params.get('supplier')); }
@@ -482,6 +515,17 @@ async function issuePO(db, body) {
   if (status.mode === 'disabled') return { error: status.message };
   if (status.mode === 'office_hours' && body.source !== 'office') return { error: status.message };
 
+  // Subcontractor POs are office-only, and always need a site (job) and trade
+  // so they cost against a job.
+  const isSubcontractor = body.cost_category === 'subcontractor';
+  if (isSubcontractor) {
+    if (body.source !== 'office') return { error: 'Subcontractor POs can only be raised by the office' };
+    if (!body.site || !body.site.trim()) return { error: 'Site (job) is required for a subcontractor PO' };
+    if (!body.supplier || !body.supplier.trim()) return { error: 'Subcontractor is required' };
+    if (!body.trade || !body.trade.trim()) return { error: 'Trade is required for a subcontractor PO' };
+    if (!body.description || !body.description.trim()) return { error: 'Description is required' };
+  }
+
   // Validate required fields (engineer source only — office can issue with missing fields if needed for emergency reconciliation)
   if (body.source === 'engineer') {
     // Block a suspended engineer even if they still have the form loaded
@@ -507,10 +551,11 @@ async function issuePO(db, body) {
   for (let attempt = 0; attempt < 6; attempt++) {
     poNumber = await nextPoNumber(db);
     try {
-      await db.prepare(`INSERT INTO po_log (po_number, engineer_slug, engineer_name, issued_at, source, site, incident_no, supplier, description, needs_review, office_user_slug, office_user_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+      await db.prepare(`INSERT INTO po_log (po_number, engineer_slug, engineer_name, issued_at, source, site, incident_no, supplier, description, needs_review, office_user_slug, office_user_name, cost_category, trade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
         poNumber, body.engineer_slug || null, body.engineer_name || null, issuedAt, body.source || 'office',
         body.site || null, body.incident_no || null, body.supplier || null, body.description || null, body.source === 'office' ? 0 : 1,
-        body.office_user_slug || null, body.office_user_name || null
+        body.office_user_slug || null, body.office_user_name || null,
+        isSubcontractor ? 'subcontractor' : 'materials', isSubcontractor ? (body.trade || null) : null
       ).run();
       return { success: true, po_number: poNumber, issued_at: issuedAt };
     } catch (e) {
@@ -529,7 +574,7 @@ async function deletePoRecord(db, poNumber) {
 
 
 async function updatePO(db, poNumber, body) {
-  const allowed = ['site', 'incident_no', 'supplier', 'description', 'needs_review', 'reviewed_by', 'engineer_slug', 'engineer_name', 'deleted', 'cost_ex_vat', 'vat_rate', 'status', 'flag_reason', 'credit_note'];
+  const allowed = ['site', 'incident_no', 'supplier', 'description', 'needs_review', 'reviewed_by', 'engineer_slug', 'engineer_name', 'deleted', 'cost_ex_vat', 'vat_rate', 'status', 'flag_reason', 'credit_note', 'cost_category', 'trade'];
   const fields = []; const binds = [];
   for (const [k, v] of Object.entries(body)) {
     if (allowed.includes(k)) {
@@ -646,13 +691,13 @@ async function csvExport(db, params) {
   if (params.get('status')) { query += ` AND COALESCE(status, 'open') = ?`; binds.push(params.get('status')); }
   query += ` ORDER BY po_number DESC`;
   const rows = await db.prepare(query).bind(...binds).all();
-  const headers = ['PO Number', 'Issued At', 'Source', 'Issued By (Office)', 'Engineer', 'Site', 'Incident No', 'Supplier', 'Description', 'Status', 'Cost Ex VAT', 'VAT Rate', 'Cost Inc VAT', 'Flag Reason', 'Credit Note', 'Needs Review', 'Cost Entered At', 'Last Edited By', 'Last Edited At'];
+  const headers = ['PO Number', 'Issued At', 'Source', 'Category', 'Trade', 'Issued By (Office)', 'Engineer', 'Site', 'Incident No', 'Supplier', 'Description', 'Status', 'Cost Ex VAT', 'VAT Rate', 'Cost Inc VAT', 'Flag Reason', 'Credit Note', 'Needs Review', 'Cost Entered At', 'Last Edited By', 'Last Edited At'];
   const csv = [headers.join(',')];
   for (const r of rows.results) {
     const vatRate = r.vat_rate != null ? r.vat_rate : 20;
     const costInc = r.cost_ex_vat != null ? (r.cost_ex_vat * (1 + vatRate / 100)).toFixed(2) : '';
     csv.push([
-      r.po_number, fmtDateTimeUK(r.issued_at), r.source, r.office_user_name || '', r.engineer_name || '', r.site || '', r.incident_no || '', r.supplier || '', r.description || '',
+      r.po_number, fmtDateTimeUK(r.issued_at), r.source, r.cost_category || 'materials', r.trade || '', r.office_user_name || '', r.engineer_name || '', r.site || '', r.incident_no || '', r.supplier || '', r.description || '',
       r.status || 'open', r.cost_ex_vat != null ? r.cost_ex_vat : '', r.cost_ex_vat != null ? vatRate : '', costInc,
       r.flag_reason || '', r.credit_note || '', r.needs_review ? 'Yes' : 'No', fmtDateTimeUK(r.cost_entered_at),
       r.last_edited_by_name || '', fmtDateTimeUK(r.last_edited_at)
@@ -1006,6 +1051,7 @@ async function loadMyPOs(officeHours) {
   try {
     const params = new URLSearchParams();
     params.set('engineer', ENGINEER.slug);
+    params.set('hide_subcontractor', '1');
     const pos = await fetch('/api/pos?' + params).then(r => r.json());
     if (!pos.length) return;
     const card = document.getElementById('my-pos-card');
@@ -1118,6 +1164,7 @@ function officePage(user) {
         <select id="filter-engineer"><option value="">All engineers</option></select>
         <select id="filter-office-user"><option value="">All office users</option></select>
         <select id="filter-supplier"><option value="">All suppliers</option></select>
+        <select id="filter-category"><option value="">Materials + Subcontractor</option><option value="materials">📦 Materials only</option><option value="subcontractor">👷 Subcontractor only</option></select>
         <input id="filter-from" type="date">
         <input id="filter-to" type="date">
       </div>
@@ -1149,20 +1196,22 @@ function officePage(user) {
   </div></div>
 <script>
 const OFFICE_USER = ${JSON.stringify({ slug: user.slug, name: user.name })};
-let allPOs = [], allEngineers = [], allSuppliers = [], allSites = [];
+let allPOs = [], allEngineers = [], allSuppliers = [], allSites = [], allSubcontractors = [], allTrades = [];
 let currentStatus = '';
 async function init() {
-  const [engineers, suppliers, sites, officeUsers] = await Promise.all([
+  const [engineers, suppliers, sites, officeUsers, subs, trades] = await Promise.all([
     fetch('/api/engineers').then(r => r.json()),
     fetch('/api/suppliers').then(r => r.json()),
     fetch('/api/sites').then(r => r.json()),
-    fetch('/api/office-users').then(r => r.json())
+    fetch('/api/office-users').then(r => r.json()),
+    fetch('/api/subcontractors').then(r => r.json()).catch(() => []),
+    fetch('/api/trades').then(r => r.json()).catch(() => [])
   ]);
-  allEngineers = engineers; allSuppliers = suppliers; allSites = sites;
+  allEngineers = engineers; allSuppliers = suppliers; allSites = sites; allSubcontractors = subs; allTrades = trades;
   document.getElementById('filter-engineer').innerHTML = '<option value="">All engineers</option>' + engineers.filter(e => e.active).map(e => '<option value="' + e.slug + '">' + escapeHtml(e.name) + '</option>').join('');
   document.getElementById('filter-supplier').innerHTML = '<option value="">All suppliers</option>' + suppliers.map(s => '<option value="' + escapeAttr(s.name) + '">' + escapeHtml(s.name) + '</option>').join('');
   document.getElementById('filter-office-user').innerHTML = '<option value="">All office users</option>' + officeUsers.filter(u => u.active).map(u => '<option value="' + u.slug + '">' + escapeHtml(u.name) + '</option>').join('');
-  ['filter-engineer','filter-supplier','filter-from','filter-to','filter-office-user'].forEach(id => { document.getElementById(id).onchange = loadPOs; });
+  ['filter-engineer','filter-supplier','filter-category','filter-from','filter-to','filter-office-user'].forEach(id => { document.getElementById(id).onchange = loadPOs; });
   document.querySelectorAll('#status-tabs .tab').forEach(t => {
     t.addEventListener('click', () => { setStatusTab(t.dataset.status || ''); loadPOs(); });
   });
@@ -1229,6 +1278,7 @@ async function loadPOs() {
   const eng = document.getElementById('filter-engineer').value;
   const officeUser = document.getElementById('filter-office-user').value;
   const sup = document.getElementById('filter-supplier').value;
+  const category = document.getElementById('filter-category').value;
   const from = document.getElementById('filter-from').value;
   const to = document.getElementById('filter-to').value;
   const review = document.getElementById('filter-review').checked;
@@ -1238,6 +1288,7 @@ async function loadPOs() {
   if (eng) params.set('engineer', eng);
   if (officeUser) params.set('office_user', officeUser);
   if (sup) params.set('supplier', sup);
+  if (category) params.set('category', category);
   if (from) params.set('from', from);
   if (to) params.set('to', to);
   if (review) params.set('needs_review', '1');
@@ -1249,7 +1300,7 @@ async function loadPOs() {
   renderStats(); renderPOs(allPOs);
 }
 function resetFilterInputs() {
-  ['filter-engineer','filter-office-user','filter-supplier','filter-from','filter-to','search-input'].forEach(id => document.getElementById(id).value = '');
+  ['filter-engineer','filter-office-user','filter-supplier','filter-category','filter-from','filter-to','search-input'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('filter-review').checked = false;
   document.getElementById('filter-uncosted').checked = false;
   document.getElementById('filter-unmatched-site').checked = false;
@@ -1279,13 +1330,16 @@ function renderPOs(pos) {
     const siteUnmatched = p.site && !siteNames.has(p.site);
     let siteCell = (p.site ? escapeHtml(p.site) : (p.incident_no ? '<span class="muted">—</span>' : '—')) + (siteUnmatched ? ' <span title="Site not in master list" style="color:#b58a00">⚠️</span>' : '');
     if (p.incident_no) siteCell += '<div style="font-size:12px;margin-top:2px"><span class="badge engineer" title="Incident number">🎫 ' + escapeHtml(p.incident_no) + '</span></div>';
+    const isSub = (p.cost_category || 'materials') === 'subcontractor';
+    let supplierCell = escapeHtml(p.supplier || '—');
+    if (isSub) supplierCell += '<div style="font-size:12px;margin-top:2px"><span class="badge review" title="Subcontractor PO">👷 ' + escapeHtml(p.trade || 'Subcontractor') + '</span></div>';
     return \`<tr>
       <td><strong style="color:#003366">\${p.po_number}</strong></td>
       <td class="muted">\${dStr}</td>
       <td>\${escapeHtml(p.office_user_name || (p.source === 'engineer' ? '(engineer)' : '—'))}</td>
       <td>\${escapeHtml(p.engineer_name || '—')}</td>
       <td>\${siteCell}</td>
-      <td>\${escapeHtml(p.supplier || '—')}</td>
+      <td>\${supplierCell}</td>
       <td>\${cost}</td>
       <td>\${statusBadge(p)}</td>
       <td><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="ghost small" onclick='openEdit(\${p.po_number})'>Edit</button><button class="danger small" title="Delete PO \${p.po_number}" onclick='hardDeletePO(\${p.po_number}, false)'>🗑</button></div></td>
@@ -1302,17 +1356,48 @@ async function openNewPO() {
   if (!allSites || allSites.length === 0) {
     try { allSites = await fetch('/api/sites').then(r => r.json()); } catch (e) { console.error('fetch sites failed', e); }
   }
+  if (!allSubcontractors || allSubcontractors.length === 0) {
+    try { allSubcontractors = await fetch('/api/subcontractors').then(r => r.json()); } catch (e) { console.error('fetch subcontractors failed', e); }
+  }
+  if (!allTrades || allTrades.length === 0) {
+    try { allTrades = await fetch('/api/trades').then(r => r.json()); } catch (e) { console.error('fetch trades failed', e); }
+  }
   const activeEngs = (allEngineers || []).filter(e => Number(e.active) === 1);
   const engOptions = activeEngs.map(e => '<option value="' + e.slug + '">' + escapeHtml(e.name) + '</option>').join('');
+  const subOptions = (allSubcontractors || []).map(s => '<option value="' + escapeAttr(s.name) + '">' + escapeHtml(s.name) + '</option>').join('');
+  const tradeOptions = (allTrades || []).map(t => '<option value="' + escapeAttr(t.name) + '">' + escapeHtml(t.name) + '</option>').join('');
   document.getElementById('modal-title').textContent = 'New PO';
   document.getElementById('modal-body').innerHTML = \`
-    <div class="field"><label>Engineer (optional)</label><select id="m-engineer"><option value="">— None / Office —</option>\${engOptions}</select></div>
-    <div class="field" style="position:relative"><label>Site</label><input id="m-site" type="text" autocomplete="off" oninput="filterMSites()" onfocus="filterMSites()" onblur="setTimeout(hideMSites,200)"><div id="m-site-dropdown" class="ac-dropdown" style="display:none"></div></div>
-    <div class="field"><label>Incident number <span style="font-weight:400;color:#5a6677">(optional)</span></label><input id="m-incident" type="text" placeholder="e.g. INC123456" autocomplete="off"></div>
-    <div class="field" style="position:relative"><label>Supplier</label><input id="m-supplier" type="text" autocomplete="off" oninput="filterMSuppliers()" onfocus="filterMSuppliers()" onblur="setTimeout(hideMSuppliers,200)"><div id="m-supplier-dropdown" class="ac-dropdown" style="display:none"></div></div>
+    <div class="field"><label>PO type</label>
+      <div class="tab-bar" style="margin-bottom:0">
+        <div class="tab active" id="mtype-materials" onclick="setMType('materials')">📦 Materials</div>
+        <div class="tab" id="mtype-subcontractor" onclick="setMType('subcontractor')">👷 Subcontractor</div>
+      </div>
+    </div>
+    <div class="field" id="m-engineer-field"><label>Engineer (optional)</label><select id="m-engineer"><option value="">— None / Office —</option>\${engOptions}</select></div>
+    <div class="field" style="position:relative"><label id="m-site-label">Site</label><input id="m-site" type="text" autocomplete="off" oninput="filterMSites()" onfocus="filterMSites()" onblur="setTimeout(hideMSites,200)"><div id="m-site-dropdown" class="ac-dropdown" style="display:none"></div></div>
+    <div id="m-materials-fields">
+      <div class="field"><label>Incident number <span style="font-weight:400;color:#5a6677">(optional)</span></label><input id="m-incident" type="text" placeholder="e.g. INC123456" autocomplete="off"></div>
+      <div class="field" style="position:relative"><label>Supplier</label><input id="m-supplier" type="text" autocomplete="off" oninput="filterMSuppliers()" onfocus="filterMSuppliers()" onblur="setTimeout(hideMSuppliers,200)"><div id="m-supplier-dropdown" class="ac-dropdown" style="display:none"></div></div>
+    </div>
+    <div id="m-sub-fields" style="display:none">
+      <div class="field"><label>Subcontractor</label><select id="m-subcontractor">\${subOptions ? '<option value="">— Select —</option>' + subOptions : '<option value="">No subcontractors — add them in Admin</option>'}</select></div>
+      <div class="field"><label>Trade</label><select id="m-trade">\${tradeOptions ? '<option value="">— Select —</option>' + tradeOptions : '<option value="">No trades — add them in Admin</option>'}</select></div>
+    </div>
     <div class="field"><label>Description</label><textarea id="m-description"></textarea></div>
     <button onclick="submitNewPO(this)">Issue PO</button>\`;
+  window.mType = 'materials';
   document.getElementById('modal').classList.add('show');
+}
+function setMType(t) {
+  window.mType = t;
+  const sub = t === 'subcontractor';
+  document.getElementById('mtype-materials').classList.toggle('active', !sub);
+  document.getElementById('mtype-subcontractor').classList.toggle('active', sub);
+  document.getElementById('m-materials-fields').style.display = sub ? 'none' : 'block';
+  document.getElementById('m-sub-fields').style.display = sub ? 'block' : 'none';
+  document.getElementById('m-engineer-field').style.display = sub ? 'none' : 'block';
+  document.getElementById('m-site-label').textContent = sub ? 'Site (job)' : 'Site';
 }
 function filterMSites() {
   const input = document.getElementById('m-site');
@@ -1362,24 +1447,36 @@ function escapeJsAttr(s) { return String(s).replace(/\\\\/g, '\\\\\\\\').replace
 let submittingNewPO = false;
 async function submitNewPO(btn) {
   if (submittingNewPO) return;
+  const isSub = window.mType === 'subcontractor';
   const site = document.getElementById('m-site').value.trim();
-  const incident = document.getElementById('m-incident').value.trim();
-  const supplier = document.getElementById('m-supplier').value.trim();
   const description = document.getElementById('m-description').value.trim();
-  if (!site && !incident) { alert('Enter a site or an incident number'); return; }
-  if (!supplier) { alert('Supplier is required'); return; }
-  if (!description) { alert('Description is required'); return; }
-  const valid = (allSuppliers || []).some(s => s.name === supplier);
-  if (!valid) { alert('Please pick a supplier from the dropdown list'); return; }
+  let body;
+  if (isSub) {
+    const subcontractor = document.getElementById('m-subcontractor').value.trim();
+    const trade = document.getElementById('m-trade').value.trim();
+    if (!site) { alert('Site (job) is required for a subcontractor PO'); return; }
+    if (!subcontractor) { alert('Please pick a subcontractor'); return; }
+    if (!trade) { alert('Please pick a trade'); return; }
+    if (!description) { alert('Description is required'); return; }
+    body = { source: 'office', cost_category: 'subcontractor', site, supplier: subcontractor, trade, description,
+      office_user_slug: OFFICE_USER.slug, office_user_name: OFFICE_USER.name };
+  } else {
+    const incident = document.getElementById('m-incident').value.trim();
+    const supplier = document.getElementById('m-supplier').value.trim();
+    if (!site && !incident) { alert('Enter a site or an incident number'); return; }
+    if (!supplier) { alert('Supplier is required'); return; }
+    if (!description) { alert('Description is required'); return; }
+    if (!(allSuppliers || []).some(s => s.name === supplier)) { alert('Please pick a supplier from the dropdown list'); return; }
+    const engSlug = document.getElementById('m-engineer').value;
+    const eng = allEngineers.find(e => e.slug === engSlug);
+    body = { engineer_slug: engSlug || null, engineer_name: eng ? eng.name : null, source: 'office', cost_category: 'materials',
+      site, incident_no: incident, supplier, description,
+      office_user_slug: OFFICE_USER.slug, office_user_name: OFFICE_USER.name };
+  }
   submittingNewPO = true;
   if (btn) { btn.disabled = true; btn.textContent = 'Issuing...'; }
   try {
-    const engSlug = document.getElementById('m-engineer').value;
-    const eng = allEngineers.find(e => e.slug === engSlug);
-    const res = await fetch('/api/pos', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ engineer_slug: engSlug || null, engineer_name: eng ? eng.name : null, source: 'office',
-        site, incident_no: incident, supplier, description,
-        office_user_slug: OFFICE_USER.slug, office_user_name: OFFICE_USER.name }) }).then(r => r.json());
+    const res = await fetch('/api/pos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
     if (res.error) { alert(res.error); return; }
     alert('PO ' + res.po_number + ' issued');
     closeModal(); loadPOs(); loadDashboard();
@@ -1413,7 +1510,8 @@ function openEdit(poNumber) {
       <div id="e-site-status" style="margin-top:6px;font-size:12px"></div>
     </div>
     <div class="field"><label>Incident number</label><input id="e-incident" type="text" placeholder="e.g. INC123456" autocomplete="off" value="\${escapeAttr(p.incident_no || '')}"></div>
-    <div class="field" style="position:relative"><label>Supplier</label><input id="e-supplier" type="text" autocomplete="off" value="\${escapeAttr(p.supplier || '')}" oninput="filterESuppliers()" onfocus="filterESuppliers()" onblur="setTimeout(hideESuppliers,200)"><div id="e-supplier-dropdown" class="ac-dropdown" style="display:none"></div></div>
+    <div class="field" style="position:relative"><label>\${(p.cost_category === 'subcontractor') ? 'Subcontractor' : 'Supplier'}</label><input id="e-supplier" type="text" autocomplete="off" value="\${escapeAttr(p.supplier || '')}" oninput="filterESuppliers()" onfocus="filterESuppliers()" onblur="setTimeout(hideESuppliers,200)"><div id="e-supplier-dropdown" class="ac-dropdown" style="display:none"></div></div>
+    \${(p.cost_category === 'subcontractor') ? '<div class="field"><label>Trade <span class="badge review" style="font-weight:600">👷 Subcontractor</span></label><select id="e-trade"><option value="">— Select —</option>' + (allTrades || []).map(t => '<option value="' + escapeAttr(t.name) + '"' + (t.name === p.trade ? ' selected' : '') + '>' + escapeHtml(t.name) + '</option>').join('') + (p.trade && !(allTrades || []).some(t => t.name === p.trade) ? '<option value="' + escapeAttr(p.trade) + '" selected>' + escapeHtml(p.trade) + '</option>' : '') + '</select></div>' : ''}
     <div class="field"><label>Description</label><textarea id="e-description">\${escapeHtml(p.description || '')}</textarea></div>
 
     <h3 style="margin-top:18px;margin-bottom:6px;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:#5a6677">Invoice / Cost</h3>
@@ -1532,6 +1630,7 @@ async function saveEdit(poNumber) {
       site: document.getElementById('e-site').value.trim(),
       incident_no: document.getElementById('e-incident').value.trim(),
       supplier: document.getElementById('e-supplier').value.trim(),
+      trade: document.getElementById('e-trade') ? document.getElementById('e-trade').value.trim() : (p.trade || null),
       description: document.getElementById('e-description').value.trim(),
       cost_ex_vat: costEx,
       vat_rate: vatRate,
@@ -2302,6 +2401,8 @@ function adminPage() {
       <div class="tab" data-tab="engineers">Engineers</div>
       <div class="tab" data-tab="office-users">Office Users</div>
       <div class="tab" data-tab="suppliers">Suppliers</div>
+      <div class="tab" data-tab="subcontractors">Subcontractors</div>
+      <div class="tab" data-tab="trades">Trades</div>
       <div class="tab" data-tab="sites">Sites</div>
       <div class="tab" data-tab="closures">Closures</div>
     </div>
@@ -2364,6 +2465,24 @@ function adminPage() {
         <div class="row"><input id="new-sup-name" type="text" placeholder="Supplier name" style="flex:1;min-width:180px"><button class="small" onclick="addSupplier()">Add</button></div>
       </div>
     </div>
+    <div id="tab-subcontractors" class="tab-pane" style="display:none">
+      <div class="card"><h2>Subcontractors</h2>
+        <p class="muted" style="margin-bottom:12px">Companies you raise subcontractor POs to (roofers, plumbers…). Office-only — engineers never see these.</p>
+        <div id="subc-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+      <div class="card"><h3>Add Subcontractor</h3>
+        <div class="row"><input id="new-subc-name" type="text" placeholder="Subcontractor company" style="flex:1;min-width:180px"><button class="small" onclick="addSubcontractor()">Add</button></div>
+      </div>
+    </div>
+    <div id="tab-trades" class="tab-pane" style="display:none">
+      <div class="card"><h2>Trades</h2>
+        <p class="muted" style="margin-bottom:12px">Trade categories for subcontractor POs (used in job costing). Add sub-trades as you need them.</p>
+        <div id="trade-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+      <div class="card"><h3>Add Trade</h3>
+        <div class="row"><input id="new-trade-name" type="text" placeholder="Trade name" style="flex:1;min-width:180px"><button class="small" onclick="addTrade()">Add</button></div>
+      </div>
+    </div>
     <div id="tab-sites" class="tab-pane" style="display:none">
       <div class="card"><h2>Sites</h2>
         <p class="muted" style="margin-bottom:12px">Master sites list. Engineers can type free-text on the form, but POs with unmatched sites get flagged for office review. Add new sites here as they come up.</p>
@@ -2409,6 +2528,8 @@ async function init() {
     safe(loadEngineers, 'loadEngineers'),
     safe(loadOfficeUsers, 'loadOfficeUsers'),
     safe(loadSuppliers, 'loadSuppliers'),
+    safe(loadSubcontractors, 'loadSubcontractors'),
+    safe(loadTrades, 'loadTrades'),
     safe(loadSites, 'loadSites'),
     safe(loadClosures, 'loadClosures'),
     safe(loadStatus, 'loadStatus')
@@ -2526,6 +2647,29 @@ async function addSupplier() {
   document.getElementById('new-sup-name').value = ''; loadSuppliers();
 }
 async function removeSupplier(id) { await fetch('/api/suppliers/' + id, { method: 'DELETE' }); loadSuppliers(); }
+async function loadSubcontractors() {
+  const subs = await fetch('/api/subcontractors').then(r => r.json());
+  const el = document.getElementById('subc-list');
+  el.innerHTML = subs.length ? subs.map(s => \`<div class="chip">\${escapeHtml(s.name)} <button onclick='removeSubcontractor(\${s.id})' title="Remove">✕</button></div>\`).join('') : '<div class="empty" style="padding:16px;width:100%">No subcontractors yet — add roofers, plumbers, etc.</div>';
+}
+async function addSubcontractor() {
+  const name = document.getElementById('new-subc-name').value.trim();
+  if (!name) return;
+  await fetch('/api/subcontractors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+  document.getElementById('new-subc-name').value = ''; loadSubcontractors();
+}
+async function removeSubcontractor(id) { await fetch('/api/subcontractors/' + id, { method: 'DELETE' }); loadSubcontractors(); }
+async function loadTrades() {
+  const trades = await fetch('/api/trades').then(r => r.json());
+  document.getElementById('trade-list').innerHTML = trades.map(t => \`<div class="chip">\${escapeHtml(t.name)} <button onclick='removeTrade(\${t.id})' title="Remove">✕</button></div>\`).join('');
+}
+async function addTrade() {
+  const name = document.getElementById('new-trade-name').value.trim();
+  if (!name) return;
+  await fetch('/api/trades', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+  document.getElementById('new-trade-name').value = ''; loadTrades();
+}
+async function removeTrade(id) { await fetch('/api/trades/' + id, { method: 'DELETE' }); loadTrades(); }
 async function loadSites() {
   const sites = await fetch('/api/sites').then(r => r.json());
   if (!sites.length) { document.getElementById('site-list').innerHTML = '<div class="empty" style="padding:20px;width:100%">No sites added yet. Add the ones you use most often — engineers can still type free-text for one-offs.</div>'; return; }

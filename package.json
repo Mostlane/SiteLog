@@ -1,0 +1,12 @@
+{
+  "name": "mostlane-po",
+  "private": true,
+  "description": "Mostlane PO system — Cloudflare Worker",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "check": "node --check po-worker.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.42.0"
+  }
+}

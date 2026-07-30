@@ -1,0 +1,24 @@
+{
+  // Cloudflare Workers Builds config for the Mostlane PO system.
+  // Pushing to the production branch builds and deploys this worker.
+  //
+  // NOTE: secrets (MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, SUMMARY_FROM,
+  // SUMMARY_TO, ...) are NOT listed here on purpose — they live in the
+  // dashboard and survive deploys. Plain-text vars, routes/custom domains and
+  // cron triggers are likewise left to the dashboard so a deploy doesn't
+  // clobber them.
+  "name": "mostlane-po",
+  "main": "po-worker.js",
+  "compatibility_date": "2026-07-01",
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mostlane-po",
+      "database_id": "bcaf5f51-3085-4cdf-a993-42278893c313"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

@@ -28,6 +28,7 @@ export default {
       if (path === '/accounts') return html(accountsPage());
       if (path === '/report') return html(await reportPage(env.DB, url.searchParams));
       if (path === '/summary') return html(summaryPage());
+      if (path === '/jobs') return html(jobCostPage());
 
       if (path === '/api/config' && method === 'GET') return json(await getConfig(env.DB));
       if (path === '/api/config' && method === 'POST') return json(await updateConfig(env.DB, await request.json()));
@@ -66,6 +67,7 @@ export default {
       if (path === '/api/dashboard' && method === 'GET') return json(await getDashboard(env.DB));
       if (path === '/api/stats' && method === 'GET') return json(await getStats(env.DB, url.searchParams));
       if (path === '/api/summary' && method === 'GET') return json(await getSummary(env.DB, url.searchParams));
+      if (path === '/api/jobcost' && method === 'GET') return json(await getJobCost(env.DB, url.searchParams));
       if (path === '/summary/email' && method === 'GET') return html(await weeklySummaryEmailHtml(env.DB, url.searchParams, url.origin));
       if (path === '/api/export' && method === 'GET') return csvExport(env.DB, url.searchParams);
       if (path === '/logo.jpg' || path === '/logo.svg') return logoResponse();
@@ -473,6 +475,7 @@ async function getPOs(db, params) {
   if (params.get('hide_subcontractor') === '1') query += ` AND COALESCE(cost_category, 'materials') != 'subcontractor'`;
   if (params.get('category')) { query += ` AND COALESCE(cost_category, 'materials') = ?`; binds.push(params.get('category')); }
   if (params.get('trade')) { query += ` AND trade = ?`; binds.push(params.get('trade')); }
+  if (params.get('site')) { query += ` AND site = ?`; binds.push(params.get('site')); }
   if (params.get('engineer')) { query += ` AND engineer_slug = ?`; binds.push(params.get('engineer')); }
   if (params.get('office_user')) { query += ` AND office_user_slug = ?`; binds.push(params.get('office_user')); }
   if (params.get('supplier')) { query += ` AND supplier = ?`; binds.push(params.get('supplier')); }
@@ -490,6 +493,58 @@ async function getPOs(db, params) {
   }
   query += ` ORDER BY po_number DESC LIMIT 1000`;
   return (await db.prepare(query).bind(...binds).all()).results;
+}
+
+// ============================================================
+// JOB COST (job = site). Rolls PO spend up per job, split by cost category
+// and, for subcontractor work, by trade. Costs are ex VAT — VAT is
+// reclaimable so it isn't a cost to the job. Labour is added in a later phase.
+// ============================================================
+async function getJobCost(db, params) {
+  let where = `WHERE deleted = 0 AND site IS NOT NULL AND TRIM(site) != ''`;
+  const binds = [];
+  if (params.get('from')) { where += ` AND issued_at >= ?`; binds.push(params.get('from')); }
+  if (params.get('to')) { where += ` AND issued_at <= ?`; binds.push(params.get('to') + 'T23:59:59'); }
+
+  const [byJob, byTrade] = await db.batch([
+    db.prepare(`SELECT site,
+        COUNT(*) AS po_count,
+        SUM(CASE WHEN cost_ex_vat IS NULL THEN 1 ELSE 0 END) AS uncosted,
+        COALESCE(SUM(CASE WHEN COALESCE(cost_category, 'materials') = 'materials' THEN cost_ex_vat ELSE 0 END), 0) AS materials_ex,
+        COALESCE(SUM(CASE WHEN cost_category = 'subcontractor' THEN cost_ex_vat ELSE 0 END), 0) AS subcontractor_ex,
+        COALESCE(SUM(cost_ex_vat), 0) AS total_ex
+      FROM po_log ${where} GROUP BY site`).bind(...binds),
+    db.prepare(`SELECT site, COALESCE(trade, '(no trade)') AS trade,
+        COUNT(*) AS count, COALESCE(SUM(cost_ex_vat), 0) AS ex
+      FROM po_log ${where} AND cost_category = 'subcontractor'
+      GROUP BY site, trade`).bind(...binds)
+  ]);
+
+  const tradesBySite = {};
+  for (const t of byTrade.results) {
+    (tradesBySite[t.site] = tradesBySite[t.site] || []).push({ trade: t.trade, count: t.count, ex: t.ex });
+  }
+  const jobs = byJob.results.map(j => ({
+    site: j.site,
+    po_count: j.po_count,
+    uncosted: j.uncosted,
+    materials_ex: j.materials_ex,
+    subcontractor_ex: j.subcontractor_ex,
+    total_ex: j.total_ex,
+    by_trade: (tradesBySite[j.site] || []).sort((a, b) => b.ex - a.ex || b.count - a.count)
+  })).sort((a, b) => b.total_ex - a.total_ex || b.po_count - a.po_count);
+
+  return {
+    jobs,
+    totals: {
+      jobs: jobs.length,
+      po_count: jobs.reduce((s, j) => s + j.po_count, 0),
+      uncosted: jobs.reduce((s, j) => s + j.uncosted, 0),
+      materials_ex: jobs.reduce((s, j) => s + j.materials_ex, 0),
+      subcontractor_ex: jobs.reduce((s, j) => s + j.subcontractor_ex, 0),
+      total_ex: jobs.reduce((s, j) => s + j.total_ex, 0)
+    }
+  };
 }
 
 // Lowest PO number the system will ever issue (the seed deletes 10010, so the
@@ -860,7 +915,7 @@ function topbar(active) {
   const link = (href, label, key) => `<a href="${href}"${active === key ? ' class="active"' : ''}>${label}</a>`;
   return `<div class="topbar">
     <div class="brand"><img src="/logo.jpg" alt="Mostlane"> PO System</div>
-    <nav><a href="https://mostlane-portal.com/main.html">🏠 Portal</a>${link('/office', 'Office', 'office')}${link('/summary', 'Summary', 'summary')}${link('/accounts', 'Accounts', 'accounts')}${link('/stats', 'Stats', 'stats')}${link('/admin', 'Admin', 'admin')}</nav>
+    <nav><a href="https://mostlane-portal.com/main.html">🏠 Portal</a>${link('/office', 'Office', 'office')}${link('/jobs', 'Job Costs', 'jobs')}${link('/summary', 'Summary', 'summary')}${link('/accounts', 'Accounts', 'accounts')}${link('/stats', 'Stats', 'stats')}${link('/admin', 'Admin', 'admin')}</nav>
   </div>`;
 }
 
@@ -1129,7 +1184,7 @@ function officePage(user) {
     <div class="brand"><img src="/logo.jpg" alt="Mostlane"> PO / Office</div>
     <div style="display:flex;align-items:center;gap:12px">
       <div style="font-size:13px;font-weight:500">👤 ${escapeHtmlServer(user.name)}</div>
-      <nav><a href="https://mostlane-portal.com/main.html">🏠 Portal</a><a href="/accounts">Accounts</a><a href="/stats">Stats</a><a href="/admin">Admin</a></nav>
+      <nav><a href="https://mostlane-portal.com/main.html">🏠 Portal</a><a href="/jobs">Job Costs</a><a href="/summary">Summary</a><a href="/accounts">Accounts</a><a href="/stats">Stats</a><a href="/admin">Admin</a></nav>
     </div>
   </div>
   <div class="wrap">
@@ -2145,6 +2200,129 @@ setThisWeek();
 <style>
 details.acc summary::-webkit-details-marker{display:none}
 details.acc[open] .acc-chevron{transform:rotate(180deg)}
+details.acc summary:hover{background:#f8fafd}
+</style>
+</body></html>`;
+}
+
+function jobCostPage() {
+  return `${pageHead('Job Costs — PO System')}${topbar('jobs')}
+  <div class="wrap">
+    <h1>Job Costs</h1>
+    <div class="card">
+      <p class="muted" style="margin-bottom:10px">Spend per job (site), split into materials and subcontractor work, with subcontractor spend broken down by trade. Figures are <strong>ex VAT</strong>. Tap a job to see its POs. Labour is not included yet.</p>
+      <div class="filter-bar" style="margin-bottom:10px">
+        <input id="j-search" type="text" placeholder="🔍 Find a job / site..." oninput="render()">
+        <input id="j-from" type="date">
+        <input id="j-to" type="date">
+      </div>
+      <div class="row">
+        <button class="ghost small" onclick="setRange(null)">All time</button>
+        <button class="ghost small" onclick="setRange(30)">Last 30 days</button>
+        <button class="ghost small" onclick="setRange(90)">Last 90 days</button>
+        <button class="ghost small" onclick="setThisYear()">This year</button>
+        <label style="display:flex;align-items:center;gap:8px;margin:0;color:#1a1a1a;font-weight:500;font-size:14px;cursor:pointer">
+          <input type="checkbox" id="j-onlysub" style="width:auto;margin:0" onchange="render()"> Only jobs with subcontractor spend
+        </label>
+      </div>
+    </div>
+    <div class="stat-grid" id="j-overview"></div>
+    <div id="j-list"></div>
+  </div>
+<script>
+let DATA = null;
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function money(n){return '£' + Number(n||0).toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',')}
+function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function fmtDate(v){const s=String(v||'');if(s.length>=10&&s.charAt(4)==='-')return s.slice(8,10)+'-'+s.slice(5,7)+'-'+s.slice(2,4);return s}
+function setRange(days){
+  if(days){document.getElementById('j-from').value=ymd(new Date(Date.now()-days*86400000));document.getElementById('j-to').value=ymd(new Date());}
+  else {document.getElementById('j-from').value='';document.getElementById('j-to').value='';}
+  load();
+}
+function setThisYear(){const n=new Date();document.getElementById('j-from').value=ymd(new Date(n.getFullYear(),0,1));document.getElementById('j-to').value=ymd(n);load();}
+['j-from','j-to'].forEach(id=>document.getElementById(id).addEventListener('change',load));
+async function load(){
+  const p=new URLSearchParams();
+  const from=document.getElementById('j-from').value, to=document.getElementById('j-to').value;
+  if(from)p.set('from',from); if(to)p.set('to',to);
+  DATA=await fetch('/api/jobcost?'+p).then(r=>r.json());
+  render();
+}
+function render(){
+  if(!DATA)return;
+  const q=document.getElementById('j-search').value.trim().toLowerCase();
+  const onlySub=document.getElementById('j-onlysub').checked;
+  let jobs=DATA.jobs;
+  if(q)jobs=jobs.filter(j=>j.site.toLowerCase().includes(q));
+  if(onlySub)jobs=jobs.filter(j=>j.subcontractor_ex>0);
+  const t={jobs:jobs.length,
+    po_count:jobs.reduce((s,j)=>s+j.po_count,0),
+    uncosted:jobs.reduce((s,j)=>s+j.uncosted,0),
+    materials_ex:jobs.reduce((s,j)=>s+j.materials_ex,0),
+    subcontractor_ex:jobs.reduce((s,j)=>s+j.subcontractor_ex,0),
+    total_ex:jobs.reduce((s,j)=>s+j.total_ex,0)};
+  document.getElementById('j-overview').innerHTML=
+    '<div class="stat"><div class="v">'+t.jobs+'</div><div class="l">Jobs</div></div>'+
+    '<div class="stat"><div class="v">'+money(t.total_ex)+'</div><div class="l">Total cost ex VAT</div></div>'+
+    '<div class="stat"><div class="v">'+money(t.materials_ex)+'</div><div class="l">📦 Materials</div></div>'+
+    '<div class="stat"><div class="v">'+money(t.subcontractor_ex)+'</div><div class="l">👷 Subcontractor</div></div>'+
+    '<div class="stat"><div class="v" style="color:'+(t.uncosted?'#b58a00':'#003366')+'">'+t.uncosted+'</div><div class="l">POs awaiting cost</div></div>'+
+    '<div class="stat"><div class="v">'+t.po_count+'</div><div class="l">POs</div></div>';
+  const cont=document.getElementById('j-list');
+  if(!jobs.length){cont.innerHTML='<div class="card"><div class="empty">No jobs match.</div></div>';return;}
+  const max=Math.max(...jobs.map(j=>j.total_ex),1);
+  cont.innerHTML=jobs.map((j,i)=>{
+    const matPct=j.total_ex?Math.round(j.materials_ex/j.total_ex*100):0;
+    const bar='<div style="display:flex;height:8px;border-radius:5px;overflow:hidden;background:#e3e7ee;width:'+Math.max(6,Math.round(j.total_ex/max*100))+'%;min-width:60px">'+
+      '<div style="width:'+matPct+'%;background:linear-gradient(90deg,#1A4F8F,#003468)"></div>'+
+      '<div style="width:'+(100-matPct)+'%;background:#b58a00"></div></div>';
+    const tradeChips=j.by_trade.map(tr=>'<span class="chip">👷 '+escapeHtml(tr.trade)+' <strong style="margin-left:2px">'+money(tr.ex)+'</strong><span class="muted" style="margin-left:4px">×'+tr.count+'</span></span>').join('');
+    const warn=j.uncosted?' <span class="badge review" title="'+j.uncosted+' PO(s) not costed yet — total is incomplete">⚠️ '+j.uncosted+' uncosted</span>':'';
+    return '<details class="card acc" style="padding:0;overflow:hidden" data-site="'+encodeURIComponent(j.site)+'" ontoggle="onToggle(this)">'+
+      '<summary style="cursor:pointer;padding:14px 16px;list-style:none">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">'+
+          '<div style="flex:1;min-width:200px"><span style="font-weight:700;color:#003366;font-size:16px">'+escapeHtml(j.site)+'</span>'+warn+
+            '<div class="muted" style="font-size:12px;margin-top:3px">'+j.po_count+' PO'+(j.po_count===1?'':'s')+' · 📦 '+money(j.materials_ex)+' · 👷 '+money(j.subcontractor_ex)+'</div>'+
+            '<div style="margin-top:6px">'+bar+'</div></div>'+
+          '<div style="text-align:right"><div style="font-size:20px;font-weight:700;color:#003366">'+money(j.total_ex)+'</div><div class="muted" style="font-size:11px">ex VAT</div></div>'+
+        '</div>'+
+      '</summary>'+
+      '<div style="padding:0 16px 16px">'+
+        (tradeChips?'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">'+tradeChips+'</div>':'')+
+        '<div class="job-pos"><div class="muted" style="font-size:13px">Loading POs…</div></div>'+
+      '</div></details>';
+  }).join('');
+}
+async function onToggle(el){
+  if(!el.open)return;
+  const box=el.querySelector('.job-pos');
+  if(box.dataset.loaded)return;
+  box.dataset.loaded='1';
+  const p=new URLSearchParams();
+  p.set('site',decodeURIComponent(el.dataset.site));
+  const from=document.getElementById('j-from').value, to=document.getElementById('j-to').value;
+  if(from)p.set('from',from); if(to)p.set('to',to);
+  try{
+    const pos=await fetch('/api/pos?'+p).then(r=>r.json());
+    if(!pos.length){box.innerHTML='<div class="muted">No POs.</div>';return;}
+    box.innerHTML='<div class="table-scroll"><table><thead><tr><th>PO #</th><th>Date</th><th>Type</th><th>Supplier</th><th>Description</th><th>Cost ex VAT</th></tr></thead><tbody>'+
+      pos.map(p2=>{
+        const sub=(p2.cost_category||'materials')==='subcontractor';
+        const type=sub?'<span class="badge review">👷 '+escapeHtml(p2.trade||'Subcontractor')+'</span>':'<span class="badge office">📦 Materials</span>';
+        const cost=p2.cost_ex_vat!=null?money(p2.cost_ex_vat):'<span class="badge review">awaiting cost</span>';
+        return '<tr><td style="font-family:ui-monospace,monospace;font-weight:600;color:#003366">'+p2.po_number+'</td>'+
+          '<td class="muted" style="white-space:nowrap">'+fmtDate(p2.issued_at)+'</td><td>'+type+'</td>'+
+          '<td>'+escapeHtml(p2.supplier||'—')+'</td><td>'+escapeHtml(p2.description||'')+'</td>'+
+          '<td style="text-align:right;white-space:nowrap">'+cost+'</td></tr>';
+      }).join('')+'</tbody></table></div>';
+  }catch(e){box.innerHTML='<div class="muted">Could not load POs.</div>';}
+}
+document.getElementById('j-search').addEventListener('input',render);
+load();
+</script>
+<style>
+details.acc summary::-webkit-details-marker{display:none}
 details.acc summary:hover{background:#f8fafd}
 </style>
 </body></html>`;

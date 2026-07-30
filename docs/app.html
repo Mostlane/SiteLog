@@ -2554,21 +2554,6 @@ function loadLastEvent() {
 async function init() {
   deviceToken = await getDeviceToken();
   tokenFallbackWrite(deviceToken);
-  // Portal identity hand-off: arriving from the Mostlane portal with a signed
-  // #pt= token binds this device to the logged-in portal user automatically
-  // (no registration screen, ever). The token is stripped from the URL and the
-  // profile refresh below then picks up the freshly linked name/company.
-  try {
-    var ptMatch = (location.hash || "").match(/[#&]pt=([^&]+)/);
-    if (ptMatch) {
-      history.replaceState(null, "", location.pathname + location.search);
-      await fetchWithTimeout(API + "/portal-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bridgeToken: decodeURIComponent(ptMatch[1]), deviceToken: deviceToken })
-      }, 8000);
-    }
-  } catch(e) {}
   // Refresh cached name/company from the server in the background so admin
   // edits show up. Not awaited — it updates the info strip when it returns.
   syncProfile();

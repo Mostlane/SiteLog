@@ -414,6 +414,96 @@ function constantTimeEqual(a, b) {
   return mismatch === 0;
 }
 
+// ── Job-costing maths (server copy of docs/admin.html) ───────────────────────
+// The portal's unified job costing needs the SAME per-site / per-person labour
+// figures the SiteLog admin screen shows, but it can't run admin.html's
+// client-side JS. These helpers are a faithful port of admin.html's costing
+// functions so /job-costing returns identical numbers. KEEP IN SYNC with
+// admin.html if the pay rules there change.
+function jcParseStoredTs(ts) {
+  if (ts == null || ts === "") return null;
+  if (ts instanceof Date) return isNaN(ts.getTime()) ? null : ts;
+  if (typeof ts === "number") { const d = new Date(ts); return isNaN(d.getTime()) ? null : d; }
+  let s = String(ts).trim();
+  if (/^\d{12,}$/.test(s)) { const d = new Date(Number(s)); return isNaN(d.getTime()) ? null : d; }
+  s = s.replace(" ", "T");
+  const hasTz = /[zZ]$/.test(s) || /[+\-]\d{2}:?\d{2}$/.test(s);
+  if (!hasTz) s += "Z";
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+function jcMinutesBetween(a, b) {
+  const s = jcParseStoredTs(a);
+  if (!s) return 0;
+  const e = b ? jcParseStoredTs(b) : new Date();
+  if (!e) return 0;
+  return Math.max(0, Math.round((e - s) / 60000));
+}
+function jcNameOf(v) { return ((v.first_name || "") + " " + (v.last_name || "")).trim(); }
+function jcRateIsSet(v) { return v != null && String(v).trim() !== ""; }
+function jcLondonDayKey(ts) {
+  if (!ts) return "";
+  const dt = jcParseStoredTs(ts);
+  if (!dt) return String(ts).slice(0, 10);
+  return dt.toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+}
+function jcFuelPaid(eng) {
+  if (!eng) return false;
+  if (eng.fuel_paid != null) return Number(eng.fuel_paid) === 1;
+  return eng.travel_status === "paid";
+}
+function jcTimePaid(eng) {
+  if (!eng) return false;
+  if (eng.travel_time_paid != null) return Number(eng.travel_time_paid) === 1;
+  return eng.travel_status === "paid";
+}
+function jcCalcPaidMins(actualMins, actualMiles, eng, legType) {
+  if (!eng || !(actualMins > 0)) return 0;
+  if (legType === "inter") return actualMins;
+  if (!jcTimePaid(eng)) return 0;
+  const capType = eng.travel_cap_type;
+  const capVal = parseFloat(eng.travel_cap_value) || 0;
+  if (!capType || capType === "none") return actualMins;
+  if (capType === "time") return Math.max(0, actualMins - capVal);
+  if (capType === "distance" && actualMiles > 0) {
+    const unpaidMins = Math.round((Math.min(capVal, actualMiles) / actualMiles) * actualMins);
+    return Math.max(0, actualMins - unpaidMins);
+  }
+  return 0;
+}
+function jcCalcPaidMiles(actualMiles, eng, legType) {
+  if (!eng || !jcFuelPaid(eng) || !(actualMiles > 0)) return 0;
+  if (legType === "inter") return actualMiles;
+  const capType = eng.travel_cap_type;
+  const capVal = parseFloat(eng.travel_cap_value) || 0;
+  if (capType === "distance") return Math.max(0, actualMiles - capVal);
+  return actualMiles;
+}
+function jcInLegType(v) { return Number(v.is_first_of_day || 0) === 1 ? "first" : "inter"; }
+// Aggregate one person's visits at a site → cost components. Open (un-signed-out)
+// visits are excluded from time/cost and counted separately so a forgotten
+// sign-out can't inflate a total. Mirrors admin.html costEngineerVisits exactly.
+function jcCostVisits(visits, eng) {
+  const hasRate = !!(eng && jcRateIsSet(eng.hourly_rate));
+  const rate = hasRate ? Number(eng.hourly_rate) : 0;
+  const fuelRate = (jcFuelPaid(eng) && eng && eng.fuel_rate != null && Number(eng.fuel_rate) > 0) ? Number(eng.fuel_rate) : 0;
+  let workMins = 0, travelMins = 0, miles = 0, openCount = 0, costedVisits = 0, autoCount = 0;
+  visits.forEach((v) => {
+    if (!v.check_out_at) { openCount++; return; }
+    workMins += jcMinutesBetween(v.check_in_at, v.check_out_at);
+    costedVisits++;
+    if (Number(v.auto_checkout || 0) === 1 && !v.transferred_to) autoCount++;
+    if (v.travel_in_mins != null) travelMins += jcCalcPaidMins(v.travel_in_mins, v.travel_in_miles, eng, jcInLegType(v));
+    if (v.travel_out_mins != null) travelMins += jcCalcPaidMins(v.travel_out_mins, v.travel_out_miles, eng, "out");
+    if (v.travel_in_miles != null) miles += jcCalcPaidMiles(v.travel_in_miles, eng, jcInLegType(v));
+    if (v.travel_out_miles != null) miles += jcCalcPaidMiles(v.travel_out_miles, eng, "out");
+  });
+  const workH = workMins / 60, travelH = travelMins / 60;
+  const labour = workH * rate, travelCost = travelH * rate, fuelCost = miles * fuelRate;
+  return { rate, hasRate, workH, travelH, miles, openCount, costedVisits, autoCount,
+    labour, travelCost, fuelCost, total: labour + travelCost + fuelCost };
+}
+
 // Durable device cookie. Fully effective only when the API shares the site's
 // domain (a custom domain); cross-site (workers.dev vs github.io) Safari blocks
 // it, so the client-side IndexedDB/localStorage stores remain the primary id.
@@ -2311,6 +2401,137 @@ export default {
       const rows = params.length ? await stmt.bind(...params).all() : await stmt.all();
 
       return json({ visits: rows.results || [] });
+    }
+
+    // GET /job-costing?from=YYYY-MM-DD&to=YYYY-MM-DD
+    // Server-side job costing for the portal's unified view. Returns the SAME
+    // per-site / per-person labour figures as the SiteLog admin screen, computed
+    // here (the portal can't run admin.html's client JS). Each person carries
+    // their portal_username so the portal can tell employees (linked, deduped
+    // against SLA time) from subcontractors (SiteLog is their only source).
+    if (url.pathname === "/job-costing" && request.method === "GET") {
+      const guard = requireAdmin();
+      if (guard) return guard;
+      await ensureOfflineSchema(env);
+
+      const from = url.searchParams.get("from");
+      const to = url.searchParams.get("to");
+      if (from && !isValidDateKey(from)) return json({ ok: false, error: "Invalid 'from' date (expected YYYY-MM-DD)" }, 400);
+      if (to && !isValidDateKey(to)) return json({ ok: false, error: "Invalid 'to' date (expected YYYY-MM-DD)" }, 400);
+
+      // Engineers (rates + travel rules). Match a visit to its engineer by
+      // person_id first, then name+company — same as admin.html findEngineer.
+      const engRows = (await env.DB.prepare(`
+        SELECT id, first_name, last_name, company,
+               COALESCE(hourly_rate, NULL) as hourly_rate,
+               COALESCE(travel_status,'not_configured') as travel_status,
+               COALESCE(fuel_paid, CASE WHEN travel_status='paid' THEN 1 ELSE 0 END) as fuel_paid,
+               COALESCE(travel_time_paid, CASE WHEN travel_status='paid' THEN 1 ELSE 0 END) as travel_time_paid,
+               travel_cap_type, travel_cap_value, fuel_rate,
+               COALESCE(is_main,0) as is_main, portal_username
+        FROM people
+      `).all()).results || [];
+      const engById = new Map();
+      engRows.forEach((e) => engById.set(String(e.id), e));
+      const findEng = (personId, name, company) => {
+        if (personId && engById.has(String(personId))) return engById.get(String(personId));
+        return engRows.find((e) =>
+          (((e.first_name || "").trim() + " " + (e.last_name || "").trim()).trim() === name) &&
+          ((e.company || "") === (company || ""))) || null;
+      };
+
+      // Fetch every visit in range (paged back by check_in_at so nothing is
+      // capped), deduped by visit_id. Mirrors the /admin SELECT columns.
+      const SELECT = `
+        SELECT v.id AS visit_id, v.person_id, v.site_code, v.check_in_at, v.check_out_at,
+               COALESCE(v.auto_checkout,0) AS auto_checkout,
+               v.travel_in_miles, v.travel_in_mins, v.travel_out_miles, v.travel_out_mins,
+               v.transferred_to, COALESCE(v.is_first_of_day,0) AS is_first_of_day,
+               p.first_name, p.last_name, p.company, p.portal_username
+        FROM visits v
+        JOIN people p ON v.person_id = p.id
+        WHERE COALESCE(p.archived,0) = 0`;
+      const baseParams = [];
+      let where = "";
+      if (from) { where += " AND v.check_in_at >= ?"; baseParams.push(londonLocalToUtcIso(from, "00:00:00")); }
+      if (to) { where += " AND v.check_in_at <= ?"; baseParams.push(londonLocalToUtcIso(to, "23:59:59")); }
+
+      const PAGE = 1000;
+      const seen = new Set();
+      const visits = [];
+      let before = null;
+      // Hard cap of 40 pages (40k visits) so a pathological range can't run away.
+      for (let page = 0; page < 40; page++) {
+        let sql = SELECT + where;
+        const params = baseParams.slice();
+        if (before) { sql += " AND v.check_in_at <= ?"; params.push(before); }
+        sql += " ORDER BY v.check_in_at DESC LIMIT " + PAGE;
+        const res = await env.DB.prepare(sql).bind(...params).all();
+        const rows = res.results || [];
+        if (!rows.length) break;
+        let added = 0;
+        for (const r of rows) {
+          if (seen.has(r.visit_id)) continue;
+          seen.add(r.visit_id);
+          visits.push(r);
+          added++;
+        }
+        if (rows.length < PAGE) break;
+        before = rows[rows.length - 1].check_in_at;
+        if (added === 0) break; // whole page was dupes at a tie boundary
+      }
+
+      // Authoritative London-day bound (handles UTC/London edges + one-sided).
+      const inRange = visits.filter((v) => {
+        const day = jcLondonDayKey(v.check_in_at);
+        if (from && day < from) return false;
+        if (to && day > to) return false;
+        return true;
+      });
+
+      // Group by site_code → person_id, then cost each person.
+      const sites = {};
+      inRange.forEach((v) => {
+        const siteKey = (v.site_code || "").trim() || "";
+        const pKey = v.person_id || jcNameOf(v) || "Unknown";
+        sites[siteKey] = sites[siteKey] || {};
+        sites[siteKey][pKey] = sites[siteKey][pKey] ||
+          { personId: v.person_id || "", name: jcNameOf(v) || "Unknown", company: v.company || "", portalUsername: v.portal_username || null, visits: [] };
+        sites[siteKey][pKey].visits.push(v);
+      });
+
+      const out = Object.keys(sites).map((siteKey) => {
+        const people = Object.keys(sites[siteKey]).map((pKey) => {
+          const p = sites[siteKey][pKey];
+          const eng = findEng(p.visits[0].person_id, p.name, p.company);
+          const c = jcCostVisits(p.visits, eng);
+          return {
+            personId: p.personId,
+            portalUsername: (eng && eng.portal_username) || p.portalUsername || null,
+            name: p.name, company: p.company, engId: eng ? eng.id : "",
+            rate: c.rate, hasRate: c.hasRate,
+            workH: c.workH, travelH: c.travelH, miles: c.miles,
+            labour: c.labour, travelCost: c.travelCost, fuelCost: c.fuelCost, total: c.total,
+            costedVisits: c.costedVisits, openCount: c.openCount, autoCount: c.autoCount,
+          };
+        }).sort((a, b) => b.total - a.total);
+        return {
+          siteCode: siteKey,
+          total: people.reduce((s, p) => s + p.total, 0),
+          labour: people.reduce((s, p) => s + p.labour, 0),
+          travelCost: people.reduce((s, p) => s + p.travelCost, 0),
+          fuelCost: people.reduce((s, p) => s + p.fuelCost, 0),
+          workH: people.reduce((s, p) => s + p.workH, 0),
+          travelH: people.reduce((s, p) => s + p.travelH, 0),
+          visits: people.reduce((s, p) => s + p.costedVisits, 0),
+          open: people.reduce((s, p) => s + p.openCount, 0),
+          auto: people.reduce((s, p) => s + p.autoCount, 0),
+          noRate: people.some((p) => !p.hasRate && p.costedVisits > 0),
+          people,
+        };
+      }).sort((a, b) => b.total - a.total);
+
+      return json({ ok: true, from: from || null, to: to || null, sites: out });
     }
 
     // GET /on-site

@@ -2551,9 +2551,27 @@ function loadLastEvent() {
   } catch(e) {}
 }
 
+// If the scanner was opened from the Mostlane portal it carries a signed
+// #pt=<token>. Hand it to the SiteLog worker so this device's person is tied to
+// the portal user (the basis for the portal's unified job costing — employee vs
+// subcontractor). Safe/no-op when there's no token; never blocks scanning.
+async function linkPortalIdentity() {
+  try {
+    var m = /[#&]pt=([^&]+)/.exec(location.hash || "") || /[?&]pt=([^&]+)/.exec(location.search || "");
+    var pt = m ? decodeURIComponent(m[1]) : "";
+    if (!pt || !deviceToken) return;
+    await fetch(API + "/portal-link", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: pt, deviceToken: deviceToken })
+    }).catch(function(){});
+    try { history.replaceState(null, "", location.pathname + location.search); } catch(e){}
+  } catch (e) {}
+}
+
 async function init() {
   deviceToken = await getDeviceToken();
   tokenFallbackWrite(deviceToken);
+  await linkPortalIdentity();
   // Refresh cached name/company from the server in the background so admin
   // edits show up. Not awaited — it updates the info strip when it returns.
   syncProfile();

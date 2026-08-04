@@ -41,6 +41,10 @@ async function ensureOfflineSchema(env) {
   try { await env.DB.prepare("ALTER TABLE visits ADD COLUMN manual_entry INTEGER DEFAULT 0").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE people ADD COLUMN fuel_rate REAL").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE people ADD COLUMN is_main INTEGER DEFAULT 0").run(); } catch (e) {}
+  // Mostlane portal identity link: the person's portal username, set via
+  // /portal-link when the scanner is opened from the portal. NULL = not a
+  // portal user = subcontractor (for the portal's unified job costing).
+  try { await env.DB.prepare("ALTER TABLE people ADD COLUMN portal_username TEXT").run(); } catch (e) {}
   // Fuel and travel-time pay are independent toggles. Columns are left nullable
   // so the one-time backfill below can seed them from the old single
   // travel_status ('paid' -> both on) without clobbering later edits: it only
@@ -97,6 +101,35 @@ async function touchDevice(env, deviceToken) {
     await env.DB.prepare("UPDATE devices SET last_seen = ? WHERE device_token = ?")
       .bind(now, deviceToken).run();
   } catch (e) { /* column may not exist yet pre-migration */ }
+}
+
+// ── Mostlane portal token verification ───────────────────────────────────────
+// The portal signs a token "v1.<base64url(JSON payload)>.<base64url(HMAC-SHA256)>"
+// over "v1.<payload>" with the shared PORTAL_BRIDGE_SECRET (same secret on both
+// workers). Returns the decoded payload {u,f,l,c,exp} or null if bad/expired.
+function b64uToBytes(s) {
+  s = String(s).replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function verifyPortalToken(env, token) {
+  try {
+    if (!env.PORTAL_BRIDGE_SECRET) return null;
+    const parts = String(token).split(".");
+    if (parts.length !== 3 || parts[0] !== "v1") return null;
+    const signed = parts[0] + "." + parts[1];
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw", enc.encode(env.PORTAL_BRIDGE_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+    const ok = await crypto.subtle.verify("HMAC", key, b64uToBytes(parts[2]), enc.encode(signed));
+    if (!ok) return null;
+    const payload = JSON.parse(new TextDecoder().decode(b64uToBytes(parts[1])));
+    if (payload.exp && Date.now() > Number(payload.exp)) return null;
+    return payload;
+  } catch (e) { return null; }
 }
 
 
@@ -477,6 +510,66 @@ export default {
       return json({ ok: true });
     }
 
+    // POST /portal-link
+    // The Mostlane portal opens the scanner with a signed token (#pt=...),
+    // HMAC-SHA256 over "v1.<payload>" using the shared PORTAL_BRIDGE_SECRET.
+    // We verify it and stamp the portal username onto this device's person, so
+    // every scan is tied to the portal user — the basis for unified job costing
+    // (portal user = employee; unlinked = subcontractor). Additive + safe:
+    // touches only the linked person; scanning still works if this is skipped.
+    if (url.pathname === "/portal-link" && request.method === "POST") {
+      const body = await readBody(request);
+      const token = (body.token ?? body.pt ?? "").toString();
+      const deviceToken = (
+        body.deviceToken ?? body.device_token ?? readDidCookie(request) ?? ""
+      ).toString().trim();
+      if (!token || !deviceToken) return json({ ok: false, error: "token and deviceToken required" }, 400);
+      const payload = await verifyPortalToken(env, token);
+      if (!payload) return json({ ok: false, error: "invalid or expired token" }, 401);
+      const portalUser = String(payload.u || "").trim();
+      if (!portalUser) return json({ ok: false, error: "no portal user in token" }, 400);
+      const first = String(payload.f || "").trim().slice(0, 80);
+      const last = String(payload.l || "").trim().slice(0, 80);
+      const company = (String(payload.c || "Mostlane").trim().slice(0, 120)) || "Mostlane";
+      try {
+        // Find the person: already linked to this portal user > already on this
+        // device > an existing person with the same name (so history links up).
+        let person = await env.DB.prepare(
+          "SELECT id FROM people WHERE portal_username = ? LIMIT 1").bind(portalUser).first();
+        if (!person) person = await env.DB.prepare(
+          "SELECT p.id FROM devices d JOIN people p ON p.id = d.person_id WHERE d.device_token = ? LIMIT 1"
+        ).bind(deviceToken).first();
+        if (!person && (first || last)) person = await env.DB.prepare(
+          "SELECT id FROM people WHERE lower(first_name)=lower(?) AND lower(last_name)=lower(?) LIMIT 1"
+        ).bind(first, last).first();
+        let personId = person ? person.id : null;
+        if (!personId) {
+          personId = crypto.randomUUID();
+          await env.DB.prepare(
+            "INSERT INTO people (id, first_name, last_name, company, archived, hourly_rate, portal_username) VALUES (?,?,?,?,0,0,?)"
+          ).bind(personId, first, last, company, portalUser).run();
+        } else {
+          await env.DB.prepare(
+            "UPDATE people SET portal_username=?, first_name=COALESCE(NULLIF(?,''),first_name), last_name=COALESCE(NULLIF(?,''),last_name), company=COALESCE(company,?) WHERE id=?"
+          ).bind(portalUser, first, last, company, personId).run();
+        }
+        // Bind this device to the person (upsert).
+        const dev = await env.DB.prepare(
+          "SELECT person_id FROM devices WHERE device_token = ? LIMIT 1").bind(deviceToken).first();
+        if (dev) {
+          if (dev.person_id !== personId) await env.DB.prepare(
+            "UPDATE devices SET person_id=? WHERE device_token=?").bind(personId, deviceToken).run();
+        } else {
+          await env.DB.prepare(
+            "INSERT INTO devices (device_token, person_id) VALUES (?, ?)").bind(deviceToken, personId).run();
+        }
+        return json({ ok: true, personId, portalUsername: portalUser }, 200, didSetCookie(deviceToken));
+      } catch (err) {
+        console.error("portal-link failed:", err);
+        return json({ ok: false, error: "link failed" }, 500);
+      }
+    }
+
     // POST /register, /signup, /add-person
     if (
       (url.pathname === "/register" ||
@@ -779,6 +872,7 @@ export default {
                COALESCE(travel_time_paid, CASE WHEN travel_status='paid' THEN 1 ELSE 0 END) as travel_time_paid,
                travel_cap_type, travel_cap_value, fuel_rate,
                COALESCE(is_main,0) as is_main,
+               portal_username,
                COALESCE(doc_access_always,0) as doc_access_always,
                (SELECT COUNT(*) FROM visits WHERE visits.person_id = people.id) AS visit_count,
                (SELECT COUNT(*) FROM devices WHERE devices.person_id = people.id) AS device_count,
@@ -2179,7 +2273,7 @@ export default {
                  WHEN COALESCE(v.sign_in_confirmed,0) = 0 THEN 'Soft Sign In'
                  ELSE 'Still Open'
                END AS sign_out_status,
-               p.first_name, p.last_name, p.company, p.purpose, d.device_token
+               p.first_name, p.last_name, p.company, p.purpose, p.portal_username, d.device_token
         FROM visits v
         JOIN people p ON v.person_id = p.id
         LEFT JOIN devices d ON d.person_id = p.id

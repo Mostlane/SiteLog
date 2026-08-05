@@ -1124,6 +1124,19 @@ export default {
         binds.push(docAlwaysIn ? 1 : 0);
       }
 
+      // Manual portal link: admin maps this SiteLog person to a portal user
+      // (or clears it with ""). One portal user ↔ one SiteLog person, so clear
+      // the same username off anyone else first.
+      const portalUserIn = body.portalUsername ?? body.portal_username;
+      if (portalUserIn !== undefined) {
+        const pu = String(portalUserIn || "").trim();
+        if (pu) {
+          try { await env.DB.prepare("UPDATE people SET portal_username = NULL WHERE portal_username = ? AND id != ?").bind(pu, id).run(); } catch (e) {}
+        }
+        sets.push("portal_username = ?");
+        binds.push(pu || null);
+      }
+
       if (!sets.length) return json({ ok: true, note: "No fields to update" });
 
       binds.push(id);

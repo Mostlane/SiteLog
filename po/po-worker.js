@@ -129,6 +129,11 @@ async function ensureSchema(db) {
     ['last_edited_by_name', 'TEXT'],
     ['last_edited_at', 'TEXT'],
     ['incident_no', 'TEXT'],
+    // Link back to the portal job a PO was raised from. job_id is the stable
+    // key the portal matches on; job_ref is the helpdesk number for display
+    // only (it can be edited or reused, so never match on it alone).
+    ['job_id', 'TEXT'],
+    ['job_ref', 'TEXT'],
     ['cost_category', "TEXT DEFAULT 'materials'"],
     ['trade', 'TEXT']
   ];
@@ -606,11 +611,13 @@ async function issuePO(db, body) {
   for (let attempt = 0; attempt < 6; attempt++) {
     poNumber = await nextPoNumber(db);
     try {
-      await db.prepare(`INSERT INTO po_log (po_number, engineer_slug, engineer_name, issued_at, source, site, incident_no, supplier, description, needs_review, office_user_slug, office_user_name, cost_category, trade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+      await db.prepare(`INSERT INTO po_log (po_number, engineer_slug, engineer_name, issued_at, source, site, incident_no, supplier, description, needs_review, office_user_slug, office_user_name, cost_category, trade, job_id, job_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
         poNumber, body.engineer_slug || null, body.engineer_name || null, issuedAt, body.source || 'office',
         body.site || null, body.incident_no || null, body.supplier || null, body.description || null, body.source === 'office' ? 0 : 1,
         body.office_user_slug || null, body.office_user_name || null,
-        isSubcontractor ? 'subcontractor' : 'materials', isSubcontractor ? (body.trade || null) : null
+        isSubcontractor ? 'subcontractor' : 'materials', isSubcontractor ? (body.trade || null) : null,
+        // Blank unless the PO was raised from a portal job link
+        (body.job_id || '').trim() || null, (body.job_ref || '').trim() || null
       ).run();
       return { success: true, po_number: poNumber, issued_at: issuedAt };
     } catch (e) {
@@ -629,7 +636,7 @@ async function deletePoRecord(db, poNumber) {
 
 
 async function updatePO(db, poNumber, body) {
-  const allowed = ['site', 'incident_no', 'supplier', 'description', 'needs_review', 'reviewed_by', 'engineer_slug', 'engineer_name', 'deleted', 'cost_ex_vat', 'vat_rate', 'status', 'flag_reason', 'credit_note', 'cost_category', 'trade'];
+  const allowed = ['site', 'incident_no', 'supplier', 'description', 'needs_review', 'reviewed_by', 'engineer_slug', 'engineer_name', 'deleted', 'cost_ex_vat', 'vat_rate', 'status', 'flag_reason', 'credit_note', 'cost_category', 'trade', 'job_id', 'job_ref'];
   const fields = []; const binds = [];
   for (const [k, v] of Object.entries(body)) {
     if (allowed.includes(k)) {
@@ -1040,6 +1047,7 @@ function engineerPage(eng) {
         <div class="field">
           <label>Incident number <span style="font-weight:400;color:#5a6677">(for incident jobs — use instead of, or as well as, a site)</span></label>
           <input id="incident_no" type="text" placeholder="e.g. INC123456" autocomplete="off">
+          <input id="job_id" type="hidden"><input id="job_ref" type="hidden">
         </div>
         <div class="field" style="position:relative">
           <label>Supplier</label>
@@ -1105,6 +1113,12 @@ function prefillFromJobLink() {
     let filled = false;
     if (d.site && siteField && !siteField.value) { siteField.value = d.site; filled = true; }
     if (d.jobRef && incidentField && !incidentField.value) { incidentField.value = d.jobRef; filled = true; }
+    // The job link travels with the PO even if the visible fields were already
+    // filled in, so the portal can always cost this PO against the job.
+    const jobIdField = document.getElementById('job_id');
+    const jobRefField = document.getElementById('job_ref');
+    if (d.jobId && jobIdField) { jobIdField.value = d.jobId; filled = true; }
+    if (d.jobRef && jobRefField) { jobRefField.value = d.jobRef; }
     if (filled) {
       const note = document.getElementById('prefill-note');
       if (note) {
@@ -1184,7 +1198,9 @@ async function submitPO(btn) {
   if (btn) { btn.disabled = true; btn.textContent = 'Issuing...'; }
   try {
     const res = await fetch('/api/pos', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ engineer_slug: ENGINEER.slug, engineer_name: ENGINEER.name, source: 'engineer', site, incident_no: incident, supplier, description }) }).then(r => r.json());
+      body: JSON.stringify({ engineer_slug: ENGINEER.slug, engineer_name: ENGINEER.name, source: 'engineer', site, incident_no: incident, supplier, description,
+        job_id: (document.getElementById('job_id') || {}).value || null,
+        job_ref: (document.getElementById('job_ref') || {}).value || null }) }).then(r => r.json());
     if (res.error) { alert(res.error); if (btn) { btn.disabled = false; btn.textContent = 'Issue PO Number'; } submittingEngineerPO = false; return; }
     document.getElementById('form-area').style.display = 'none';
     document.getElementById('result-area').style.display = 'block';
@@ -1348,6 +1364,11 @@ async function openNewPOFromJob() {
   let filled = false;
   if (d.site && siteField && !siteField.value) { siteField.value = d.site; filled = true; }
   if (d.jobRef && incField && !incField.value) { incField.value = d.jobRef; filled = true; }
+  // Carry the job link through so the portal can cost this PO against the job
+  const jobIdField = document.getElementById('m-job-id');
+  const jobRefField = document.getElementById('m-job-ref');
+  if (d.jobId && jobIdField) { jobIdField.value = d.jobId; filled = true; }
+  if (d.jobRef && jobRefField) { jobRefField.value = d.jobRef; }
   if (!filled) return;
   const body = document.getElementById('modal-body');
   if (!body) return;
@@ -1514,6 +1535,7 @@ async function openNewPO() {
     </div>
     <div class="field" id="m-engineer-field"><label>Engineer (optional)</label><select id="m-engineer"><option value="">— None / Office —</option>\${engOptions}</select></div>
     <div class="field" style="position:relative"><label id="m-site-label">Site</label><input id="m-site" type="text" autocomplete="off" oninput="filterMSites()" onfocus="filterMSites()" onblur="setTimeout(hideMSites,200)"><div id="m-site-dropdown" class="ac-dropdown" style="display:none"></div></div>
+    <input id="m-job-id" type="hidden"><input id="m-job-ref" type="hidden">
     <div id="m-materials-fields">
       <div class="field"><label>Incident number <span style="font-weight:400;color:#5a6677">(optional)</span></label><input id="m-incident" type="text" placeholder="e.g. INC123456" autocomplete="off"></div>
       <div class="field" style="position:relative"><label>Supplier</label><input id="m-supplier" type="text" autocomplete="off" oninput="filterMSuppliers()" onfocus="filterMSuppliers()" onblur="setTimeout(hideMSuppliers,200)"><div id="m-supplier-dropdown" class="ac-dropdown" style="display:none"></div></div>
@@ -1597,6 +1619,7 @@ async function submitNewPO(btn) {
     if (!trade) { alert('Please pick a trade'); return; }
     if (!description) { alert('Description is required'); return; }
     body = { source: 'office', cost_category: 'subcontractor', site, supplier: subcontractor, trade, description,
+      job_id: (document.getElementById('m-job-id') || {}).value || null, job_ref: (document.getElementById('m-job-ref') || {}).value || null,
       office_user_slug: OFFICE_USER.slug, office_user_name: OFFICE_USER.name };
   } else {
     const incident = document.getElementById('m-incident').value.trim();
@@ -1609,6 +1632,7 @@ async function submitNewPO(btn) {
     const eng = allEngineers.find(e => e.slug === engSlug);
     body = { engineer_slug: engSlug || null, engineer_name: eng ? eng.name : null, source: 'office', cost_category: 'materials',
       site, incident_no: incident, supplier, description,
+      job_id: (document.getElementById('m-job-id') || {}).value || null, job_ref: (document.getElementById('m-job-ref') || {}).value || null,
       office_user_slug: OFFICE_USER.slug, office_user_name: OFFICE_USER.name };
   }
   submittingNewPO = true;

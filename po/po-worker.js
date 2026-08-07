@@ -914,7 +914,7 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; 
 function topbar(active) {
   const link = (href, label, key) => `<a href="${href}"${active === key ? ' class="active"' : ''}>${label}</a>`;
   return `<div class="topbar">
-    <div class="brand"><img src="/logo.jpg" alt="Mostlane"> PO System</div>
+    <div class="brand"><img src="/logo.jpg?v=2" alt="Mostlane"> PO System</div>
     <nav>${link('/office', 'Office', 'office')}${link('/jobs', 'Job Costs', 'jobs')}${link('/summary', 'Summary', 'summary')}${link('/accounts', 'Accounts', 'accounts')}${link('/stats', 'Stats', 'stats')}${link('/admin', 'Admin', 'admin')}</nav>
   </div>`;
 }
@@ -975,7 +975,7 @@ function suspendedEngineerPage(eng, officePhone) {
     : '';
   return `${pageHead('Access suspended')}
   <div class="topbar">
-    <div class="brand"><img src="/logo.jpg" alt="Mostlane"> PO</div>
+    <div class="brand"><img src="/logo.jpg?v=2" alt="Mostlane"> PO</div>
     <div style="font-size:13px;font-weight:500">👷 ${escapeHtmlServer(eng.name)}</div>
   </div>
   <div class="wrap-narrow">
@@ -1012,7 +1012,7 @@ function officeAccessRequiredPage() {
 function engineerPage(eng) {
   return `${pageHead('New PO — ' + eng.name, '/e/' + eng.token)}
   <div class="topbar">
-    <div class="brand"><img src="/logo.jpg" alt="Mostlane"> PO</div>
+    <div class="brand"><img src="/logo.jpg?v=2" alt="Mostlane"> PO</div>
     <div style="display:flex;align-items:center;gap:12px"><div style="font-size:13px;font-weight:500">👷 ${escapeHtmlServer(eng.name)}</div></div>
   </div>
   <div class="wrap-narrow">
@@ -1181,7 +1181,7 @@ init();
 function officePage(user) {
   return `${pageHead('Office — ' + user.name, '/o/' + user.token)}
   <div class="topbar">
-    <div class="brand"><img src="/logo.jpg" alt="Mostlane"> PO / Office</div>
+    <div class="brand"><img src="/logo.jpg?v=2" alt="Mostlane"> PO / Office</div>
     <div style="display:flex;align-items:center;gap:12px">
       <div style="font-size:13px;font-weight:500">👤 ${escapeHtmlServer(user.name)}</div>
       <nav><a href="/jobs">Job Costs</a><a href="/summary">Summary</a><a href="/accounts">Accounts</a><a href="/stats">Stats</a><a href="/admin">Admin</a></nav>
@@ -1901,7 +1901,7 @@ async function reportPage(db, params) {
   <div class="screen-hint">Press the button (or Ctrl/Cmd+P) and choose <strong>Save as PDF</strong>. Adjust filters on the Office page, then re-open the report.</div>
   <div class="sheet">
     <div class="rpt-head">
-      <img src="/logo.jpg" alt="Mostlane">
+      <img src="/logo.jpg?v=2" alt="Mostlane">
       <div class="rpt-title">
         <h1>Purchase Order Report</h1>
         <div class="sub">${filterBits.map(esc).join(' &middot; ')}<br>Generated ${fmtDateTimeUK(new Date().toISOString())}</div>

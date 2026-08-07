@@ -1317,6 +1317,44 @@ async function init() {
   });
   loadPOs();
   loadDashboard();
+  openNewPOFromJob();
+}
+// Arriving from the portal's "Raise PO for this job" (#mlpo=<base64 JSON>)
+// is a raise-a-PO intent, not a "show me the log" one — so open the New PO
+// modal pre-filled with the job instead of leaving the user on the dashboard.
+// Anything malformed is ignored and the page behaves exactly as normal.
+function decodeJobPayload() {
+  const m = location.hash.match(/mlpo=([^&]+)/);
+  if (!m) return null;
+  try {
+    let raw = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (raw.length % 4) raw += '=';
+    const bin = atob(raw);
+    let json;
+    try {
+      json = new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+    } catch (e) {
+      json = decodeURIComponent(escape(bin));
+    }
+    return JSON.parse(json);
+  } catch (e) { return null; }
+}
+async function openNewPOFromJob() {
+  const d = decodeJobPayload();
+  if (!d) return;
+  await openNewPO();
+  const siteField = document.getElementById('m-site');
+  const incField = document.getElementById('m-incident');
+  let filled = false;
+  if (d.site && siteField && !siteField.value) { siteField.value = d.site; filled = true; }
+  if (d.jobRef && incField && !incField.value) { incField.value = d.jobRef; filled = true; }
+  if (!filled) return;
+  const body = document.getElementById('modal-body');
+  if (!body) return;
+  const note = document.createElement('div');
+  note.style.cssText = 'margin:0 0 12px;padding:10px 12px;border-radius:10px;background:#d6f5dd;color:#1e6c33;font-size:13px;font-weight:600';
+  note.textContent = '✓ Pre-filled from job ' + (d.jobRef || d.site || '');
+  body.insertBefore(note, body.firstChild);
 }
 function setStatusTab(status) {
   document.querySelectorAll('#status-tabs .tab').forEach(x => x.classList.toggle('active', (x.dataset.status || '') === status));
@@ -2743,6 +2781,13 @@ function setupTabs() {
   });
 }
 setupTabs();
+// Someone who followed the portal's "Raise PO for this job" wants to raise a
+// PO, not manage settings — send them to their own office view (which carries
+// the fragment with it) so the New PO modal opens pre-filled. Without a job
+// payload the admin page behaves exactly as before.
+if (/mlpo=/.test(location.hash)) {
+  location.replace('/office' + location.hash);
+}
 async function init() {
   // Load each piece independently so one failure doesn't break the rest
   const safe = async (fn, label) => { try { await fn(); } catch (e) { console.error(label + ' failed:', e); } };

@@ -790,6 +790,16 @@ body {
 }
 .topbar .brand { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 15px; }
 .topbar .brand img { height: 32px; width: auto; background: #fff; padding: 4px 8px; border-radius: 6px; }
+.topbar .backbtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; flex: none;
+  border-radius: 10px; background: rgba(255,255,255,0.15);
+  color: #fff; text-decoration: none;
+  transition: background 0.15s, transform 0.15s;
+}
+.topbar .backbtn:hover { background: rgba(255,255,255,0.28); transform: translateX(-1px); }
+.topbar .backbtn:active { transform: translateX(0); }
+.topbar .backbtn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .topbar nav { display: flex; gap: 6px; flex-wrap: wrap; }
 .topbar nav a {
   color: #fff; text-decoration: none; font-size: 13px; font-weight: 500;
@@ -914,7 +924,7 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; 
 function topbar(active) {
   const link = (href, label, key) => `<a href="${href}"${active === key ? ' class="active"' : ''}>${label}</a>`;
   return `<div class="topbar">
-    <div class="brand"><img src="/logo.jpg?v=2" alt="Mostlane"> PO System</div>
+    <div class="brand"><a class="backbtn" href="https://mostlane-portal.com/main.html" title="Back to portal" aria-label="Back to portal"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></a><img src="/logo.jpg?v=2" alt="Mostlane"> PO System</div>
     <nav>${link('/office', 'Office', 'office')}${link('/jobs', 'Job Costs', 'jobs')}${link('/summary', 'Summary', 'summary')}${link('/accounts', 'Accounts', 'accounts')}${link('/stats', 'Stats', 'stats')}${link('/admin', 'Admin', 'admin')}</nav>
   </div>`;
 }
@@ -975,7 +985,7 @@ function suspendedEngineerPage(eng, officePhone) {
     : '';
   return `${pageHead('Access suspended')}
   <div class="topbar">
-    <div class="brand"><img src="/logo.jpg?v=2" alt="Mostlane"> PO</div>
+    <div class="brand"><a class="backbtn" href="https://mostlane-portal.com/main.html" title="Back to portal" aria-label="Back to portal"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></a><img src="/logo.jpg?v=2" alt="Mostlane"> PO</div>
     <div style="font-size:13px;font-weight:500">👷 ${escapeHtmlServer(eng.name)}</div>
   </div>
   <div class="wrap-narrow">
@@ -1012,7 +1022,7 @@ function officeAccessRequiredPage() {
 function engineerPage(eng) {
   return `${pageHead('New PO — ' + eng.name, '/e/' + eng.token)}
   <div class="topbar">
-    <div class="brand"><img src="/logo.jpg?v=2" alt="Mostlane"> PO</div>
+    <div class="brand"><a class="backbtn" href="https://mostlane-portal.com/main.html" title="Back to portal" aria-label="Back to portal"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></a><img src="/logo.jpg?v=2" alt="Mostlane"> PO</div>
     <div style="display:flex;align-items:center;gap:12px"><div style="font-size:13px;font-weight:500">👷 ${escapeHtmlServer(eng.name)}</div></div>
   </div>
   <div class="wrap-narrow">
@@ -1181,7 +1191,7 @@ init();
 function officePage(user) {
   return `${pageHead('Office — ' + user.name, '/o/' + user.token)}
   <div class="topbar">
-    <div class="brand"><img src="/logo.jpg?v=2" alt="Mostlane"> PO / Office</div>
+    <div class="brand"><a class="backbtn" href="https://mostlane-portal.com/main.html" title="Back to portal" aria-label="Back to portal"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></a><img src="/logo.jpg?v=2" alt="Mostlane"> PO / Office</div>
     <div style="display:flex;align-items:center;gap:12px">
       <div style="font-size:13px;font-weight:500">👤 ${escapeHtmlServer(user.name)}</div>
       <nav><a href="/jobs">Job Costs</a><a href="/summary">Summary</a><a href="/accounts">Accounts</a><a href="/stats">Stats</a><a href="/admin">Admin</a></nav>

@@ -1,0 +1,25 @@
+{
+  // Build config for the Mostlane PO worker ONLY.
+  //
+  // IMPORTANT: in Cloudflare, this worker's build must set
+  //   Root directory = po
+  // so wrangler reads this file and never the repo root. A config at the
+  // repo root applies to every build running from this repo, which is what
+  // previously made mostlane-api deploy this worker's code by mistake.
+  //
+  // Secrets, plain-text vars, routes/custom domains and cron triggers are
+  // intentionally NOT listed here — they stay owned by the dashboard and
+  // survive deploys.
+  "name": "mostlane-po",
+  "main": "po-worker.js",
+  "compatibility_date": "2026-07-01",
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mostlane-po",
+      "database_id": "bcaf5f51-3085-4cdf-a993-42278893c313"
+    }
+  ],
+  "observability": { "enabled": true }
+}

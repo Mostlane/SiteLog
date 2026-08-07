@@ -1031,6 +1031,7 @@ function engineerPage(eng) {
       <div class="card fade-in">
         <h1 style="margin-bottom:4px">Raise a PO</h1>
         <p class="muted">Outside office hours only. Enter a site or an incident number, plus supplier and description.</p>
+        <div id="prefill-note" style="display:none;margin-top:12px;padding:10px 12px;border-radius:10px;background:#d6f5dd;color:#1e6c33;font-size:13px;font-weight:600"></div>
         <div class="field" style="position:relative;margin-top:16px">
           <label>Site</label>
           <input id="site" type="text" placeholder="Start typing..." autocomplete="off" oninput="filterSites()" onfocus="filterSites()" onblur="setTimeout(hideSites,200)">
@@ -1078,7 +1079,41 @@ async function init() {
     return;
   }
   document.getElementById('form-area').style.display = 'block';
+  prefillFromJobLink();
   loadMyPOs(false);
+}
+// The portal's "Raise PO for this job" link opens this page with the job
+// encoded on the fragment as #mlpo=<base64 JSON>. Fill only empty fields —
+// never overwrite what the engineer has already typed — and leave supplier
+// and description to them. Any bad or missing payload just leaves it blank.
+function prefillFromJobLink() {
+  const m = location.hash.match(/mlpo=([^&]+)/);
+  if (!m) return;
+  try {
+    let raw = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (raw.length % 4) raw += '=';
+    const bin = atob(raw);
+    let json;
+    try {
+      json = new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+    } catch (e) {
+      json = decodeURIComponent(escape(bin));
+    }
+    const d = JSON.parse(json);
+    const siteField = document.getElementById('site');
+    const incidentField = document.getElementById('incident_no');
+    let filled = false;
+    if (d.site && siteField && !siteField.value) { siteField.value = d.site; filled = true; }
+    if (d.jobRef && incidentField && !incidentField.value) { incidentField.value = d.jobRef; filled = true; }
+    if (filled) {
+      const note = document.getElementById('prefill-note');
+      if (note) {
+        const label = d.jobRef || d.site || '';
+        note.textContent = label ? ('✓ Pre-filled from job ' + label) : '✓ Pre-filled from job';
+        note.style.display = 'block';
+      }
+    }
+  } catch (e) { /* malformed payload — leave the form blank */ }
 }
 function filterSites() {
   const input = document.getElementById('site');

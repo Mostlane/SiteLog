@@ -19,6 +19,13 @@
       "binding": "DB",
       "database_name": "mostlane-po",
       "database_id": "bcaf5f51-3085-4cdf-a993-42278893c313"
+    },
+    {
+      // Read-only use: the portal's main database, for the company vehicle
+      // list so POs can be tagged to a van. Nothing here writes to it.
+      "binding": "PORTAL_DB",
+      "database_name": "mostlane",
+      "database_id": "e483b3b5-2cfd-4742-ae51-427c31598c87"
     }
   ],
   "observability": { "enabled": true }

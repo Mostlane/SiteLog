@@ -56,6 +56,7 @@ export default {
       if (path === '/api/sites' && method === 'POST') return json(await addSite(env.DB, await request.json()));
       if (path.startsWith('/api/sites/') && method === 'DELETE') return json(await deleteSite(env.DB, path.split('/').pop()));
       if (path === '/api/jobs/search' && method === 'GET') return json(await searchJobs(env.DB, url.searchParams));
+      if (path === '/api/vehicles' && method === 'GET') return json(await getVehicles(env));
       if (path === '/api/closures' && method === 'GET') return json(await getClosures(env.DB));
       if (path === '/api/closures' && method === 'POST') return json(await addClosure(env.DB, await request.json()));
       if (path.startsWith('/api/closures/') && method === 'DELETE') return json(await deleteClosure(env.DB, decodeURIComponent(path.split('/').pop())));
@@ -134,6 +135,9 @@ async function ensureSchema(db) {
     // only (it can be edited or reused, so never match on it alone).
     ['job_id', 'TEXT'],
     ['job_ref', 'TEXT'],
+    // Registration of the company vehicle a PO was bought for (AdBlue, parts…).
+    // Stored uppercase; the portal matches on UPPER(REPLACE(vehicle_reg,' ','')).
+    ['vehicle_reg', 'TEXT'],
     ['cost_category', "TEXT DEFAULT 'materials'"],
     ['trade', 'TEXT']
   ];
@@ -456,6 +460,50 @@ async function deleteSite(db, id) { await db.prepare(`UPDATE sites SET active = 
 
 // Read-only site lookup for the payroll worker (called over a service
 // binding). Returns the shape the payroll app expects: job_ref/site/client.
+// ============================================================
+// COMPANY VEHICLES (read-only, from the portal's database)
+// ============================================================
+// POs can be tagged to a van (AdBlue, parts). The list comes from the portal's
+// `vehicles` table via the PORTAL_DB binding. Columns are discovered at runtime
+// rather than assumed, so a differently-shaped table still works, and the whole
+// thing degrades to an empty list if the binding or table isn't there — the PO
+// form keeps working either way.
+let vehicleCache = { at: 0, list: [] };
+const VEHICLE_CACHE_MS = 5 * 60 * 1000;
+
+async function getVehicles(env) {
+  if (!env.PORTAL_DB) return [];
+  const now = Date.now();
+  if (vehicleCache.list.length && now - vehicleCache.at < VEHICLE_CACHE_MS) return vehicleCache.list;
+  try {
+    const info = await env.PORTAL_DB.prepare(`PRAGMA table_info(vehicles)`).all();
+    const cols = new Set((info.results || []).map(r => r.name));
+    if (!cols.size) return [];
+    const regCol = ['reg', 'registration', 'vrm', 'reg_number'].find(c => cols.has(c));
+    if (!regCol) return [];
+    const pick = c => (cols.has(c) ? c : `NULL AS ${c}`);
+    const where = [];
+    if (cols.has('active')) where.push(`(active IS NULL OR active = 1)`);
+    if (cols.has('tenant_id')) where.push(`tenant_id = 1`);
+    const sql = `SELECT ${regCol} AS reg, ${pick('make')}, ${pick('model')} FROM vehicles`
+      + (where.length ? ` WHERE ${where.join(' AND ')}` : '')
+      + ` ORDER BY ${regCol}`;
+    const rows = await env.PORTAL_DB.prepare(sql).all();
+    const list = (rows.results || [])
+      .filter(r => r.reg && String(r.reg).trim())
+      .map(r => {
+        const reg = String(r.reg).trim().toUpperCase();
+        const desc = [r.make, r.model].filter(Boolean).join(' ').trim();
+        return { reg, make: r.make || null, model: r.model || null, desc, label: desc ? `${reg} — ${desc}` : reg };
+      });
+    vehicleCache = { at: now, list };
+    return list;
+  } catch (e) {
+    console.error('vehicle lookup failed:', e.message);
+    return [];
+  }
+}
+
 async function searchJobs(db, params) {
   const q = (params.get('q') || '').trim();
   if (q.length < 2) return [];
@@ -611,13 +659,15 @@ async function issuePO(db, body) {
   for (let attempt = 0; attempt < 6; attempt++) {
     poNumber = await nextPoNumber(db);
     try {
-      await db.prepare(`INSERT INTO po_log (po_number, engineer_slug, engineer_name, issued_at, source, site, incident_no, supplier, description, needs_review, office_user_slug, office_user_name, cost_category, trade, job_id, job_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+      await db.prepare(`INSERT INTO po_log (po_number, engineer_slug, engineer_name, issued_at, source, site, incident_no, supplier, description, needs_review, office_user_slug, office_user_name, cost_category, trade, job_id, job_ref, vehicle_reg) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
         poNumber, body.engineer_slug || null, body.engineer_name || null, issuedAt, body.source || 'office',
         body.site || null, body.incident_no || null, body.supplier || null, body.description || null, body.source === 'office' ? 0 : 1,
         body.office_user_slug || null, body.office_user_name || null,
         isSubcontractor ? 'subcontractor' : 'materials', isSubcontractor ? (body.trade || null) : null,
         // Blank unless the PO was raised from a portal job link
-        (body.job_id || '').trim() || null, (body.job_ref || '').trim() || null
+        (body.job_id || '').trim() || null, (body.job_ref || '').trim() || null,
+        // Uppercase so the portal's UPPER(REPLACE(reg,' ','')) match always lines up
+        (body.vehicle_reg || '').trim().toUpperCase() || null
       ).run();
       return { success: true, po_number: poNumber, issued_at: issuedAt };
     } catch (e) {
@@ -636,7 +686,7 @@ async function deletePoRecord(db, poNumber) {
 
 
 async function updatePO(db, poNumber, body) {
-  const allowed = ['site', 'incident_no', 'supplier', 'description', 'needs_review', 'reviewed_by', 'engineer_slug', 'engineer_name', 'deleted', 'cost_ex_vat', 'vat_rate', 'status', 'flag_reason', 'credit_note', 'cost_category', 'trade', 'job_id', 'job_ref'];
+  const allowed = ['site', 'incident_no', 'supplier', 'description', 'needs_review', 'reviewed_by', 'engineer_slug', 'engineer_name', 'deleted', 'cost_ex_vat', 'vat_rate', 'status', 'flag_reason', 'credit_note', 'cost_category', 'trade', 'job_id', 'job_ref', 'vehicle_reg'];
   const fields = []; const binds = [];
   for (const [k, v] of Object.entries(body)) {
     if (allowed.includes(k)) {
@@ -753,13 +803,13 @@ async function csvExport(db, params) {
   if (params.get('status')) { query += ` AND COALESCE(status, 'open') = ?`; binds.push(params.get('status')); }
   query += ` ORDER BY po_number DESC`;
   const rows = await db.prepare(query).bind(...binds).all();
-  const headers = ['PO Number', 'Issued At', 'Source', 'Category', 'Trade', 'Issued By (Office)', 'Engineer', 'Site', 'Incident No', 'Supplier', 'Description', 'Status', 'Cost Ex VAT', 'VAT Rate', 'Cost Inc VAT', 'Flag Reason', 'Credit Note', 'Needs Review', 'Cost Entered At', 'Last Edited By', 'Last Edited At'];
+  const headers = ['PO Number', 'Issued At', 'Source', 'Category', 'Trade', 'Issued By (Office)', 'Engineer', 'Site', 'Incident No', 'Vehicle Reg', 'Supplier', 'Description', 'Status', 'Cost Ex VAT', 'VAT Rate', 'Cost Inc VAT', 'Flag Reason', 'Credit Note', 'Needs Review', 'Cost Entered At', 'Last Edited By', 'Last Edited At'];
   const csv = [headers.join(',')];
   for (const r of rows.results) {
     const vatRate = r.vat_rate != null ? r.vat_rate : 20;
     const costInc = r.cost_ex_vat != null ? (r.cost_ex_vat * (1 + vatRate / 100)).toFixed(2) : '';
     csv.push([
-      r.po_number, fmtDateTimeUK(r.issued_at), r.source, r.cost_category || 'materials', r.trade || '', r.office_user_name || '', r.engineer_name || '', r.site || '', r.incident_no || '', r.supplier || '', r.description || '',
+      r.po_number, fmtDateTimeUK(r.issued_at), r.source, r.cost_category || 'materials', r.trade || '', r.office_user_name || '', r.engineer_name || '', r.site || '', r.incident_no || '', r.vehicle_reg || '', r.supplier || '', r.description || '',
       r.status || 'open', r.cost_ex_vat != null ? r.cost_ex_vat : '', r.cost_ex_vat != null ? vatRate : '', costInc,
       r.flag_reason || '', r.credit_note || '', r.needs_review ? 'Yes' : 'No', fmtDateTimeUK(r.cost_entered_at),
       r.last_edited_by_name || '', fmtDateTimeUK(r.last_edited_at)
@@ -1040,9 +1090,10 @@ function engineerPage(eng) {
         <p class="muted">Outside office hours only. Enter a site or an incident number, plus supplier and description.</p>
         <div id="prefill-note" style="display:none;margin-top:12px;padding:10px 12px;border-radius:10px;background:#d6f5dd;color:#1e6c33;font-size:13px;font-weight:600"></div>
         <div class="field" style="position:relative;margin-top:16px">
-          <label>Site</label>
-          <input id="site" type="text" placeholder="Start typing..." autocomplete="off" oninput="filterSites()" onfocus="filterSites()" onblur="setTimeout(hideSites,200)">
+          <label>Site <span style="font-weight:400;color:#5a6677">(or a company vehicle)</span></label>
+          <input id="site" type="text" placeholder="Start typing a site or vehicle reg..." autocomplete="off" oninput="onSiteInput()" onfocus="filterSites()" onblur="setTimeout(hideSites,200)">
           <div id="site-dropdown" class="ac-dropdown" style="display:none"></div>
+          <input id="vehicle_reg" type="hidden">
         </div>
         <div class="field">
           <label>Incident number <span style="font-weight:400;color:#5a6677">(for incident jobs — use instead of, or as well as, a site)</span></label>
@@ -1071,14 +1122,17 @@ function engineerPage(eng) {
 const ENGINEER = ${JSON.stringify({ slug: eng.slug, name: eng.name })};
 let SUPPLIERS = [];
 let SITES = [];
+let VEHICLES = [];
 async function init() {
-  const [status, suppliers, sites] = await Promise.all([
+  const [status, suppliers, sites, vehicles] = await Promise.all([
     fetch('/api/status').then(r => r.json()),
     fetch('/api/suppliers').then(r => r.json()),
-    fetch('/api/sites').then(r => r.json())
+    fetch('/api/sites').then(r => r.json()),
+    fetch('/api/vehicles').then(r => r.json()).catch(() => [])
   ]);
   SUPPLIERS = suppliers;
   SITES = sites;
+  VEHICLES = Array.isArray(vehicles) ? vehicles : [];
   const statusArea = document.getElementById('status-area');
   if (status.mode === 'disabled') { statusArea.innerHTML = '<div class="card fade-in"><div class="alert warn">' + escapeHtml(status.message) + '</div></div>'; loadMyPOs(true); return; }
   if (status.mode === 'office_hours') {
@@ -1129,17 +1183,51 @@ function prefillFromJobLink() {
     }
   } catch (e) { /* malformed payload — leave the form blank */ }
 }
+// Typing by hand clears any vehicle tag, so a PO can't keep a stale van
+// attached after the engineer edits the box.
+let pickedVehicleLabel = null;
+function onSiteInput() {
+  const input = document.getElementById('site');
+  if (pickedVehicleLabel && input.value !== pickedVehicleLabel) {
+    document.getElementById('vehicle_reg').value = '';
+    pickedVehicleLabel = null;
+  }
+  filterSites();
+}
 function filterSites() {
   const input = document.getElementById('site');
   const dd = document.getElementById('site-dropdown');
   const q = input.value.trim().toLowerCase();
   if (!q) { dd.style.display = 'none'; return; }
-  const matches = SITES.filter(s => s.name.toLowerCase().includes(q)).slice(0, 8);
-  if (!matches.length) { dd.innerHTML = '<div class="ac-empty">No match — your entry will be saved as a new site for review</div>'; dd.style.display = 'block'; return; }
-  dd.innerHTML = matches.map(s => '<div class="ac-item" onmousedown="pickSite(\\''+escapeJsAttr(s.name)+'\\')">'+highlight(s.name, q)+'</div>').join('');
+  const sites = SITES.filter(s => s.name.toLowerCase().includes(q)).slice(0, 8);
+  // Vehicles match on reg or make/model, and show alongside the sites
+  const norm = q.replace(/\\s+/g, '');
+  const vehicles = VEHICLES.filter(v =>
+    v.reg.toLowerCase().replace(/\\s+/g, '').includes(norm) || (v.desc || '').toLowerCase().includes(q)
+  ).slice(0, 6);
+  if (!sites.length && !vehicles.length) {
+    dd.innerHTML = '<div class="ac-empty">No match — your entry will be saved as a new site for review</div>';
+    dd.style.display = 'block';
+    return;
+  }
+  const vHtml = vehicles.map(v =>
+    '<div class="ac-item" onmousedown="pickVehicle(\\''+escapeJsAttr(v.reg)+'\\',\\''+escapeJsAttr(v.desc || '')+'\\')">'
+    + '🚐 ' + highlight(v.reg, q) + (v.desc ? ' <span class="muted">— ' + escapeHtml(v.desc) + '</span>' : '')
+    + '</div>').join('');
+  const sHtml = sites.map(s => '<div class="ac-item" onmousedown="pickSite(\\''+escapeJsAttr(s.name)+'\\')">'+highlight(s.name, q)+'</div>').join('');
+  dd.innerHTML = vHtml + sHtml;
   dd.style.display = 'block';
 }
-function pickSite(name) { document.getElementById('site').value = name; hideSites(); }
+// Picking a van stamps vehicle_reg and puts a readable label in the site box,
+// so the PO still reads sensibly in the log, reports and exports.
+function pickVehicle(reg, desc) {
+  const label = 'Vehicle ' + reg + (desc ? ' (' + desc + ')' : '');
+  document.getElementById('site').value = label;
+  document.getElementById('vehicle_reg').value = reg;
+  pickedVehicleLabel = label;
+  hideSites();
+}
+function pickSite(name) { document.getElementById('site').value = name; document.getElementById('vehicle_reg').value = ''; pickedVehicleLabel = null; hideSites(); }
 function hideSites() { document.getElementById('site-dropdown').style.display = 'none'; }
 function filterSuppliers() {
   const input = document.getElementById('supplier');
@@ -1200,7 +1288,8 @@ async function submitPO(btn) {
     const res = await fetch('/api/pos', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ engineer_slug: ENGINEER.slug, engineer_name: ENGINEER.name, source: 'engineer', site, incident_no: incident, supplier, description,
         job_id: (document.getElementById('job_id') || {}).value || null,
-        job_ref: (document.getElementById('job_ref') || {}).value || null }) }).then(r => r.json());
+        job_ref: (document.getElementById('job_ref') || {}).value || null,
+        vehicle_reg: (document.getElementById('vehicle_reg') || {}).value || null }) }).then(r => r.json());
     if (res.error) { alert(res.error); if (btn) { btn.disabled = false; btn.textContent = 'Issue PO Number'; } submittingEngineerPO = false; return; }
     document.getElementById('form-area').style.display = 'none';
     document.getElementById('result-area').style.display = 'block';
@@ -1489,6 +1578,7 @@ function renderPOs(pos) {
     const siteUnmatched = p.site && !siteNames.has(p.site);
     let siteCell = (p.site ? escapeHtml(p.site) : (p.incident_no ? '<span class="muted">—</span>' : '—')) + (siteUnmatched ? ' <span title="Site not in master list" style="color:#b58a00">⚠️</span>' : '');
     if (p.incident_no) siteCell += '<div style="font-size:12px;margin-top:2px"><span class="badge engineer" title="Incident number">🎫 ' + escapeHtml(p.incident_no) + '</span></div>';
+    if (p.vehicle_reg) siteCell += '<div style="font-size:12px;margin-top:2px"><span class="badge office" title="Tagged to vehicle">🚐 ' + escapeHtml(p.vehicle_reg) + '</span></div>';
     const isSub = (p.cost_category || 'materials') === 'subcontractor';
     let supplierCell = escapeHtml(p.supplier || '—');
     if (isSub) supplierCell += '<div style="font-size:12px;margin-top:2px"><span class="badge review" title="Subcontractor PO">👷 ' + escapeHtml(p.trade || 'Subcontractor') + '</span></div>';

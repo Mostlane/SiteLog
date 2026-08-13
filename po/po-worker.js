@@ -102,7 +102,33 @@ let schemaReady = false;
 
 async function ensureSchema(db) {
   if (schemaReady) return;
+  try {
+    await bootstrapSchema(db);
+    schemaReady = true;
+  } catch (e) {
+    // A transient D1 fault here used to 500 every route, including pages that
+    // don't touch these tables. On an established database the schema is
+    // already in place, so log it and let the request proceed; schemaReady
+    // stays false so the next request retries the bootstrap.
+    console.error('schema bootstrap failed (continuing):', e && e.message);
+  }
+}
 
+// True once the core tables exist, so an established database skips all the
+// CREATE TABLE and seeding work on every cold start.
+async function coreTablesExist(db) {
+  const needed = ['engineers', 'office_users', 'suppliers', 'sites', 'subcontractors', 'trades', 'closures', 'config', 'po_log'];
+  const rows = await db.prepare(
+    `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${needed.map(() => '?').join(',')})`
+  ).bind(...needed).all();
+  const have = new Set((rows.results || []).map(r => r.name));
+  return needed.every(t => have.has(t));
+}
+
+async function bootstrapSchema(db) {
+  const established = await coreTablesExist(db);
+
+  if (!established) {
   await db.exec(`CREATE TABLE IF NOT EXISTS engineers (slug TEXT PRIMARY KEY, name TEXT NOT NULL, active INTEGER DEFAULT 1, created_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
   await db.exec(`CREATE TABLE IF NOT EXISTS office_users (slug TEXT PRIMARY KEY, name TEXT NOT NULL, active INTEGER DEFAULT 1, created_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
   await db.exec(`CREATE TABLE IF NOT EXISTS suppliers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, active INTEGER DEFAULT 1)`);
@@ -114,6 +140,7 @@ async function ensureSchema(db) {
   await db.exec(`CREATE TABLE IF NOT EXISTS closures (date TEXT PRIMARY KEY, reason TEXT)`);
   await db.exec(`CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)`);
   await db.exec(`CREATE TABLE IF NOT EXISTS po_log (po_number INTEGER PRIMARY KEY AUTOINCREMENT, engineer_slug TEXT, engineer_name TEXT, issued_at TEXT NOT NULL, source TEXT NOT NULL, site TEXT, supplier TEXT, description TEXT, needs_review INTEGER DEFAULT 1, reviewed_at TEXT, reviewed_by TEXT, deleted INTEGER DEFAULT 0)`);
+  }
 
   // Migrations - add new columns if missing (idempotent).
   // One PRAGMA read covers every column instead of one read per column.
@@ -225,8 +252,8 @@ async function ensureSchema(db) {
   const trades = ['Roofing', 'Plumbing', 'Electrical', 'Groundworks', 'Scaffolding', 'Plastering', 'Painting & Decorating', 'Flooring', 'Glazing', 'Heating & Gas', 'Drainage', 'Bricklaying'];
 
   // One batched round trip for all seed rows instead of ~70 sequential ones.
-  // INSERT OR IGNORE leaves existing rows untouched.
-  await db.batch([
+  // Only on a fresh database — an established one already has them.
+  if (!established) await db.batch([
     ...defaults.map(([k, v]) => db.prepare(`INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)`).bind(k, v)),
     ...engineers.map(name => db.prepare(`INSERT OR IGNORE INTO engineers (slug, name) VALUES (?, ?)`).bind(slugify(name), name)),
     ...officeUsers.map(([slug, name]) => db.prepare(`INSERT OR IGNORE INTO office_users (slug, name) VALUES (?, ?)`).bind(slug, name)),
@@ -245,7 +272,6 @@ async function ensureSchema(db) {
     }
   }
 
-  schemaReady = true;
 }
 
 function slugify(name) { return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }

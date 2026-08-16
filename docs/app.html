@@ -560,14 +560,18 @@ text-align: center;
       <div style="font-size:17px;font-weight:700;margin-bottom:14px;">First Visit Registration</div>
       <input id="appFirstName" placeholder="First Name" />
       <input id="appLastName"  placeholder="Last Name" />
-      <select id="appPurpose" required>
-        <option value="" disabled selected>Select purpose</option>
-        <option value="Visiting">Visiting</option>
+      <select id="appPurpose" required onchange="updateRegisterRules()">
+        <option value="" disabled selected>Are you a contractor or visitor?</option>
         <option value="Contractor">Contractor</option>
+        <option value="Visiting">Visitor</option>
       </select>
       <select id="appCompany" required>
         <option value="" disabled selected>Select company</option>
       </select>
+      <div id="appRulesWrap" style="display:none;text-align:left;background:#f4f7fb;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin:4px 0 12px;">
+        <div id="appRulesHead" style="font-size:13px;font-weight:700;color:#003b82;margin-bottom:6px;">Site rules — please read:</div>
+        <ul id="appRulesList" style="margin:0;padding-left:18px;font-size:14px;line-height:1.5;"></ul>
+      </div>
       <label>
         <input type="checkbox" id="appHsAck" />
         <span>I have read the site rules and will report to the site foreman</span>
@@ -899,6 +903,9 @@ var pendingCheckinSite  = "";
 var pendingCheckinFirst = "";
 var pendingCheckinCo    = "";
 var pendingCheckinRules = [];
+// The two arrival rule sets for the current site, from the last /scan first_visit
+// response — the register form shows whichever matches the chosen purpose.
+var arrivalRules = { contractor: [], visitor: [] };
 var pendingNetworkAction = null;
 var permCurrentDevice   = "iphone";
 var adminTapCount       = 0;
@@ -1456,6 +1463,13 @@ async function appScan() {
   }
 
   if (data.status === "first_visit") {
+    // Both arrival screens for this site — the register form shows whichever
+    // matches the chosen purpose (contractor/visitor). Falls back to the legacy
+    // single siteRules if talking to an older backend.
+    arrivalRules = {
+      contractor: data.siteRulesContractor || data.siteRules || [],
+      visitor: data.siteRulesVisitor || data.siteRules || []
+    };
     var prof = await dbGet("profile");
     if (prof) {
       document.getElementById("appFirstName").value = prof.firstName || "";
@@ -1464,6 +1478,7 @@ async function appScan() {
       if (sp === "Visiting" || sp === "Contractor") document.getElementById("appPurpose").value = sp;
     }
     showRegisterView();
+    updateRegisterRules();
     return;
   }
 
@@ -1518,12 +1533,14 @@ async function appRegister() {
   var ack     = document.getElementById("appHsAck").checked;
   if (!first || !last || !purpose || !company || !ack) { alert("Please complete all fields and confirm the site rules."); return; }
   if (!lastLocation) { alert("We couldn't read your location. Please make sure location is on and try again."); return; }
+  // Contractor / Visitor decides which arrival screen this person sees from now on.
+  var personType = (purpose === "Contractor") ? "contractor" : (purpose === "Visiting") ? "visitor" : "";
   // Store identity before hitting the server
   storeIdentity(first, last, company);
   await dbSet("profile", { firstName: first, lastName: last, purpose: purpose, company: company });
   var res, data;
   try {
-    res  = await fetchWithTimeout(API + "/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceToken: deviceToken, firstName: first, lastName: last, purpose: purpose, company: company, siteCode: currentSite, lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy }) });
+    res  = await fetchWithTimeout(API + "/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceToken: deviceToken, firstName: first, lastName: last, purpose: purpose, personType: personType, company: company, siteCode: currentSite, lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy }) });
     data = await res.json();
   } catch(e) { showNetworkError("register"); return; }
   if (!data.ok) { alert("Registration failed. Please try again."); return; }
@@ -2105,6 +2122,21 @@ function showRegisterView(show) {
   document.getElementById("historyView").style.display  = "none";
   document.getElementById("onSiteView").style.display   = "none";
   document.getElementById("summaryView").style.display  = "none";
+  if (visible) updateRegisterRules();
+}
+
+// Show the arrival rules that match the purpose the person picked (Contractor →
+// contractor screen, Visitor → visitor screen). Empty/unpicked → hidden.
+function updateRegisterRules() {
+  var p = (document.getElementById("appPurpose").value || "");
+  var type = (p === "Contractor") ? "contractor" : (p === "Visiting") ? "visitor" : "";
+  var wrap = document.getElementById("appRulesWrap");
+  var ul   = document.getElementById("appRulesList");
+  if (!wrap || !ul) return;
+  var rules = type ? (arrivalRules[type] || []) : [];
+  if (!type || !rules.length) { wrap.style.display = "none"; ul.innerHTML = ""; return; }
+  ul.innerHTML = rules.map(function(r){ return "<li>" + escapeHtml(r) + "</li>"; }).join("");
+  wrap.style.display = "block";
 }
 
 // SUMMARY VIEW

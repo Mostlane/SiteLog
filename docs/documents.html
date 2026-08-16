@@ -555,7 +555,7 @@
 </div>
 
 <script>
-const API = "https://api.site-log.co.uk";
+const API = "https://api2.site-log.co.uk";
 (function(){ var of = window.fetch.bind(window); window.fetch = function(input, init){ var u = typeof input === "string" ? input : (input && input.url) || ""; if (u.indexOf(API) === 0) { init = Object.assign({}, init); init.credentials = "include"; var sec = null; try { sec = sessionStorage.getItem("ml_admin_secret") || localStorage.getItem("ml_admin_secret"); } catch (e) {} if (sec) { var h = new Headers(init.headers || {}); if (!h.has("x-admin-secret")) h.set("x-admin-secret", sec); init.headers = h; } } return of(input, init); }; })();
 // In the PWA shell this page loads in an iframe; the shell holds the admin
 // secret. Store it when pushed, and ask for it on load so admin-guarded calls

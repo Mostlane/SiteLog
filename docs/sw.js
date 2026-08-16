@@ -8,7 +8,7 @@
 // always go straight to the network and are never cached.
 // The permanent device ID lives in IndexedDB/localStorage/cookie, untouched here.
 
-var CACHE = "sitelog-v8";
+var CACHE = "sitelog-v9";
 var SHELL = ["./app.html", "./index.html", "./scan.html"];
 
 self.addEventListener("install", function(e) {

@@ -1323,6 +1323,7 @@ function closeSignOutModal() {
 }
 async function appConfirmSignOutYes() {
   if (!pendingCheckoutId) return;
+  if (!lastLocation) { closeSignOutModal(); showScreen("screen-scan"); showGpsErrorInScan(2, "We need your location to sign you out. Tap Try Again to refresh it, then sign out."); return; }
   var firstName = pendingCheckoutName;
   var siteName  = pendingCheckoutSite;
   var res, data;
@@ -1869,7 +1870,7 @@ function dashSetState(state, siteName, visitId, checkInTime) {
     var _dc = document.getElementById("dashDocsCard"); if (_dc) _dc.style.display = "none";
     var _sdc = document.getElementById("siteDocsCard"); if (_sdc) _sdc.style.display = "none";
     // Offer a manual check-in only if we actually have a location to record.
-    if (btnUnmatched && lastLocation && lastLocation.lat != null) btnUnmatched.style.display = "block";
+    // "Check in here anyway" disabled: sign-ins must be verified against a set site location.
   }
 }
 
@@ -2432,8 +2433,8 @@ function dashTriggerSignOut() {
   navigator.geolocation.getCurrentPosition(
     function(pos) { lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; dbSet("gps_granted", true); appScan(); },
     function(err) {
-      if (dashOpenVisitId) { openSignOutModal(dashOpenVisitId, dashCurrentSite || "Unknown site", ""); }
-      else { if (err.code === 1) { dbDel("gps_granted"); showScreen("screen-permission"); showPermissionError(err.code, err.message); } else { document.getElementById("appGpsError").style.display = "block"; } }
+      // No location, no sign-out: every sign-out must be GPS-verified on site.
+      if (err.code === 1) { dbDel("gps_granted"); showScreen("screen-permission"); showPermissionError(err.code, err.message); } else { document.getElementById("appGpsError").style.display = "block"; }
     },
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
   );

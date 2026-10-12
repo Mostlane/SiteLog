@@ -863,10 +863,27 @@ async function getDeviceToken() {
   if (tok) return tok;
   tok = tokenFallbackRead();
   if (tok) { await dbSet("device_id", tok); return tok; }
+  // Nothing stored on the phone: ask the server whether this browser still
+  // carries its secure sign-in cookie, so a wiped phone carries on as the same
+  // person instead of registering again.
+  tok = await recoverDeviceToken();
+  if (tok) { await dbSet("device_id", tok); tokenFallbackWrite(tok); return tok; }
   tok = crypto.randomUUID();
   await dbSet("device_id", tok);
   tokenFallbackWrite(tok);
   return tok;
+}
+async function recoverDeviceToken() {
+  try { if (localStorage.getItem("ml_no_recover")) return null; } catch(e) {}
+  try {
+    var ctl = new AbortController();
+    var t = setTimeout(function(){ ctl.abort(); }, 4000);
+    var res = await fetch(API + "/device-recover", { method: "GET", signal: ctl.signal });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    var d = await res.json();
+    return (d && d.deviceToken) ? String(d.deviceToken) : null;
+  } catch(e) { return null; }
 }
 async function clearDeviceToken() {
   await dbDel("device_id");
@@ -874,6 +891,10 @@ async function clearDeviceToken() {
   await dbDel("profile");
   try { localStorage.removeItem("mostlane_device_id"); localStorage.removeItem("mostlane_last_checkin"); localStorage.removeItem("mostlane_profile"); } catch(e) {}
   document.cookie = "ml_did=; max-age=0; path=/";
+  // Drop the server's secure cookie too, so the next person on this phone is
+  // never recovered as the previous one.
+  try { localStorage.setItem("ml_no_recover", "1"); } catch(e) {}
+  try { await fetch(API + "/device-forget", { method: "POST" }); } catch(e) {}
 }
 
 // Escape user/server-supplied text before inserting via innerHTML.
@@ -1561,6 +1582,10 @@ async function appRegister() {
     data = await res.json();
   } catch(e) { showNetworkError("register"); return; }
   if (!data.ok) { alert("Registration failed. Please try again."); return; }
+  try { localStorage.removeItem("ml_no_recover"); } catch(e) {}
+  if (data.status === "relinked") {
+    alert("Welcome back, " + first + " — you're already registered, so you've been signed in as yourself.\n\nTo skip this next time, open SiteLog in your normal browser (not a private tab or a QR-scanner app) and add it to your home screen.");
+  }
   showRegisterView(false);
   await appScan();
 }
@@ -2618,6 +2643,8 @@ async function linkPortalIdentity() {
 }
 
 async function init() {
+  // Ask the browser to keep SiteLog's storage (stops Android/Chrome clearing it).
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e) {}
   deviceToken = await getDeviceToken();
   tokenFallbackWrite(deviceToken);
   await linkPortalIdentity();

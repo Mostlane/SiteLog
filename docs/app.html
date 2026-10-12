@@ -1327,7 +1327,7 @@ async function appConfirmSignOutYes() {
   var siteName  = pendingCheckoutSite;
   var res, data;
   try {
-    res  = await fetchWithTimeout(API + "/confirm-checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ visitId: pendingCheckoutId }) });
+    res  = await fetchWithTimeout(API + "/confirm-checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ visitId: pendingCheckoutId, deviceToken: deviceToken, lat: lastLocation ? lastLocation.lat : null, lng: lastLocation ? lastLocation.lng : null, accuracy: lastLocation ? lastLocation.accuracy : null }) });
     data = await res.json();
   } catch(e) { showNetworkError("checkout"); return; }
   if (!res.ok || !data.ok) { alert(data.error || "Failed to sign out."); return; }

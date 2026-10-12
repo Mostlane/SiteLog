@@ -1448,6 +1448,17 @@ async function appScan() {
   } catch(e) { showNetworkError("scan"); return; }
   if (!res.ok || !data || !data.status) { showNetworkError("scan", "Something went wrong reading your status. Please try again."); return; }
 
+  if (data.status === "outside_site_signed_in") {
+    // Signed in at a site but not inside its boundary now: sign-out must be
+    // GPS-verified on site, so explain instead of offering it.
+    currentSite = data.site;
+    var storedIn = await dbGet("last_checkin");
+    dashSetState("in", currentSite, data.visitId, storedIn || null);
+    alert("You're signed in at " + data.site + (data.distance_m != null ? " but you're " + data.distance_m + " m away" : " but you're not on site") +
+      ". You need to be on site to sign out — if you've already left, the office will close your visit.");
+    return;
+  }
+
   if (data.status === "unknown_site") {
     unmatchedHint = data.nearestSite
       ? ("Nearest known site: " + data.nearestSite + (data.distance_m ? " (" + data.distance_m + " m away)" : ""))

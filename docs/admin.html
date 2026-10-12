@@ -1375,6 +1375,18 @@ function formatTSDate(dayStr) {
 function formatWeekCommencing(dayStr) {
   return formatDMY(dayStr);
 }
+// GPS verification mark for a sign-in or sign-out: green tick = the phone was
+// inside the site boundary when the event was recorded; red cross = not
+// verified (auto sign-out, manual entry or an edited time).
+function gpsMark(v, side) {
+  if (side === "out" && !v.check_out_at) return "";
+  const ok = Number(side === "in" ? v.sign_in_verified : v.sign_out_verified) === 1;
+  const d = side === "in" ? v.sign_in_distance_m : v.sign_out_distance_m;
+  const tip = ok ? "Location verified" + (d != null ? " (" + Math.round(d) + " m from site)" : "")
+    : (side === "out" && Number(v.auto_checkout || 0) === 1 ? "Not verified — automatic sign-out"
+      : Number(v.manual_entry || 0) === 1 ? "Not verified — manual entry" : "Location not verified");
+  return ' <span title="' + escapeHtml(tip) + '" style="font-weight:800;color:' + (ok ? "#16a34a" : "#dc2626") + ';">' + (ok ? "&#10004;" : "&#10008;") + '</span>';
+}
 function escapeHtml(str) {
   return String(str)
     .replaceAll("&", "&amp;")
@@ -1672,7 +1684,7 @@ function renderLive() {
       '<td class="live-mobile-meta" data-label="Company">' + escapeHtml(v.company || "-") + (v.purpose ? ' &middot; ' + escapeHtml(v.purpose) : '') + ' &middot; ' + escapeHtml(v.site_code || "-") + '</td>' +
       '<td data-label="Purpose">' + escapeHtml(v.purpose || "-") + '</td>' +
       '<td data-label="Site"><span style="font-size:12px;background:var(--surface3);padding:2px 8px;border-radius:4px;">' + escapeHtml(v.site_code || "-") + '</span></td>' +
-      '<td data-label="Checked in" style="color:var(--label3);font-size:12.5px;">' + escapeHtml(toLocal(v.check_in_at)) + '</td>' +
+      '<td data-label="Checked in" style="color:var(--label3);font-size:12.5px;">' + escapeHtml(toLocal(v.check_in_at)) + gpsMark(v, "in") + '</td>' +
       '<td class="live-mobile-pill" data-label="Status (mobile)" style="display:none;"><span class="pill pill-live">Live</span></td>' +
       '<td class="live-mobile-duration" data-label="Duration" style="font-weight:500;">' + escapeHtml(fmtDuration(minutesBetween(v.check_in_at, null))) + '</td>' +
       '<td data-label="Device" style="text-align:center;">' + (hasDevice ? '<span class="check-icon">&#10003;</span>' : '<span class="cross-icon">&#8212;</span>') + '</td>' +
@@ -1932,8 +1944,8 @@ function generatePDF() {
       '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;font-weight:600;">' + escapeHtml(nameOf(v)) + '</td>' +
       '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">' + escapeHtml(v.company || "-") + '</td>' +
       '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">' + escapeHtml(v.site_code || "-") + '</td>' +
-      '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;">' + escapeHtml(formatTimeOnly(v.check_in_at)) + '</td>' +
-      '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;">' + escapeHtml(v.check_out_at ? formatTimeOnly(v.check_out_at) : "-") + '</td>' +
+      '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;">' + escapeHtml(formatTimeOnly(v.check_in_at)) + gpsMark(v, "in") + '</td>' +
+      '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;">' + escapeHtml(v.check_out_at ? formatTimeOnly(v.check_out_at) : "-") + gpsMark(v, "out") + '</td>' +
       '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">' + escapeHtml(dur) + '</td>' +
       '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:11.5px;">' + escapeHtml(v.purpose || "-") + '</td>' +
       '</tr>';
@@ -2228,7 +2240,7 @@ function buildWeekChart(visits, name, company, weekKey, eng) {
         : '<td class="tc-day"></td>';
       rows += "<tr" + weekendCls + ">" + dayCell +
         '<td class="tc-site">' + escapeHtml(v.site_code || "—") + "</td>" +
-        '<td class="tc-desc">' + escapeHtml(times) + flag + manualTag + (pin ? " &nbsp;" + pin : "") + "</td>" +
+        '<td class="tc-desc">' + escapeHtml(formatTimeOnly(v.check_in_at)) + gpsMark(v, "in") + " – " + (v.check_out_at ? escapeHtml(formatTimeOnly(v.check_out_at)) + gpsMark(v, "out") : "—") + flag + manualTag + (pin ? " &nbsp;" + pin : "") + "</td>" +
         '<td class="tc-hours">' + h.toFixed(2) + "</td>" +
         (rate ? '<td class="tc-pay-cell">' + money(h * rate) + "</td>" : "") +
         "</tr>";
@@ -2328,8 +2340,8 @@ function buildWeekTable(visits, name, company, weekKey, eng) {
     return '<tr>' +
       '<td data-label="Date">' + escapeHtml(formatTSDate(day)) + '</td>' +
       '<td data-label="Site">' + escapeHtml(v.site_code || "-") + '</td>' +
-      '<td data-label="Start">' + escapeHtml(formatTimeOnly(v.check_in_at)) + '</td>' +
-      '<td data-label="Finish">' + escapeHtml(v.check_out_at ? formatTimeOnly(v.check_out_at) : "-") + '</td>' +
+      '<td data-label="Start">' + escapeHtml(formatTimeOnly(v.check_in_at)) + gpsMark(v, "in") + '</td>' +
+      '<td data-label="Finish">' + escapeHtml(v.check_out_at ? formatTimeOnly(v.check_out_at) : "-") + gpsMark(v, "out") + '</td>' +
       '<td data-label="Total hours">' + escapeHtml(totalH.toFixed(2)) + '</td>' +
       '<td data-label="Std hours">' + escapeHtml(stdH.toFixed(2)) + '</td>' +
       '<td data-label="OT hours">' + escapeHtml(otH.toFixed(2)) + '</td>' +

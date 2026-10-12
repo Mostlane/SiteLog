@@ -2104,7 +2104,7 @@ export default {
     // GET /companies
     if (url.pathname === "/companies" && request.method === "GET") {
       const rows = await env.DB.prepare(
-        "SELECT id, name FROM companies ORDER BY name ASC"
+        "SELECT id, name FROM companies ORDER BY (LOWER(name) = 'other') ASC, name ASC"
       ).all();
 
       return json({ companies: rows.results || [] });
@@ -2160,7 +2160,7 @@ export default {
         JOIN site_company_map m ON m.site_id = s.id
         JOIN companies c ON c.id = m.company_id
         WHERE s.site_name = ?
-        ORDER BY c.name ASC
+        ORDER BY (LOWER(c.name) = 'other') ASC, c.name ASC
       `).bind(siteName).all();
 
       return json({ companies: rows.results || [] });

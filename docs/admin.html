@@ -1622,10 +1622,17 @@ async function fetchCompaniesMaster() {
   try {
     const r = await fetch(API_BASE + "/companies");
     const d = await r.json();
-    companiesAll = d.companies || [];
+    companiesAll = (d.companies || []).slice().sort(compareCompanies);
   } catch (e) {
     companiesAll = [];
   }
+}
+// Alphabetical, but "Other" always last
+function compareCompanies(a, b) {
+  const ao = String(a.name || "").toLowerCase() === "other";
+  const bo = String(b.name || "").toLowerCase() === "other";
+  if (ao !== bo) return ao ? 1 : -1;
+  return String(a.name || "").localeCompare(String(b.name || ""));
 }
 async function loadSiteCompanyMap() {
   siteCompanyMap = {};
@@ -3915,7 +3922,7 @@ function closeCompaniesModal() {
 }
 function renderCompaniesAdmin() {
   const wrap = document.getElementById("companiesAdminBody");
-  const rows = companiesAll.slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))).map(c =>
+  const rows = companiesAll.slice().sort(compareCompanies).map(c =>
     '<div class="comp-row"><span class="comp-name">' + escapeHtml(c.name) + '</span><button class="btn-danger btn-sm" onclick="deleteCompany(\'' + jsAttr(c.id) + '\',\'' + jsAttr(c.name) + '\')">Delete</button></div>'
   ).join("");
   wrap.innerHTML =

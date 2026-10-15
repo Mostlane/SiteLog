@@ -967,7 +967,7 @@ function permRenderSteps(device, code) {
   document.getElementById("permStepsList").innerHTML = steps.map(function(s){ return "<li>" + s + "</li>"; }).join("");
 }
 function showPermissionError(code, message) {
-  logFailedScan(code === 1 ? "denied" : code === 2 ? "unavailable" : "timeout");
+  logFailedScan(code === 1 ? "denied" : code === 2 ? "unavailable" : "timeout", message);
   document.getElementById("permError").style.display = "block";
   document.getElementById("permDeviceToggle").style.display = "flex";
   document.getElementById("permFixSteps").style.display = "block";
@@ -1006,9 +1006,9 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(function() {});
 }
 
-function logFailedScan(errorType) {
-  if (!deviceToken) return;
-  try { fetch(API + "/log-failed-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceToken: deviceToken, errorType: errorType }) }).catch(function(){}); } catch(e) {}
+function logFailedScan(errorType, message) {
+  // Reported to the office's scan log so a refused sign-in is never a mystery.
+  try { fetch(API + "/log-failed-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceToken: deviceToken || null, errorType: errorType, message: message || null }) }).catch(function(){}); } catch(e) {}
 }
 
 function fetchWithTimeout(url, options, ms) {
@@ -1145,7 +1145,7 @@ window.addEventListener("offline", function() { updateOfflineUI(); });
 
 // GPS ERROR IN SCAN SCREEN
 function showGpsErrorInScan(code, msg) {
-  logFailedScan(code === 1 ? "denied" : code === 2 ? "unavailable" : "timeout");
+  logFailedScan(code === 1 ? "denied" : code === 2 ? "unavailable" : "timeout", msg);
   document.getElementById("appGpsError").style.display = "block";
   document.getElementById("appNetworkError").style.display = "none";
   document.getElementById("appGpsMsg").textContent = msg || "GPS signal could not be obtained.";
@@ -1570,7 +1570,7 @@ async function appRegister() {
   var company = document.getElementById("appCompany").value;
   var ack     = document.getElementById("appHsAck").checked;
   if (!first || !last || !purpose || !company || !ack) { alert("Please complete all fields and confirm the site rules."); return; }
-  if (!lastLocation) { alert("We couldn't read your location. Please make sure location is on and try again."); return; }
+  if (!lastLocation) { logFailedScan("no_fix", "No location when registering"); alert("We couldn't read your location. Please make sure location is on and try again."); return; }
   // Contractor / Visitor decides which arrival screen this person sees from now on.
   var personType = (purpose === "Contractor") ? "contractor" : (purpose === "Visiting") ? "visitor" : "";
   // Store identity before hitting the server

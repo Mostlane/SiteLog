@@ -1003,6 +1003,7 @@
       </div>
       <div style="display:flex;gap:8px;">
         <button class="btn-primary btn-sm" onclick="openAddLogModal()">&#43; Add Log</button>
+        <label title="Off: clean sign-in record to send to agencies. On: the payroll version with pay, travel and fuel." style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--label2);cursor:pointer;"><input type="checkbox" id="tsPdfIncludePay"> Include pay</label>
         <button class="btn-ghost btn-sm" onclick="exportTimesheetsPdf()">&#128424; Print / Save PDF</button>
         <button class="btn-ghost btn-sm" onclick="closeTimesheetsModal()">Close</button>
       </div>
@@ -2958,6 +2959,7 @@ async function exportTimesheetsPdf() {
     grouped[co] = grouped[co] || {}; grouped[co][pe] = grouped[co][pe] || { pid, weeks: {} };
     grouped[co][pe].weeks[wk] = grouped[co][pe].weeks[wk] || []; grouped[co][pe].weeks[wk].push(v);
   });
+  if (!document.getElementById("tsPdfIncludePay")?.checked) { exportSignInRecordPdf(grouped); return; }
   const A = makeA4();
   let first = true;
   Object.keys(grouped).sort((a, b) => companySortKey(a).localeCompare(companySortKey(b))).forEach(co => {
@@ -2971,6 +2973,103 @@ async function exportTimesheetsPdf() {
     });
   });
   A.pdf.save("Timesheets_" + (document.getElementById("tsFromDate").value || "all") + ".pdf");
+}
+// Clean "Site sign-in record" — the scans only (no pay), to send to agencies.
+// One section per company (new page each), every person's week as a table of
+// Day · Site · In · Out · Time · Note, Mon–Fri always listed ("No scans
+// recorded" when empty), weekends only when scanned. Times are Europe/London;
+// each scan is rounded to the minute and day/week totals add up those rows.
+function exportSignInRecordPdf(grouped) {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  const NAVY = [0, 52, 104], GREY = [114, 128, 143], LIGHT = [240, 244, 249], TX = [29, 29, 31];
+  const L = 14, R = 196, PH = 297, BOT = PH - 16;
+  const col = [L + 3, L + 29, L + 84, L + 99, L + 114, L + 132];
+  const set = (size, bold, c) => { pdf.setFont("helvetica", bold ? "bold" : "normal"); pdf.setFontSize(size); const k = c || TX; pdf.setTextColor(k[0], k[1], k[2]); };
+  const lt = ts => { const d = parseStoredTs(ts); return d ? d.toLocaleTimeString("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" }) : "—"; };
+  const hm = m => Math.floor(m / 60) + "h " + String(m % 60).padStart(2, "0") + "m";
+  const fit = (t, w) => { t = String(t || ""); while (t.length > 1 && pdf.getTextWidth(t) > w) t = t.slice(0, -2) + "…"; return t; };
+  const dayLbl = k => dayKeyToUtcNoon(k).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  const longDay = k => dayKeyToUtcNoon(k).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  const frIn = document.getElementById("tsFromDate").value, toIn = document.getElementById("tsToDate").value;
+  let y = 0, company = "", rangeTxt = "";
+
+  const header = () => {
+    y = 14;
+    if (_pdfLogo && _pdfLogoSize) { try { const h = 15; pdf.addImage(_pdfLogo, "JPEG", L, y - 2, h * _pdfLogoSize.w / _pdfLogoSize.h, h); } catch (e) {} }
+    set(16, true, NAVY); pdf.text("Site sign-in record", R, y + 4, { align: "right" });
+    set(9.5, false, GREY); pdf.text(rangeTxt, R, y + 10, { align: "right" });
+    pdf.text(company, R, y + 15, { align: "right" });
+    y += 21; pdf.setDrawColor(200, 207, 216); pdf.setLineWidth(0.3); pdf.line(L, y, R, y); y += 8;
+  };
+  const need = h => { if (y + h > BOT) { pdf.addPage(); header(); } };
+  const thead = () => {
+    pdf.setFillColor(NAVY[0], NAVY[1], NAVY[2]); pdf.rect(L, y, R - L, 6.5, "F");
+    set(8.5, true, [255, 255, 255]); ["Day", "Site", "In", "Out", "Time", "Note"].forEach((h, i) => pdf.text(h, col[i], y + 4.5));
+    y += 6.5;
+  };
+
+  const cos = Object.keys(grouped).sort((a, b) => companySortKey(a).localeCompare(companySortKey(b)));
+  cos.forEach((co, ci) => {
+    company = co;
+    const allDays = Object.values(grouped[co]).flatMap(p => Object.values(p.weeks).flat()).map(v => londonDayKey(v.check_in_at)).sort();
+    const from = frIn || startOfWeekMonday(allDays[0]), to = toIn || addDaysKey(startOfWeekMonday(allDays[allDays.length - 1]), 6);
+    rangeTxt = longDay(from) + " – " + longDay(to);
+    if (ci) pdf.addPage();
+    header();
+    Object.keys(grouped[co]).sort().forEach(pe => {
+      Object.keys(grouped[co][pe].weeks).sort().forEach(wk => {
+        const vs = grouped[co][pe].weeks[wk];
+        const byDay = {}; vs.forEach(v => { const d = londonDayKey(v.check_in_at); (byDay[d] = byDay[d] || []).push(v); });
+        const days = [];
+        for (let i = 0; i < 7; i++) { const k = addDaysKey(wk, i); if ((frIn && k < frIn) || (toIn && k > toIn)) continue; if (i < 5 || byDay[k]) days.push(k); }
+        const rowsN = days.reduce((n, k) => { const c = (byDay[k] || []).length; return n + Math.max(1, c) + (c > 1 ? 1 : 0); }, 0);
+        need(Math.min(20 + rowsN * 5.6 + 14, BOT - 50));
+        set(12.5, true, NAVY); pdf.text(pe, L, y);
+        const nameW = pdf.getTextWidth(pe);
+        const sites = [...new Set(vs.map(v => (v.site_code || "").trim()).filter(Boolean))];
+        set(9, false, GREY); pdf.text(fit(co + (sites.length ? "  ·  " + sites.join(", ") : "") + (Object.keys(grouped[co][pe].weeks).length > 1 ? "  ·  w/c " + formatDMY(wk) : ""), R - L - nameW - 6), L + nameW + 5, y);
+        y += 3.5; thead();
+        let total = 0, alt = false;
+        days.forEach(k => {
+          const dvs = (byDay[k] || []).slice().sort((a, b) => String(a.check_in_at).localeCompare(String(b.check_in_at)));
+          const lines = dvs.length ? dvs : [null];
+          let dayM = 0;
+          lines.forEach((v, i) => {
+            if (y + 5.6 > BOT) { pdf.addPage(); header(); thead(); }
+            if (alt) { pdf.setFillColor(LIGHT[0], LIGHT[1], LIGHT[2]); pdf.rect(L, y, R - L, 5.6, "F"); }
+            if (i === 0) { set(8.5, true); pdf.text(dayLbl(k), col[0], y + 3.9); }
+            if (!v) { set(8.5, false, GREY); pdf.text("No scans recorded", col[1], y + 3.9); }
+            else {
+              const open = !v.check_out_at, m = open ? 0 : minutesBetween(v.check_in_at, v.check_out_at); dayM += m;
+              set(8.5, false); pdf.text(fit(v.site_code || "—", col[2] - col[1] - 3), col[1], y + 3.9);
+              pdf.text(lt(v.check_in_at), col[2], y + 3.9); pdf.text(open ? "—" : lt(v.check_out_at), col[3], y + 3.9); pdf.text(open ? "—" : hm(m), col[4], y + 3.9);
+              const note = open ? "No sign-out" : v.transferred_to ? "Moved to " + v.transferred_to : Number(v.auto_checkout || 0) === 1 ? "Auto sign-out" : Number(v.manual_entry || 0) === 1 ? "Manual entry" : "";
+              if (note) { set(7.5, false, GREY); pdf.text(fit(note, R - col[5] - 1), col[5], y + 3.9); }
+            }
+            y += 5.6;
+          });
+          if (dvs.length > 1) {
+            if (alt) { pdf.setFillColor(LIGHT[0], LIGHT[1], LIGHT[2]); pdf.rect(L, y, R - L, 5, "F"); }
+            set(8, true, GREY); pdf.text("Day total", col[3], y + 3.5); set(8.5, true); pdf.text(hm(dayM), col[4], y + 3.5); y += 5;
+          }
+          total += dayM; alt = !alt;
+        });
+        pdf.setDrawColor(NAVY[0], NAVY[1], NAVY[2]); pdf.setLineWidth(0.4); pdf.line(L, y + 0.8, R, y + 0.8);
+        set(9.5, true, NAVY); pdf.text("Week total", col[4] - 3, y + 6.5, { align: "right" }); pdf.text(hm(total), col[4], y + 6.5);
+        y += 16;
+      });
+    });
+  });
+  const n = pdf.getNumberOfPages(), gen = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  for (let i = 1; i <= n; i++) {
+    pdf.setPage(i); set(7.5, false, GREY);
+    pdf.text("Times are UK time, taken from the SiteLog site sign-in system: the time each person scanned in and out at the site.", L, PH - 11);
+    pdf.text("Generated " + gen + " by Mostlane.", L, PH - 7);
+    pdf.text("Page " + i + " of " + n, R, PH - 7, { align: "right" });
+  }
+  const co1 = cos.length === 1 ? "_" + cos[0].replace(/[^A-Za-z0-9]+/g, "-") : "";
+  pdf.save("Site-sign-ins" + co1 + "_" + (frIn || "all") + (toIn ? "_to_" + toIn : "") + ".pdf");
 }
 function toggleTsEng(id) {
   const el = document.getElementById(id);

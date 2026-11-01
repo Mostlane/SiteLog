@@ -225,7 +225,16 @@ Breaking ANY link stops every sign-in. Never:
    with missed/unconfirmed counts per site; falls back to the old on-phone sum
    if the endpoint fails. Also: a re-sent offline sign-out that was already
    applied now returns `duplicate_ignored` instead of a false pending event.
-3. **One admin screen** — plan APPROVED 1 Nov 2026 (Jamie):
+3. **One admin screen** — portal sitelog.html REBUILT 1 Nov 2026 as four tabs:
+   **🟢 Now** (on site grouped by site + today's tiles) · **📋 Logs** (person
+   and/or site + date range; failed scans inline; ✓/✗ location check + 📍 Map on
+   every event; problem badges; CSV) · **👷 People** · **⚙ Settings**. Jamie's
+   brief: live on-site view, pull a person's or a site's logs for any period,
+   all failed scans, partial logs obvious, green tick + map on every event; used
+   50/50 phone/desktop. Still to move from admin.html: visit editing (from the
+   Logs rows), unmatched offline events, sites (radius/companies/rules/archive),
+   companies, documents — then retire admin.html + the PIN.
+   Plan APPROVED 1 Nov 2026 (Jamie):
    - Order: **People ✅ (1 Nov)** → visit editing (in the Timesheet card) +
      Problems tab (refused scans, unmatched offline events, unknown-site
      visits) → Sites (radius, companies on site, rules, archive; names + pins
@@ -287,3 +296,6 @@ Breaking ANY link stops every sign-in. Never:
 - **1 Nov 2026** — Step 3 plan approved. Phase 1 live: 👷 People tab on portal
   sitelog.html (edit/archive/forget phone/merge/new-phone approvals); pay Full
   Access only. QR-code chain documented as a hard rule.
+- **1 Nov 2026** — Portal Site Log admin rebuilt (Now/Logs/People/Settings). GitHub
+  Pages deploys failed 09:11–09:33 with "in progress deployment" (a stuck earlier
+  deploy blocks new ones); the live site stayed on the 09:05 build and worked.

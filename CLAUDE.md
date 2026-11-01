@@ -49,8 +49,8 @@ Do not edit it. Every backend change goes in `sitelog-api.js` in Mostlane/Test.
 - **api2.site-log.co.uk** is the live API. It is served by `mostlane-api` and
   every page in `docs/` points at it.
 - **api.site-log.co.uk** is the OLD standalone `sitelog-api` worker, still
-  running. It is **not patched**: no GPS checks and no protection against
-  duplicate people. **Retiring it is priority 1** (see Next up).
+  "running". **Correction 1 Nov:** that worker's code is now an old PO-system
+  copy, not SiteLog (see Next up 1). **Retiring it is priority 1** (see Next up).
 - `GET /served-by` tells you which worker answered. Every sign-in written by
   the new backend sets `visits.served_by='mostlane-api'`, so a NULL means the
   old worker wrote it.
@@ -188,6 +188,16 @@ Do not edit it. Every backend change goes in `sitelog-api.js` in Mostlane/Test.
    - Blind spot: a phone that opens an ancient cached page and only *reads*
      (never signs in) leaves no trace in D1. Check the `sitelog-api` worker's
      Metrics tab in the dashboard (requests, last 7 days) before step 4.
+   **Second finding (1 Nov): the `sitelog-api` worker is no longer SiteLog at
+   all.** Its live code (deployed ~6 Aug 2026) is an old copy of the *PO
+   system* ("Mostlane PO System" single-file worker) bound to sitelog-db — that
+   is where the stray PO tables in sitelog-db came from. It has zero SiteLog
+   routes (every SiteLog call there would 404), its `po_log` is empty (no PO was
+   ever raised on it), but its admin API is **unauthenticated** (anyone can list
+   the 10 engineer names + link tokens, add/delete them). It still gets ~7k
+   requests/30 days (dashboard, 1 Nov) — can't be SiteLog phones, since they'd
+   all be failing; likely bots or old PO links. So turning it off cannot break
+   SiteLog; it also closes an open admin API.
    Steps 4–5 are dashboard-only (the connector can't edit custom domains).
    Small bug found: offline sign-outs are applied correctly but the
    `pending_events` row is left `resolved=0`.

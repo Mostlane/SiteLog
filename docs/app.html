@@ -516,8 +516,8 @@ text-align: center;
       </div>
       <div class="dash-card" onclick="dashShowHistory()">
         <div class="dash-card-icon" style="background:rgba(0,74,153,0.10);">&#128203;</div>
-        <div class="dash-card-label">History</div>
-        <div class="dash-card-sub" id="dashHistorySub">My visits</div>
+        <div class="dash-card-label">My Hours</div>
+        <div class="dash-card-sub" id="dashHistorySub">Week by week</div>
       </div>
       <div class="dash-card" onclick="dashShowSummary()">
         <div class="dash-card-icon" style="background:rgba(217,119,6,0.12);">&#128202;</div>
@@ -608,7 +608,7 @@ text-align: center;
   <div class="scan-content" id="historyView" style="display:none;">
     <div class="detail-header">
       <button class="detail-back" onclick="dashBack()">&#8592; Back</button>
-      <span class="detail-title">My History</span>
+      <span class="detail-title">My Hours</span>
     </div>
     <div id="historyList" class="detail-list">
       <div style="text-align:center;padding:40px;color:var(--muted);font-size:14px;">Loading...</div>
@@ -2355,7 +2355,7 @@ function histFmtDay(dateStr) {
 }
 function histDur(mins) { var h = Math.floor(mins/60), m = mins%60; return h > 0 ? h+"h "+m+"m" : m+"m"; }
 
-async function loadHistoryList() {
+async function loadHistoryListOld() {
   var el = document.getElementById("historyList");
   if (!el) return;
   el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:14px;">Loading...</div>';
@@ -2448,6 +2448,88 @@ async function loadHistoryList() {
       '</div>';
     }).join("");
   } catch(e) { el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);">Could not load history.</div>'; }
+}
+
+// MY HOURS — the worker's week, worked out by the server exactly as the office
+// timesheet is (GET /my-timesheet). Falls back to the old list if unavailable.
+var myWeek = "";
+function mhDur(mins) { mins = Math.round(mins || 0); var h = Math.floor(mins/60), m = mins%60; return h + "h " + (m < 10 ? "0" : "") + m + "m"; }
+function mhShift(n) {
+  var d = new Date((myWeek || new Date().toISOString().slice(0,10)) + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + 7 * n);
+  myWeek = d.toISOString().slice(0,10);
+  loadHistoryList();
+}
+var MH_STATE = {
+  ok:      { tag: "",                     col: "" },
+  open:    { tag: "Still signed in",      col: "#1a7f3c" },
+  auto:    { tag: "Didn't sign out",      col: "#dc2626" },
+  scanned: { tag: "Scanned, not confirmed", col: "#7c3aed" },
+  moved:   { tag: "Moved site",           col: "var(--muted)" },
+  manual:  { tag: "Added by the office",  col: "var(--muted)" }
+};
+async function loadHistoryList() {
+  var el = document.getElementById("historyList");
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:14px;">Loading...</div>';
+  var data;
+  try {
+    var res = await fetchWithTimeout(API + "/my-timesheet?deviceToken=" + encodeURIComponent(deviceToken) + (myWeek ? "&week=" + myWeek : ""), { method: "GET" }, 10000);
+    if (!res.ok) throw new Error("http " + res.status);
+    data = await res.json();
+    if (!data || !data.days) throw new Error("bad reply");
+  } catch (e) { return loadHistoryListOld(); }
+  myWeek = data.from;
+  var t = data.totals || {};
+  var head =
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">' +
+      '<button class="detail-back" onclick="mhShift(-1)">&#8249; Earlier</button>' +
+      '<div style="text-align:center;font-size:13px;font-weight:700;">' + escapeHtml(data.isThisWeek ? "This week" : data.label.replace(/^Week /, "")) + '</div>' +
+      (data.isThisWeek ? '<span style="width:84px"></span>' : '<button class="detail-back" onclick="mhShift(1)">Later &#8250;</button>') +
+    '</div>' +
+    '<div style="background:#fff;border:1px solid #f1f5f9;border-radius:16px;padding:14px;margin-bottom:12px;text-align:center;">' +
+      '<div style="font-size:12px;color:var(--muted);font-weight:600;">Hours on site this week</div>' +
+      '<div style="font-size:28px;font-weight:800;color:var(--blue);margin:2px 0;">' + mhDur(t.mins) + '</div>' +
+      '<div style="font-size:12px;color:var(--muted);">' + (t.visits || 0) + ' visit' + (t.visits === 1 ? '' : 's') +
+        (t.missed ? ' &middot; <span style="color:#dc2626;font-weight:700;">' + t.missed + ' missed sign-out' + (t.missed === 1 ? '' : 's') + '</span>' : '') +
+        (t.scanned ? ' &middot; <span style="color:#7c3aed;font-weight:700;">' + t.scanned + ' not confirmed</span>' : '') +
+      '</div>' +
+      ((t.missed || t.scanned) ? '<div style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.4;">Where you didn&rsquo;t sign out, the time shown is an estimate &mdash; the office will check it. Always tap <b>Sign out</b> when you leave.</div>' : '') +
+    '</div>';
+  var days = data.days.filter(function(d){ return d.visits.length; }).reverse();
+  var body = days.length ? days.map(function(d) {
+    var rows = d.visits.map(function(v) {
+      var st = MH_STATE[v.state] || MH_STATE.ok;
+      var tick = function(okv, label) { return '<span title="' + label + (okv ? ' location checked' : ' location not checked') + '" style="color:' + (okv ? '#1a7f3c' : '#dc2626') + ';font-weight:700;">' + (okv ? '&#10003;' : '&#10007;') + '</span>'; };
+      return '<div style="padding:10px 14px;border-top:1px solid #f1f5f9;">' +
+        '<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">' +
+          '<span style="font-size:13.5px;font-weight:700;">' + escapeHtml(v.site || "—") + '</span>' +
+          '<span style="font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap;">' + (v.state === "open" ? "" : mhDur(v.mins)) + '</span>' +
+        '</div>' +
+        '<div style="font-size:12.5px;font-family:monospace;margin-top:3px;">' +
+          tick(v.inOk, "Sign-in") + ' ' + escapeHtml(v.inTime || "") + ' &mdash; ' +
+          (v.outTime ? tick(v.outOk, "Sign-out") + ' ' + escapeHtml(v.outTime) : '<span style="color:#1a7f3c;">now</span>') +
+        '</div>' +
+        (st.tag ? '<div style="font-size:11.5px;font-weight:700;color:' + st.col + ';margin-top:3px;">' + st.tag + '</div>' : '') +
+      '</div>';
+    }).join("");
+    return '<div style="background:#fff;border:1px solid #f1f5f9;border-radius:16px;overflow:hidden;margin-bottom:12px;">' +
+      '<div style="display:flex;justify-content:space-between;padding:11px 14px;background:#f8fafc;">' +
+        '<span style="font-size:14px;font-weight:700;color:' + (d.day === data.today ? 'var(--blue)' : 'var(--text)') + ';">' + escapeHtml(d.day === data.today ? "Today" : d.label) + '</span>' +
+        '<span style="font-size:13px;font-weight:700;">' + mhDur(d.mins) + '</span>' +
+      '</div>' + rows + '</div>';
+  }).join("") : '<div style="text-align:center;padding:30px;color:var(--muted);font-size:14px;">No visits this week.</div>';
+  var refused = (data.refused || []).length ?
+    '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;padding:12px 14px;margin-bottom:12px;">' +
+      '<div style="font-size:13px;font-weight:700;color:#9a3412;margin-bottom:6px;">Scans that didn&rsquo;t go through</div>' +
+      data.refused.slice(0, 10).map(function(r) {
+        return '<div style="font-size:12.5px;margin:5px 0;line-height:1.35;"><b>' + escapeHtml(r.day.slice(8,10) + "/" + r.day.slice(5,7) + " " + r.time) + '</b> &mdash; ' +
+          escapeHtml(r.why) + (r.site ? ' <span style="color:var(--muted);">(' + escapeHtml(r.site) + (r.distance ? ', ' + Math.round(r.distance) + ' m away' : '') + ')</span>' : '') + '</div>';
+      }).join("") +
+      '<div style="font-size:11.5px;color:var(--muted);margin-top:6px;">These were not recorded. If one was real work, tell the office.</div>' +
+    '</div>' : '';
+  el.innerHTML = head + refused + body +
+    '<div style="text-align:center;font-size:11.5px;color:var(--muted);padding:6px 0 20px;">&#10003; = location checked at the site &nbsp; &#10007; = not checked</div>';
 }
 
 // DASHBOARD TRIGGER BUTTONS

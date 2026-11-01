@@ -225,8 +225,19 @@ Breaking ANY link stops every sign-in. Never:
    with missed/unconfirmed counts per site; falls back to the old on-phone sum
    if the endpoint fails. Also: a re-sent offline sign-out that was already
    applied now returns `duplicate_ignored` instead of a false pending event.
-3. **One admin screen:** bring the useful parts of `admin.html` into portal
-   sitelog.html, then retire the PIN page:
+3. **One admin screen** — plan APPROVED 1 Nov 2026 (Jamie):
+   - Order: **People ✅ (1 Nov)** → visit editing (in the Timesheet card) +
+     Problems tab (refused scans, unmatched offline events, unknown-site
+     visits) → Sites (radius, companies on site, rules, archive; names + pins
+     stay on the portal Sites page) + Companies → Documents → retire admin.html.
+   - NOT moved: Job Costing (portal job-costing.html has it) and Timesheets
+     (already on sitelog.html).
+   - **Pay rates/travel allowances are Full Access only** — enforced in the
+     portal proxy (`routes/sitelog.js`), not just hidden.
+   - After retiring admin.html: **replace the 4-digit PIN** with a long random
+     `SITELOG_ADMIN_SECRET` (approved), and delete `docs/import-sites.json`
+     (customer site list in a public repo).
+   Original list:
    - people and devices;
    - merge and transfer requests;
    - sites;
@@ -273,3 +284,6 @@ Breaking ANY link stops every sign-in. Never:
 - **1 Nov 2026** — api.site-log.co.uk removed (step 1 done). Summary card on
   /my-summary (step 2 done). Offline sign-out retries no longer logged as
   pending. SW `sitelog-v14`.
+- **1 Nov 2026** — Step 3 plan approved. Phase 1 live: 👷 People tab on portal
+  sitelog.html (edit/archive/forget phone/merge/new-phone approvals); pay Full
+  Access only. QR-code chain documented as a hard rule.

@@ -164,7 +164,9 @@ Do not edit it. Every backend change goes in `sitelog-api.js` in Mostlane/Test.
       mean a phone or bookmark still uses the old host.
    2. Check `scan_log` and `pending_events` the same way.
    3. Find anything still pointing at `api.site-log.co.uk`: old printed QR
-      codes, home-screen bookmarks, and other code (grep both repos).
+      codes, home-screen bookmarks, and other code. **Code: done 1 Nov** —
+      the portal's fallback calls (`sitelog.js`, `costing.js`, `sites.js`,
+      `projects-api.js`) now default to api2; `docs/` already used api2.
    4. Move the `api.site-log.co.uk` custom domain onto `mostlane-api`. The
       backend already serves both hostnames. Note that moving a live custom
       domain once left a DNS/certificate gap, so do it at a quiet time and
@@ -217,4 +219,5 @@ Do not edit it. Every backend change goes in `sitelog-api.js` in Mostlane/Test.
 - **21 Oct 2026** — `chooseSite` for overlapping sites; 📍 map link for every
   event (portal and email).
 - **1 Nov 2026** — **My Hours** in the app: the office's calculation, with
-  failed scans shown. This file created.
+  failed scans shown. This file created. Portal fallbacks repointed
+  from the old host to api2 (step 1.3).

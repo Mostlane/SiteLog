@@ -49,8 +49,8 @@ Do not edit it. Every backend change goes in `sitelog-api.js` in Mostlane/Test.
 - **api2.site-log.co.uk** is the live API. It is served by `mostlane-api` and
   every page in `docs/` points at it.
 - **api.site-log.co.uk** is the OLD standalone `sitelog-api` worker, still
-  "running". **Correction 1 Nov:** that worker's code is now an old PO-system
-  copy, not SiteLog (see Next up 1). **Retiring it is priority 1** (see Next up).
+  retired 1 Nov 2026 (the `sitelog-api` worker had become an old PO-system
+  copy, not SiteLog). The address no longer resolves. Only api2 is live. **Retiring it is priority 1** (see Next up).
 - `GET /served-by` tells you which worker answered. Every sign-in written by
   the new backend sets `visits.served_by='mostlane-api'`, so a NULL means the
   old worker wrote it.
@@ -87,7 +87,7 @@ Do not edit it. Every backend change goes in `sitelog-api.js` in Mostlane/Test.
 - `admin.html` — the OLD admin page, behind a shared 4-digit PIN. It is due to
   be merged into the portal page and retired.
 - `documents.html` and `sites.html` are standalone admin tools.
-- `sw.js` — the service worker. **Bump `CACHE` (currently `sitelog-v13`)
+- `sw.js` — the service worker. **Bump `CACHE` (currently `sitelog-v14`)
   whenever cached files change** so phones refresh.
 
 ## Rules that are already live (don't regress)
@@ -158,8 +158,11 @@ Do not edit it. Every backend change goes in `sitelog-api.js` in Mostlane/Test.
    not all.
 
 ## Next up (in order)
-1. **Retire the old api.site-log.co.uk worker** — agreed as first priority on
-   1 Nov 2026.
+1. ✅ **DONE 1 Nov 2026 — old api.site-log.co.uk retired.** Jamie removed the
+   address from `sitelog-api` and did NOT re-add it to mostlane-api (nothing
+   needs it): `api.site-log.co.uk` no longer resolves. api2 confirmed answering
+   (`/served-by` → mostlane-api). **Delete the `sitelog-api` worker after
+   8 Nov 2026.** History of the checks below.
    1. Check in D1 that no recent visits have `served_by IS NULL`. That would
       mean a phone or bookmark still uses the old host.
    2. Check `scan_log` and `pending_events` the same way.
@@ -201,7 +204,11 @@ Do not edit it. Every backend change goes in `sitelog-api.js` in Mostlane/Test.
    Steps 4–5 are dashboard-only (the connector can't edit custom domains).
    Small bug found: offline sign-outs are applied correctly but the
    `pending_events` row is left `resolved=0`.
-2. Move the Summary card onto `/my-timesheet` (or a range version of it).
+2. ✅ **DONE 1 Nov 2026** — Summary card reads **GET /my-summary?range=**
+   (`sitelogts.personSummary`, same `loadPeriod` as My Hours + the office),
+   with missed/unconfirmed counts per site; falls back to the old on-phone sum
+   if the endpoint fails. Also: a re-sent offline sign-out that was already
+   applied now returns `duplicate_ignored` instead of a false pending event.
 3. **One admin screen:** bring the useful parts of `admin.html` into portal
    sitelog.html, then retire the PIN page:
    - people and devices;
@@ -247,3 +254,6 @@ Do not edit it. Every backend change goes in `sitelog-api.js` in Mostlane/Test.
   failed scans shown. This file created. Portal fallbacks repointed
   from the old host to api2 (step 1.3).
 - **1 Nov 2026** — Old-host checks done (step 1.1–1.3): no use since 16 Aug.
+- **1 Nov 2026** — api.site-log.co.uk removed (step 1 done). Summary card on
+  /my-summary (step 2 done). Offline sign-out retries no longer logged as
+  pending. SW `sitelog-v14`.

@@ -2219,7 +2219,44 @@ function summaryRangeBounds(range) {
   return { fromMs: 0, toMs: Number.MAX_SAFE_INTEGER, label: "All time" };
 }
 
+// Summary from the server: the SAME calculation as My Hours and the office
+// timesheet (/my-summary). Falls back to the old on-phone sum if unavailable.
 async function loadSummary(range) {
+  var body = document.getElementById("summaryBody");
+  var capWarn = document.getElementById("summaryCapWarn");
+  if (!body) return;
+  if (capWarn) capWarn.style.display = "none";
+  body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:14px;">Loading...</div>';
+  var d = null;
+  try {
+    var res = await fetchWithTimeout(API + "/my-summary?deviceToken=" + encodeURIComponent(deviceToken) + "&range=" + encodeURIComponent(range));
+    if (res.ok) d = await res.json();
+  } catch(e) {}
+  if (!d || !d.ok || !d.sites) return loadSummaryOld(range);
+  if (!d.sites.length) { body.innerHTML = '<div class="summary-empty">No visits in this period.</div>'; return; }
+  var t = d.totals || {};
+  var extra = [];
+  if (t.open) extra.push(t.open + " still open");
+  if (t.missed) extra.push(t.missed + " missed sign-out" + (t.missed !== 1 ? "s" : ""));
+  if (t.scanned) extra.push(t.scanned + " scanned, not confirmed");
+  var html = '<div class="summary-totals-card"><div class="summary-totals-row"><div><div class="summary-totals-label">' + escapeHtml(d.label) +
+    '</div><div class="summary-totals-sub">' + t.visits + ' visit' + (t.visits !== 1 ? 's' : '') + ' across ' + d.sites.length + ' site' + (d.sites.length !== 1 ? 's' : '') +
+    (extra.length ? ' \u00b7 ' + escapeHtml(extra.join(' \u00b7 ')) : '') +
+    '</div></div><div style="text-align:right;"><div class="summary-totals-val">' + (t.mins / 60).toFixed(2) + 'h</div><div class="summary-totals-sub">' + histDur(t.mins) + '</div></div></div></div>';
+  d.sites.forEach(function(e) {
+    var meta = [];
+    if (e.open) meta.push(e.open + " open");
+    if (e.missed) meta.push(e.missed + " missed sign-out" + (e.missed !== 1 ? "s" : ""));
+    if (e.scanned) meta.push(e.scanned + " not confirmed");
+    var human = e.mins > 0 ? histDur(e.mins) : (e.open ? 'Open' : '0m');
+    html += '<div class="summary-site-row"><div><div class="summary-site-name">' + escapeHtml(e.site) + '</div><div class="summary-site-meta">' + e.visits + ' visit' + (e.visits !== 1 ? 's' : '') +
+      (meta.length ? ' \u00b7 ' + escapeHtml(meta.join(' \u00b7 ')) : '') + '</div></div><div><div class="summary-site-hours">' + (e.mins / 60).toFixed(2) + 'h</div><div class="summary-site-hours-sub">' + human + '</div></div></div>';
+  });
+  html += '<div class="summary-empty" style="padding:14px 10px;font-size:12px;">Same hours the office sees. Missed sign-outs count up to when SiteLog closed them.</div>';
+  body.innerHTML = html;
+}
+
+async function loadSummaryOld(range) {
   var body = document.getElementById("summaryBody");
   var capWarn = document.getElementById("summaryCapWarn");
   if (!body) return;

@@ -48,9 +48,9 @@ Do not edit it. Every backend change goes in `sitelog-api.js` in Mostlane/Test.
 ### Hosts
 - **api2.site-log.co.uk** is the live API. It is served by `mostlane-api` and
   every page in `docs/` points at it.
-- **api.site-log.co.uk** is the OLD standalone `sitelog-api` worker, still
-  retired 1 Nov 2026 (the `sitelog-api` worker had become an old PO-system
-  copy, not SiteLog). The address no longer resolves. Only api2 is live. **Retiring it is priority 1** (see Next up).
+- **api.site-log.co.uk** was the OLD standalone `sitelog-api` worker —
+  retired 1 Nov 2026 (it had become an old PO-system copy, not SiteLog). The
+  address no longer resolves. Only api2 is live.
 - `GET /served-by` tells you which worker answered. Every sign-in written by
   the new backend sets `visits.served_by='mostlane-api'`, so a NULL means the
   old worker wrote it.

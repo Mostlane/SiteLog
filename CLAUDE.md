@@ -75,6 +75,22 @@ Do not edit it. Every backend change goes in `sitelog-api.js` in Mostlane/Test.
   `GOOGLE_MAPS_KEY`, `PORTAL_BRIDGE_SECRET`, and `FILE_SIGNING_SECRET` (used
   for map links).
 
+## ⚠️ THE QR CODE — must work at all times (confirmed 1 Nov 2026)
+Every printed site QR code holds **`https://mostlane.github.io/SiteLog/scan.html`**
+(decoded from Jamie's poster). The chain a scan follows:
+1. `mostlane.github.io/SiteLog/scan.html` → GitHub redirects to
+   **`site-log.co.uk/scan.html`** because of `docs/CNAME`.
+2. `scan.html` → `app.html` (keeps the query string).
+3. `app.html` talks to **`api2.site-log.co.uk`** (custom domain on mostlane-api).
+
+Breaking ANY link stops every sign-in. Never:
+- rename the `Mostlane/SiteLog` repo, make it private, move it to another
+  owner, or switch GitHub Pages off / away from `docs/`;
+- delete or edit `docs/CNAME`, or change site-log.co.uk's DNS;
+- rename or delete `docs/scan.html` or `docs/app.html`;
+- remove `api2.site-log.co.uk` from mostlane-api.
+`api.site-log.co.uk` is NOT in this chain (its removal on 1 Nov was safe).
+
 ## Pages in `docs/`
 - `app.html` — the scanner, where workers spend their time.
   - Screens: register, sign in, sign out, the dashboard, **My Hours**, Summary,

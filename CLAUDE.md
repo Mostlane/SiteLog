@@ -174,8 +174,23 @@ Do not edit it. Every backend change goes in `sitelog-api.js` in Mostlane/Test.
    5. Disable the old worker's route. Keep its code for a week as a rollback,
       then delete it.
 
-   Needs the Cloudflare connector (D1 read plus the worker list) authorised in
-   the session.
+   **Checks 1–3 done 1 Nov 2026 — nothing still uses the old host:**
+   - visits: the last one written by the old worker (`served_by` NULL) was
+     **16 Aug 2026 08:09**, the cutover day. Every visit since is mostlane-api.
+   - Every phone seen since 15 Oct (17 devices) appears in `scan_log`, which only
+     the new backend writes. `pending_events` (2 rows) were both written by the
+     new backend.
+   - Printed QR codes point at `site-log.co.uk/scan.html` (the front end), not
+     the API, so they are unaffected by the move.
+   - Code: the only live reference is the hostname dispatch in
+     `worker/src/index.js` (needed — it lets mostlane-api answer on api.*).
+     The rest are comments.
+   - Blind spot: a phone that opens an ancient cached page and only *reads*
+     (never signs in) leaves no trace in D1. Check the `sitelog-api` worker's
+     Metrics tab in the dashboard (requests, last 7 days) before step 4.
+   Steps 4–5 are dashboard-only (the connector can't edit custom domains).
+   Small bug found: offline sign-outs are applied correctly but the
+   `pending_events` row is left `resolved=0`.
 2. Move the Summary card onto `/my-timesheet` (or a range version of it).
 3. **One admin screen:** bring the useful parts of `admin.html` into portal
    sitelog.html, then retire the PIN page:
@@ -221,3 +236,4 @@ Do not edit it. Every backend change goes in `sitelog-api.js` in Mostlane/Test.
 - **1 Nov 2026** — **My Hours** in the app: the office's calculation, with
   failed scans shown. This file created. Portal fallbacks repointed
   from the old host to api2 (step 1.3).
+- **1 Nov 2026** — Old-host checks done (step 1.1–1.3): no use since 16 Aug.

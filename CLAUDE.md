@@ -299,3 +299,7 @@ Breaking ANY link stops every sign-in. Never:
 - **1 Nov 2026** — Portal Site Log admin rebuilt (Now/Logs/People/Settings). GitHub
   Pages deploys failed 09:11–09:33 with "in progress deployment" (a stuck earlier
   deploy blocks new ones); the live site stayed on the 09:05 build and worked.
+- **2 Nov 2026** — Portal Now tab: "On site right now" was always empty (asked /on-site with no site) — fixed;
+  each person shows ✓ location verified + 📍 map; new "Scanned, not confirmed" list (soft scans) with ✕ dismiss
+  and "Make it a sign-in / sign-out" (scan kept, marked; visit noted "confirmed by <name>"). Map tiles moved
+  to OpenStreetMap (CARTO now needs a key). Live hours "so far" for people still on site.

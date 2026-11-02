@@ -332,3 +332,4 @@ Breaking ANY link stops every sign-in. Never:
   tick (sign-ins at a site with one used to fail outright). SW `sitelog-v17`.
 - **2 Nov 2026** — Document cards hidden until signed in (were showing an empty My Documents box after a scan). SW `sitelog-v18`.
 - **2 Nov 2026** — Site tidy: 470 unused geofences archived; only Projects + ticked sites sync; site list admin-only; import-sites.json deleted.
+- **2 Nov 2026** — Portal Site Log gained a 🗺 Sites tab: map of every SiteLog site (pin + boundary circle), tap to rename / move / resize / set arrival messages / archive, or tap the map to add a new site (added to the portal register too).

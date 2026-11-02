@@ -1477,7 +1477,16 @@ var qrScanPending = (function () {
   } catch (e) { return false; }
 })();
 
-async function appScan(opts) {
+var appScanBusy = null;
+function appScan(opts) {
+  // One scan at a time: a second trigger while one is running waits for it instead of sending another.
+  if (appScanBusy) return appScanBusy;
+  appScanBusy = appScanRun(opts).finally(function () { appScanBusy = null; });
+  return appScanBusy;
+}
+var lastScanWasQr = false, signOutTapped = false;
+async function appScanRun(opts) {
+  signOutTapped = !!(opts && opts.signOut); // the person pressed Sign out — show the screen even without a QR scan
   // Real scan = the first one after a fresh QR open. Everything else (refresh, Refresh button,
   // coming back to the app, the 60-second check) is the app re-checking by itself.
   var auto = !!(opts && opts.auto) || !qrScanPending;
@@ -1489,6 +1498,7 @@ async function appScan(opts) {
   } catch(e) { showNetworkError("scan"); return; }
   if (!res.ok || !data || !data.status) { showNetworkError("scan", "Something went wrong reading your status. Please try again."); return; }
   if (!auto) qrScanPending = false; // the QR scan has been counted once — never again for this page
+  lastScanWasQr = !auto;
 
   if (data.status === "outside_site_signed_in") {
     // Signed in at a site but not inside its boundary now: sign-out must be
@@ -1545,7 +1555,8 @@ async function appScan(opts) {
     document.getElementById("appNotYouRow").style.display = "block";
     var storedCheckIn = await dbGet("last_checkin");
     dashSetState("in", currentSite, data.visitId, storedCheckIn || null);
-    openSignOutModal(data.visitId, currentSite, firstName);
+    // Only pop the "sign out?" screen straight after a real QR scan — never when the app re-checks by itself.
+    if (lastScanWasQr || signOutTapped) openSignOutModal(data.visitId, currentSite, firstName);
     return;
   }
 
@@ -1553,6 +1564,11 @@ async function appScan(opts) {
     document.getElementById("appNotYouRow").style.display = "block";
     pendingCheckinRules = data.siteRules || [];
     dashSetState("ready", currentSite, null, null);
+    if (!lastScanWasQr) {
+      // Signing in needs a physical scan of the site's QR code, not a refresh or reopening the app.
+      document.getElementById("dashBtnIn").style.display = "none";
+      document.getElementById("dashStatusLabel").textContent = "Scan the site QR code to sign in";
+    }
     return;
   }
 
@@ -2594,7 +2610,7 @@ async function loadHistoryList() {
 function dashTriggerScan() {
   if (dashCheckedIn) {
     navigator.geolocation.getCurrentPosition(
-      function(pos) { lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; dbSet("gps_granted", true); showMap(lastLocation.lat, lastLocation.lng); appScan(); },
+      function(pos) { lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; dbSet("gps_granted", true); showMap(lastLocation.lat, lastLocation.lng); appScan({ auto: true, signOut: true }); },
       function(err) { if (err.code === 1) { dbDel("gps_granted"); showScreen("screen-permission"); showPermissionError(err.code, err.message); } else { document.getElementById("appGpsError").style.display = "block"; } },
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );
@@ -2607,7 +2623,7 @@ function dashTriggerScan() {
 }
 function dashTriggerSignOut() {
   navigator.geolocation.getCurrentPosition(
-    function(pos) { lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; dbSet("gps_granted", true); appScan(); },
+    function(pos) { lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; dbSet("gps_granted", true); appScan({ auto: true, signOut: true }); },
     function(err) {
       // No location, no sign-out: every sign-out must be GPS-verified on site.
       if (err.code === 1) { dbDel("gps_granted"); showScreen("screen-permission"); showPermissionError(err.code, err.message); } else { document.getElementById("appGpsError").style.display = "block"; }

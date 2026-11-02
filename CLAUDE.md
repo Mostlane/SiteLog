@@ -103,7 +103,7 @@ Breaking ANY link stops every sign-in. Never:
 - `admin.html` — the OLD admin page, behind a shared 4-digit PIN. It is due to
   be merged into the portal page and retired.
 - `documents.html` and `sites.html` are standalone admin tools.
-- `sw.js` — the service worker. **Bump `CACHE` (currently `sitelog-v15`)
+- `sw.js` — the service worker. **Bump `CACHE` (currently `sitelog-v16`)
   whenever cached files change** so phones refresh.
 
 ## Rules that are already live (don't regress)
@@ -151,6 +151,10 @@ Breaking ANY link stops every sign-in. Never:
   the app, the 60-second check — sends `auto:true` and is logged as `kind='recheck'`, which
   never shows as a scan, soft scan, failed scan or timesheet event. Never remove the stamp
   from scan.html. Test: `test-sitelog-scanlog.mjs`.
+  - **Sign in needs that QR scan**: after a re-check the app shows the site but hides
+    Check In ("Scan the site QR code to sign in"). The "sign out?" pop-up opens only after a
+    QR scan; the Sign Out button still works any time (`appScan({auto:true, signOut:true})`).
+  - One scan request at a time (`appScanBusy`) — no more duplicate rows.
 - **My Hours** (the app's history).
   - `GET /my-timesheet?deviceToken=&week=` runs the same `loadPeriod` for one
     person, so a worker sees exactly the office's hours.
@@ -311,3 +315,5 @@ Breaking ANY link stops every sign-in. Never:
   to OpenStreetMap (CARTO now needs a key). Live hours "so far" for people still on site.
 - **2 Nov 2026** — App re-checks (refresh, reopen, 60 s timer) no longer count as scans: QR stamp in
   scan.html, `auto` flag to /scan, logged as `recheck`. SW `sitelog-v15`.
+- **2 Nov 2026** — Check In only after a real QR scan; no automatic sign-out pop-up on re-checks
+  (Sign Out button unchanged); duplicate scan requests stopped. SW `sitelog-v16`.

@@ -9,7 +9,10 @@
     // SiteLog now uses a single sign-in page (app.html) for everyone - workers
     // and visitors. This page only exists so older QR codes / bookmarks that
     // point at scan.html keep working. Preserve any query string and hash.
-    location.replace("app.html" + location.search + location.hash);
+    // qr=<time> marks this load as a real QR scan. app.html uses it once, then removes it,
+    // so a refresh, a reopened tab or the app re-checking never counts as a scan.
+    var q = location.search ? location.search + "&" : "?";
+    location.replace("app.html" + q + "qr=" + Date.now() + location.hash);
   </script>
   <style>
     body { font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif; background: #e6e8eb; color: #0f172a; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; text-align: center; padding: 24px; }

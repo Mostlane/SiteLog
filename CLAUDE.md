@@ -103,7 +103,7 @@ Breaking ANY link stops every sign-in. Never:
 - `admin.html` — the OLD admin page, behind a shared 4-digit PIN. It is due to
   be merged into the portal page and retired.
 - `documents.html` and `sites.html` are standalone admin tools.
-- `sw.js` — the service worker. **Bump `CACHE` (currently `sitelog-v14`)
+- `sw.js` — the service worker. **Bump `CACHE` (currently `sitelog-v15`)
   whenever cached files change** so phones refresh.
 
 ## Rules that are already live (don't regress)
@@ -145,6 +145,12 @@ Breaking ANY link stops every sign-in. Never:
     from 07:00.
   - Every event gets a signed 📍 map link.
   - Test: `test-sitelog-timesheets.mjs`.
+- **Only a real QR scan is a scan** (2 Nov 2026). `scan.html` adds `qr=<time>`; app.html uses
+  it once (strips it from the address, remembers it in `ml_qr_used`) and sends the first scan
+  after a fresh stamp as `auto:false`. Every other scan — refresh, Refresh button, reopening
+  the app, the 60-second check — sends `auto:true` and is logged as `kind='recheck'`, which
+  never shows as a scan, soft scan, failed scan or timesheet event. Never remove the stamp
+  from scan.html. Test: `test-sitelog-scanlog.mjs`.
 - **My Hours** (the app's history).
   - `GET /my-timesheet?deviceToken=&week=` runs the same `loadPeriod` for one
     person, so a worker sees exactly the office's hours.
@@ -303,3 +309,5 @@ Breaking ANY link stops every sign-in. Never:
   each person shows ✓ location verified + 📍 map; new "Scanned, not confirmed" list (soft scans) with ✕ dismiss
   and "Make it a sign-in / sign-out" (scan kept, marked; visit noted "confirmed by <name>"). Map tiles moved
   to OpenStreetMap (CARTO now needs a key). Live hours "so far" for people still on site.
+- **2 Nov 2026** — App re-checks (refresh, reopen, 60 s timer) no longer count as scans: QR stamp in
+  scan.html, `auto` flag to /scan, logged as `recheck`. SW `sitelog-v15`.

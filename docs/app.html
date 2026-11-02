@@ -1460,14 +1460,35 @@ async function submitUnmatchedCheckin() {
 }
 
 // SCAN
-async function appScan() {
+// ── Only a fresh QR scan counts as a scan ──
+// scan.html adds qr=<time> when the QR code opens SiteLog. It's read once here, then removed from
+// the address (and remembered as used), so refreshing or reopening the page can't trigger it again.
+var qrScanPending = (function () {
+  try {
+    var m = /[?&]qr=(\d{10,16})/.exec(location.search || "");
+    if (!m) return false;
+    var stamp = m[1], fresh = Math.abs(Date.now() - Number(stamp)) < 10 * 60000, used = false;
+    try { used = localStorage.getItem("ml_qr_used") === stamp; localStorage.setItem("ml_qr_used", stamp); } catch (e) {}
+    try {
+      var rest = (location.search || "").replace(/^\?/, "").split("&").filter(function (p) { return p && p.indexOf("qr=") !== 0; }).join("&");
+      history.replaceState(history.state, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+    } catch (e) {}
+    return fresh && !used;
+  } catch (e) { return false; }
+})();
+
+async function appScan(opts) {
+  // Real scan = the first one after a fresh QR open. Everything else (refresh, Refresh button,
+  // coming back to the app, the 60-second check) is the app re-checking by itself.
+  var auto = !!(opts && opts.auto) || !qrScanPending;
   if (!lastLocation) { showScreen("screen-scan"); showGpsErrorInScan(2, "We couldn't read your location. Tap Try Again."); return; }
   var res, data;
   try {
-    res  = await fetchWithTimeout(API + "/scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceToken: deviceToken, lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy }) });
+    res  = await fetchWithTimeout(API + "/scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceToken: deviceToken, lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy, auto: auto }) });
     data = await res.json();
   } catch(e) { showNetworkError("scan"); return; }
   if (!res.ok || !data || !data.status) { showNetworkError("scan", "Something went wrong reading your status. Please try again."); return; }
+  if (!auto) qrScanPending = false; // the QR scan has been counted once — never again for this page
 
   if (data.status === "outside_site_signed_in") {
     // Signed in at a site but not inside its boundary now: sign-out must be
@@ -2634,7 +2655,7 @@ setInterval(function() {
   if (awayMs < 55000) return; // only if we haven't scanned recently
   resetScanUI();
   navigator.geolocation.getCurrentPosition(
-    function(pos) { lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; showMap(lastLocation.lat, lastLocation.lng); appScan(); },
+    function(pos) { lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; showMap(lastLocation.lat, lastLocation.lng); appScan({ auto: true }); },
     function(err) { if (err.code === 1) { dbDel("gps_granted"); showScreen("screen-permission"); showPermissionError(err.code, err.message); } else { showGpsErrorInScan(err.code, err.message); } },
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
   );
@@ -2667,7 +2688,7 @@ document.addEventListener("visibilitychange", function() {
   if (document.getElementById("modalSignIn").classList.contains("open")) return;
   resetScanUI();
   navigator.geolocation.getCurrentPosition(
-    function(pos) { lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; showMap(lastLocation.lat, lastLocation.lng); appScan(); },
+    function(pos) { lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; showMap(lastLocation.lat, lastLocation.lng); appScan({ auto: true }); },
     function(err) { if (err.code === 1) { dbDel("gps_granted"); showScreen("screen-permission"); showPermissionError(err.code, err.message); } else { showGpsErrorInScan(err.code, err.message); } },
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
   );
@@ -2678,7 +2699,7 @@ window.addEventListener("pageshow", function(e) {
   if (scanScreen && scanScreen.classList.contains("active")) {
     resetScanUI();
     navigator.geolocation.getCurrentPosition(
-      function(pos) { lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; showMap(lastLocation.lat, lastLocation.lng); appScan(); },
+      function(pos) { lastLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; showMap(lastLocation.lat, lastLocation.lng); appScan({ auto: true }); },
       function(err) { if (err.code === 1) { dbDel("gps_granted"); showScreen("screen-permission"); showPermissionError(err.code, err.message); } else { showGpsErrorInScan(err.code, err.message); } },
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );

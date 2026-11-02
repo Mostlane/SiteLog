@@ -103,7 +103,7 @@ Breaking ANY link stops every sign-in. Never:
 - `admin.html` — the OLD admin page, behind a shared 4-digit PIN. It is due to
   be merged into the portal page and retired.
 - `documents.html` and `sites.html` are standalone admin tools.
-- `sw.js` — the service worker. **Bump `CACHE` (currently `sitelog-v16`)
+- `sw.js` — the service worker. **Bump `CACHE` (currently `sitelog-v17`)
   whenever cached files change** so phones refresh.
 
 ## Rules that are already live (don't regress)
@@ -155,6 +155,12 @@ Breaking ANY link stops every sign-in. Never:
     Check In ("Scan the site QR code to sign in"). The "sign out?" pop-up opens only after a
     QR scan; the Sign Out button still works any time (`appScan({auto:true, signOut:true})`).
   - One scan request at a time (`appScanBusy`) — no more duplicate rows.
+- **Must-read documents at sign-in** (2 Nov 2026). A site document marked must read
+  (`require_ack=1`) is listed inside the Confirm Check In sheet (`#mustReadWrap`, from the
+  scan's `mustAck`, or from a 409 `must_acknowledge` reply). Each has Open + an "I have read
+  and understood" tick; Check In stays disabled until all are ticked, then each is POSTed to
+  `/site-documents/ack` before `/confirm-checkin`. Before this the app had no handling at
+  all, so the server's gate made every sign-in at such a site fail.
 - **My Hours** (the app's history).
   - `GET /my-timesheet?deviceToken=&week=` runs the same `loadPeriod` for one
     person, so a worker sees exactly the office's hours.
@@ -317,3 +323,5 @@ Breaking ANY link stops every sign-in. Never:
   scan.html, `auto` flag to /scan, logged as `recheck`. SW `sitelog-v15`.
 - **2 Nov 2026** — Check In only after a real QR scan; no automatic sign-out pop-up on re-checks
   (Sign Out button unchanged); duplicate scan requests stopped. SW `sitelog-v16`.
+- **2 Nov 2026** — Must-read documents shown in the sign-in sheet with a read-and-understood
+  tick (sign-ins at a site with one used to fail outright). SW `sitelog-v17`.

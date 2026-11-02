@@ -146,6 +146,16 @@
 .modal-sheet { background: #fff; width: 100%; max-width: 520px; border-radius: 24px 24px 0 0; padding: 24px 20px calc(20px + var(--safe-bot)); text-align: center; }
 .modal-handle { width: 36px; height: 4px; background: #e2e8f0; border-radius: 2px; margin: 0 auto 20px; }
 .modal-title { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+.mread-wrap { text-align:left; background:#fff7e6; border:1px solid #f5c26b; border-radius:14px; padding:12px; margin:0 0 16px; }
+.mread-title { font-size:14px; font-weight:700; color:#8a5a00; margin-bottom:4px; }
+.mread-sub { font-size:12px; color:#8a5a00; margin-bottom:10px; }
+.mread-item { background:#fff; border-radius:10px; padding:10px; margin-bottom:8px; border:1px solid #f0e0c0; }
+.mread-name { font-size:14px; font-weight:600; color:var(--text); margin-bottom:8px; word-break:break-word; }
+.mread-row { display:flex; gap:10px; align-items:center; }
+.mread-view { flex-shrink:0; border:none; background:#003468; color:#fff; border-radius:8px; padding:8px 12px; font-size:13px; font-weight:600; }
+.mread-tick { display:flex; gap:8px; align-items:center; font-size:13px; color:var(--text); }
+.mread-tick input { width:22px; height:22px; flex-shrink:0; }
+.modal-btn:disabled { opacity:.45; }
 .modal-body { font-size: 14px; color: var(--muted); margin-bottom: 22px; line-height: 1.5; }
 .modal-btn { display: block; width: 100%; padding: 15px; border: none; border-radius: 14px; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 10px; }
 .modal-btn.primary   { background: var(--blue); color: #fff; }
@@ -724,10 +734,15 @@ text-align: center;
 <!-- CONFIRM CHECK IN -->
 
 <div class="modal-overlay" id="modalSignIn">
-  <div class="modal-sheet">
+  <div class="modal-sheet" style="max-height:90vh;max-height:90dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;">
     <div class="modal-handle"></div>
     <div class="modal-title">Confirm Check In</div>
     <div class="modal-body" id="modalSignInText">I am aware of the site rules and will report to the site foreman.</div>
+    <div id="mustReadWrap" class="mread-wrap" style="display:none;">
+      <div class="mread-title">&#9888;&#65039; Please read before you sign in</div>
+      <div class="mread-sub">Open each document, then tick to confirm you have read and understood it.</div>
+      <div id="mustReadList"></div>
+    </div>
     <div id="rulesToggleWrap" style="display:none;">
       <div class="rules-toggle" onclick="toggleSiteRules()">
         <span class="rules-toggle-label">&#128216; View site rules</span>
@@ -737,7 +752,7 @@ text-align: center;
         <ul id="rulesListItems"></ul>
       </div>
     </div>
-    <button class="modal-btn primary"   onclick="appConfirmSignInYes()">Yes, Check Me In</button>
+    <button class="modal-btn primary" id="signInYesBtn" onclick="appConfirmSignInYes()">Yes, Check Me In</button>
     <button class="modal-btn secondary" onclick="appConfirmSignInNo()">No</button>
   </div>
 </div>
@@ -924,6 +939,7 @@ var pendingCheckinSite  = "";
 var pendingCheckinFirst = "";
 var pendingCheckinCo    = "";
 var pendingCheckinRules = [];
+var pendingMustAck = [];
 // The two arrival rule sets for the current site, from the last /scan first_visit
 // response — the register form shows whichever matches the chosen purpose.
 var arrivalRules = { contractor: [], visitor: [] };
@@ -1397,6 +1413,7 @@ function openSignInModal(siteName, firstName, company) {
   } else {
     wrap.style.display = "none";
   }
+  renderMustRead();
   // Always start collapsed
   list.classList.remove("open");
   arrow.classList.remove("open");
@@ -1404,16 +1421,75 @@ function openSignInModal(siteName, firstName, company) {
 }
 function closeSignInModal() {
   document.getElementById("modalSignIn").classList.remove("open");
-  pendingCheckinSite = ""; pendingCheckinFirst = ""; pendingCheckinCo = ""; pendingCheckinRules = [];
+  pendingCheckinSite = ""; pendingCheckinFirst = ""; pendingCheckinCo = ""; pendingCheckinRules = []; pendingMustAck = [];
+  var yb = document.getElementById("signInYesBtn"); if (yb) yb.disabled = false;
+}
+// Compulsory ("must read") site documents shown inside the sign-in sheet. The
+// server refuses the check-in (409 must_acknowledge) until each is acknowledged.
+function docTypeFromName(n) {
+  n = String(n || "").toLowerCase();
+  if (/\.pdf$/.test(n)) return "application/pdf";
+  if (/\.(png|jpe?g|gif|webp)$/.test(n)) return "image/" + n.split(".").pop().replace("jpg", "jpeg");
+  return "";
+}
+function renderMustRead() {
+  var wrap = document.getElementById("mustReadWrap");
+  var list = document.getElementById("mustReadList");
+  var docs = pendingMustAck || [];
+  if (!docs.length) { wrap.style.display = "none"; list.innerHTML = ""; updateSignInYes(); return; }
+  docs.forEach(function (d) {
+    if (!d.content_type) d.content_type = docTypeFromName(d.file_name);
+    siteDocsById[String(d.id)] = d;
+  });
+  list.innerHTML = docs.map(function (d) {
+    var id = String(d.id).replace(/'/g, "\\'");
+    var eid = escapeHtml(String(d.id));
+    return '<div class="mread-item"><div class="mread-name">&#128196; ' + escapeHtml(d.title || d.file_name || "Document") + '</div>' +
+      '<div class="mread-row"><button type="button" class="mread-view" onclick="viewSiteDoc(\'' + id + '\',false)">Open</button>' +
+      '<label class="mread-tick"><input type="checkbox" class="mread-cb" data-id="' + eid + '" onchange="updateSignInYes()"> I have read and understood this</label></div></div>';
+  }).join("");
+  wrap.style.display = "block";
+  updateSignInYes();
+}
+function updateSignInYes() {
+  var btn = document.getElementById("signInYesBtn");
+  var cbs = document.querySelectorAll("#mustReadList .mread-cb");
+  var all = true;
+  for (var i = 0; i < cbs.length; i++) if (!cbs[i].checked) all = false;
+  btn.disabled = !all;
+}
+async function ackMustRead() {
+  var cbs = document.querySelectorAll("#mustReadList .mread-cb");
+  for (var i = 0; i < cbs.length; i++) {
+    if (!cbs[i].checked) return false;
+    var r = await fetchWithTimeout(API + "/site-documents/ack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceToken: deviceToken, id: cbs[i].getAttribute("data-id") }) });
+    if (!r.ok) throw new Error("ack failed");
+  }
+  return true;
 }
 async function appConfirmSignInYes() {
   if (!lastLocation) { closeSignInModal(); showScreen("screen-scan"); showGpsErrorInScan(2, "We lost your location. Tap Try Again to refresh it, then check in."); return; }
   var res, data;
+  var yesBtn = document.getElementById("signInYesBtn");
+  if (yesBtn.disabled) return;
+  if ((pendingMustAck || []).length) {
+    try {
+      yesBtn.disabled = true;
+      if (!(await ackMustRead())) { updateSignInYes(); return; }
+    } catch (e) { console.error("mustread", e); updateSignInYes(); alert("Couldn't record that you've read the document. Check your signal and try again."); return; }
+    pendingMustAck = [];
+  }
   try {
     res  = await fetchWithTimeout(API + "/confirm-checkin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceToken: deviceToken, lat: lastLocation.lat, lng: lastLocation.lng, accuracy: lastLocation.accuracy, site: pendingCheckinSite }) });
     data = await res.json();
   } catch(e) { showNetworkError("checkin"); return; }
-  if (!res.ok || !data.ok) { alert(data.error || "Failed to check in."); return; }
+  if (data && data.status === "must_acknowledge") {
+    // A must-read document was added since the scan — show it and wait for the ticks.
+    pendingMustAck = data.documents || [];
+    renderMustRead();
+    return;
+  }
+  if (!res.ok || !data.ok) { updateSignInYes(); alert(data.error || "Failed to check in."); return; }
   var firstName = data.firstName || pendingCheckinFirst || "";
   var company   = data.company   || pendingCheckinCo    || "";
   var siteName  = data.site      || pendingCheckinSite  || currentSite;
@@ -1563,6 +1639,7 @@ async function appScanRun(opts) {
   if (data.status === "confirm_check_in") {
     document.getElementById("appNotYouRow").style.display = "block";
     pendingCheckinRules = data.siteRules || [];
+    pendingMustAck = data.mustAck || [];
     dashSetState("ready", currentSite, null, null);
     if (!lastScanWasQr) {
       // Signing in needs a physical scan of the site's QR code, not a refresh or reopening the app.

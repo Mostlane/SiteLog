@@ -103,7 +103,7 @@ Breaking ANY link stops every sign-in. Never:
 - `admin.html` — the OLD admin page, behind a shared 4-digit PIN. It is due to
   be merged into the portal page and retired.
 - `documents.html` and `sites.html` are standalone admin tools.
-- `sw.js` — the service worker. **Bump `CACHE` (currently `sitelog-v17`)
+- `sw.js` — the service worker. **Bump `CACHE` (currently `sitelog-v18`)
   whenever cached files change** so phones refresh.
 
 ## Rules that are already live (don't regress)
@@ -161,6 +161,8 @@ Breaking ANY link stops every sign-in. Never:
   and understood" tick; Check In stays disabled until all are ticked, then each is POSTed to
   `/site-documents/ack` before `/confirm-checkin`. Before this the app had no handling at
   all, so the server's gate made every sign-in at such a site fail.
+  Before sign-in ("Site found") no document cards are shown at all — My Documents and Site
+  Documents appear only once signed in.
 - **My Hours** (the app's history).
   - `GET /my-timesheet?deviceToken=&week=` runs the same `loadPeriod` for one
     person, so a worker sees exactly the office's hours.
@@ -325,3 +327,4 @@ Breaking ANY link stops every sign-in. Never:
   (Sign Out button unchanged); duplicate scan requests stopped. SW `sitelog-v16`.
 - **2 Nov 2026** — Must-read documents shown in the sign-in sheet with a read-and-understood
   tick (sign-ins at a site with one used to fail outright). SW `sitelog-v17`.
+- **2 Nov 2026** — Document cards hidden until signed in (were showing an empty My Documents box after a scan). SW `sitelog-v18`.

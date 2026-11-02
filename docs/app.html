@@ -2008,8 +2008,9 @@ function dashSetState(state, siteName, visitId, checkInTime) {
     dashCurrentSite      = siteName;
     if (onSiteSub) onSiteSub.textContent = siteName || "View";
     loadOnSiteCount(siteName);
-    loadMyDocuments(siteName);
-    loadSiteDocuments(siteName);
+    // Documents only once signed in (must-read ones are shown in the Check In box).
+    var _rdc = document.getElementById("dashDocsCard"); if (_rdc) _rdc.style.display = "none";
+    var _rsdc = document.getElementById("siteDocsCard"); if (_rsdc) _rsdc.style.display = "none";
   } else {
     dot.classList.add("unknown");
     label.textContent = "Not on site";

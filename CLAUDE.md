@@ -169,6 +169,10 @@ Breaking ANY link stops every sign-in. Never:
   - It shows ✓/✗ location checks, state labels and the week's failed scans.
   - No coordinates or ids are sent to the phone.
   - The old client-side list (`loadHistoryListOld`) is kept only as a fallback.
+- **SiteLog holds only QR sites** (2 Nov 2026). Only Projects and portal sites ticked "Use for
+  SiteLog sign-ins" are pushed to SiteLog (`sites.js siteLogEligible`). 470 unused sites were
+  archived (list in sitelog-db `sites_tidy_20261102`); the portal Sites list is the full record.
+  `GET /sites` is admin-only (needs `x-admin-secret`). `docs/import-sites.json` was deleted.
 - **Admin access in the portal.** The `SiteLogAdmin` permission (or Full
   Access) opens sitelog.html. It is separate from `SiteLog`, which only
   launches the scanner.
@@ -262,8 +266,7 @@ Breaking ANY link stops every sign-in. Never:
    - **Pay rates/travel allowances are Full Access only** — enforced in the
      portal proxy (`routes/sitelog.js`), not just hidden.
    - After retiring admin.html: **replace the 4-digit PIN** with a long random
-     `SITELOG_ADMIN_SECRET` (approved), and delete `docs/import-sites.json`
-     (customer site list in a public repo).
+     `SITELOG_ADMIN_SECRET` (approved). (`docs/import-sites.json` deleted 2 Nov.)
    Original list:
    - people and devices;
    - merge and transfer requests;
@@ -328,3 +331,4 @@ Breaking ANY link stops every sign-in. Never:
 - **2 Nov 2026** — Must-read documents shown in the sign-in sheet with a read-and-understood
   tick (sign-ins at a site with one used to fail outright). SW `sitelog-v17`.
 - **2 Nov 2026** — Document cards hidden until signed in (were showing an empty My Documents box after a scan). SW `sitelog-v18`.
+- **2 Nov 2026** — Site tidy: 470 unused geofences archived; only Projects + ticked sites sync; site list admin-only; import-sites.json deleted.

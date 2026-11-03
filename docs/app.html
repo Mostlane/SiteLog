@@ -1539,19 +1539,36 @@ async function submitUnmatchedCheckin() {
 // ── Only a fresh QR scan counts as a scan ──
 // scan.html adds qr=<time> when the QR code opens SiteLog. It's read once here, then removed from
 // the address (and remembered as used), so refreshing or reopening the page can't trigger it again.
+// If the scan fails before it reaches us (location blocked, no signal, Try Again, a refresh) the QR
+// open stays good for 10 minutes on this phone, so the retry still counts as the QR scan.
+var QR_WINDOW = 10 * 60000;
+function qrPendingStamp() {
+  try {
+    var p = localStorage.getItem("ml_qr_pending");
+    if (!p) return null;
+    if (Math.abs(Date.now() - Number(p)) >= QR_WINDOW || localStorage.getItem("ml_qr_used") === p) { localStorage.removeItem("ml_qr_pending"); return null; }
+    return p;
+  } catch (e) { return null; }
+}
 var qrScanPending = (function () {
   try {
     var m = /[?&]qr=(\d{10,16})/.exec(location.search || "");
-    if (!m) return false;
-    var stamp = m[1], fresh = Math.abs(Date.now() - Number(stamp)) < 10 * 60000, used = false;
-    try { used = localStorage.getItem("ml_qr_used") === stamp; localStorage.setItem("ml_qr_used", stamp); } catch (e) {}
-    try {
-      var rest = (location.search || "").replace(/^\?/, "").split("&").filter(function (p) { return p && p.indexOf("qr=") !== 0; }).join("&");
-      history.replaceState(history.state, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
-    } catch (e) {}
-    return fresh && !used;
+    if (m) {
+      var stamp = m[1], fresh = Math.abs(Date.now() - Number(stamp)) < QR_WINDOW, used = false;
+      try { used = localStorage.getItem("ml_qr_used") === stamp; if (fresh && !used) localStorage.setItem("ml_qr_pending", stamp); } catch (e) {}
+      try {
+        var rest = (location.search || "").replace(/^\?/, "").split("&").filter(function (p) { return p && p.indexOf("qr=") !== 0; }).join("&");
+        history.replaceState(history.state, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+      } catch (e) {}
+      if (fresh && !used) return true;
+    }
+    return !!qrPendingStamp();
   } catch (e) { return false; }
 })();
+function qrScanCounted() {
+  qrScanPending = false;
+  try { var p = localStorage.getItem("ml_qr_pending"); if (p) localStorage.setItem("ml_qr_used", p); localStorage.removeItem("ml_qr_pending"); } catch (e) {}
+}
 
 var appScanBusy = null;
 function appScan(opts) {
@@ -1565,7 +1582,10 @@ async function appScanRun(opts) {
   signOutTapped = !!(opts && opts.signOut); // the person pressed Sign out — show the screen even without a QR scan
   // Real scan = the first one after a fresh QR open. Everything else (refresh, Refresh button,
   // coming back to the app, the 60-second check) is the app re-checking by itself.
-  var auto = !!(opts && opts.auto) || !qrScanPending;
+  if (!qrScanPending && qrPendingStamp()) qrScanPending = true;
+  // Within 10 minutes of a QR open on this phone, the first scan that gets through counts as that
+  // QR scan — even a re-check after the person turned location on. Used once.
+  var auto = !qrScanPending;
   if (!lastLocation) { showScreen("screen-scan"); showGpsErrorInScan(2, "We couldn't read your location. Tap Try Again."); return; }
   var res, data;
   try {
@@ -1573,7 +1593,7 @@ async function appScanRun(opts) {
     data = await res.json();
   } catch(e) { showNetworkError("scan"); return; }
   if (!res.ok || !data || !data.status) { showNetworkError("scan", "Something went wrong reading your status. Please try again."); return; }
-  if (!auto) qrScanPending = false; // the QR scan has been counted once — never again for this page
+  if (!auto) qrScanCounted(); // the QR scan has been counted once — never again
   lastScanWasQr = !auto;
 
   if (data.status === "outside_site_signed_in") {

@@ -103,7 +103,7 @@ Breaking ANY link stops every sign-in. Never:
 - `admin.html` — the OLD admin page, behind a shared 4-digit PIN. It is due to
   be merged into the portal page and retired.
 - `documents.html` and `sites.html` are standalone admin tools.
-- `sw.js` — the service worker. **Bump `CACHE` (currently `sitelog-v18`)
+- `sw.js` — the service worker. **Bump `CACHE` (currently `sitelog-v19`)
   whenever cached files change** so phones refresh.
 
 ## Rules that are already live (don't regress)
@@ -150,7 +150,9 @@ Breaking ANY link stops every sign-in. Never:
   after a fresh stamp as `auto:false`. Every other scan — refresh, Refresh button, reopening
   the app, the 60-second check — sends `auto:true` and is logged as `kind='recheck'`, which
   never shows as a scan, soft scan, failed scan or timesheet event. Never remove the stamp
-  from scan.html. Test: `test-sitelog-scanlog.mjs`.
+  from scan.html. The QR open stays valid on that phone for **10 minutes** (`ml_qr_pending`) until a
+  scan gets through, so a QR open that fails on location (blocked/denied) followed by a retry or
+  re-check after turning location on still counts — used once (`ml_qr_used`). Test: `test-sitelog-scanlog.mjs`.
   - **Sign in needs that QR scan**: after a re-check the app shows the site but hides
     Check In ("Scan the site QR code to sign in"). The "sign out?" pop-up opens only after a
     QR scan; the Sign Out button still works any time (`appScan({auto:true, signOut:true})`).
@@ -330,6 +332,7 @@ Breaking ANY link stops every sign-in. Never:
   (Sign Out button unchanged); duplicate scan requests stopped. SW `sitelog-v16`.
 - **2 Nov 2026** — Must-read documents shown in the sign-in sheet with a read-and-understood
   tick (sign-ins at a site with one used to fail outright). SW `sitelog-v17`.
-- **2 Nov 2026** — Document cards hidden until signed in (were showing an empty My Documents box after a scan). SW `sitelog-v18`.
+- **2 Nov 2026** — Document cards hidden until signed in (were showing an empty My Documents box after a scan). SW `sitelog-v19`.
 - **2 Nov 2026** — Site tidy: 470 unused geofences archived; only Projects + ticked sites sync; site list admin-only; import-sites.json deleted.
 - **2 Nov 2026** — Portal Site Log gained a 🗺 Sites tab: map of every SiteLog site (pin + boundary circle), tap to rename / move / resize / set arrival messages / archive, or tap the map to add a new site (added to the portal register too).
+- **3 Nov 2026** — Koyes couldn't sign in: his QR opens had location denied, and the re-checks that did get location weren't allowed to show Check In. A QR open now stays good for 10 min until a scan gets through. SW `sitelog-v19`.

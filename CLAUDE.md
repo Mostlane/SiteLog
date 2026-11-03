@@ -332,7 +332,7 @@ Breaking ANY link stops every sign-in. Never:
   (Sign Out button unchanged); duplicate scan requests stopped. SW `sitelog-v16`.
 - **2 Nov 2026** — Must-read documents shown in the sign-in sheet with a read-and-understood
   tick (sign-ins at a site with one used to fail outright). SW `sitelog-v17`.
-- **2 Nov 2026** — Document cards hidden until signed in (were showing an empty My Documents box after a scan). SW `sitelog-v19`.
+- **2 Nov 2026** — Document cards hidden until signed in (were showing an empty My Documents box after a scan). SW `sitelog-v18`.
 - **2 Nov 2026** — Site tidy: 470 unused geofences archived; only Projects + ticked sites sync; site list admin-only; import-sites.json deleted.
 - **2 Nov 2026** — Portal Site Log gained a 🗺 Sites tab: map of every SiteLog site (pin + boundary circle), tap to rename / move / resize / set arrival messages / archive, or tap the map to add a new site (added to the portal register too).
 - **3 Nov 2026** — Koyes couldn't sign in: his QR opens had location denied, and the re-checks that did get location weren't allowed to show Check In. A QR open now stays good for 10 min until a scan gets through. SW `sitelog-v19`.
